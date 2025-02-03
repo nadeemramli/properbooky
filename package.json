@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
-    "supabase:types": "supabase gen types typescript --local > lib/database.types.ts"
+    "supabase:types": "supabase gen types typescript --project-id weyclyuthdbqyjdeelzb > lib/database.types.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -46,6 +46,7 @@
     "@types/react": "18.2.22",
     "@types/react-dom": "18.2.7",
     "autoprefixer": "10.4.15",
+    "bufferutil": "^4.0.8",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
@@ -69,15 +70,17 @@
     "tailwindcss": "3.3.3",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "5.2.2",
+    "utf-8-validate": "^6.0.3",
     "vaul": "^0.9.9",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.1.4",
     "@testing-library/react": "^14.0.0",
-    "@types/jest": "^29.5.5",
+    "@types/jest": "^29.5.14",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
-    "supabase": "^1.115.4"
+    "supabase": "^1.226.4",
+    "ts-jest": "^29.2.5"
   }
 }
