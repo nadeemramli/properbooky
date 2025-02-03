@@ -6,10 +6,56 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type Database = {
+export interface Database {
   public: {
     Tables: {
-      [_ in never]: never
+      books: {
+        Row: {
+          id: string
+          title: string
+          author: string | null
+          cover_url: string | null
+          file_url: string
+          format: 'epub' | 'pdf'
+          status: 'unread' | 'reading' | 'completed'
+          progress: number | null
+          created_at: string
+          updated_at: string
+          last_read: string | null
+          user_id: string
+          metadata: Json | null
+        }
+        Insert: {
+          id?: string
+          title: string
+          author?: string | null
+          cover_url?: string | null
+          file_url: string
+          format: 'epub' | 'pdf'
+          status?: 'unread' | 'reading' | 'completed'
+          progress?: number | null
+          created_at?: string
+          updated_at?: string
+          last_read?: string | null
+          user_id: string
+          metadata?: Json | null
+        }
+        Update: {
+          id?: string
+          title?: string
+          author?: string | null
+          cover_url?: string | null
+          file_url?: string
+          format?: 'epub' | 'pdf'
+          status?: 'unread' | 'reading' | 'completed'
+          progress?: number | null
+          created_at?: string
+          updated_at?: string
+          last_read?: string | null
+          user_id?: string
+          metadata?: Json | null
+        }
+      }
     }
     Views: {
       [_ in never]: never
