@@ -22,33 +22,7 @@ import {
   Type,
   User,
 } from "lucide-react";
-
-interface Book {
-  id: string;
-  title: string;
-  cover_url: string;
-  format: "epub" | "pdf";
-  status: "unread" | "reading" | "completed";
-  progress?: number;
-  author?: string;
-  added_date?: string;
-  last_read?: string;
-  metadata?: {
-    publisher?: string;
-    published_date?: string;
-    language?: string;
-    pages?: number;
-    isbn?: string;
-    description?: string;
-  };
-  highlights?: Array<{
-    id: string;
-    content: string;
-    page: number;
-    created_at: string;
-    tags?: string[];
-  }>;
-}
+import { Book } from "@/types/book";
 
 interface BookProfileDialogProps {
   book: Book | null;
