@@ -151,7 +151,8 @@ export function BookGrid({ searchQuery }: BookGridProps) {
       {selectedBook && (
         <BookProfileDialog
           book={selectedBook}
-          onClose={() => setSelectedBook(null)}
+          open={!!selectedBook}
+          onOpenChange={(open) => !open && setSelectedBook(null)}
         />
       )}
     </div>
