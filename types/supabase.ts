@@ -25,4 +25,12 @@ export type DbResult<T> = PostgrestResponse<T>;
 // Helper type for table rows
 export type TableRow<T extends keyof Tables> = Tables[T]['Row'];
 export type TableInsert<T extends keyof Tables> = Tables[T]['Insert'];
-export type TableUpdate<T extends keyof Tables> = Tables[T]['Update']; 
+export type TableUpdate<T extends keyof Tables> = Tables[T]['Update'];
+
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]

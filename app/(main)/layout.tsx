@@ -11,10 +11,12 @@ export default function MainLayout({
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+  const toggleSidebar = () => setIsCollapsed(!isCollapsed);
+
   return (
     <ProtectedRoute>
       <div className="flex h-screen">
-        <Sidebar isCollapsed={isCollapsed} />
+        <Sidebar isCollapsed={isCollapsed} onToggle={toggleSidebar} />
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </ProtectedRoute>

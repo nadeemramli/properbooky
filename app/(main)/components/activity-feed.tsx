@@ -3,91 +3,99 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Book, BookOpen, Bookmark, Tag } from "lucide-react";
+import { useEffect, useState } from "react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
-type Activity = {
+interface Activity {
   id: string;
   type: "started" | "finished" | "highlight" | "tagged";
-  book: string;
+  book_id: string;
+  book_title: string;
   timestamp: string;
   details?: string;
-};
-
-const activities: Activity[] = [
-  {
-    id: "1",
-    type: "started",
-    book: "The Pragmatic Programmer",
-    timestamp: "2 hours ago",
-  },
-  {
-    id: "2",
-    type: "highlight",
-    book: "Clean Code",
-    timestamp: "4 hours ago",
-    details: "Added 3 highlights in Chapter 5: Form",
-  },
-  {
-    id: "3",
-    type: "tagged",
-    book: "Design Patterns",
-    timestamp: "Yesterday",
-    details: "Added tags: programming, reference",
-  },
-  {
-    id: "4",
-    type: "finished",
-    book: "Zero to One",
-    timestamp: "2 days ago",
-  },
-];
-
-function ActivityIcon({ type }: { type: Activity["type"] }) {
-  switch (type) {
-    case "started":
-      return <BookOpen className="h-4 w-4" />;
-    case "finished":
-      return <Book className="h-4 w-4" />;
-    case "highlight":
-      return <Bookmark className="h-4 w-4" />;
-    case "tagged":
-      return <Tag className="h-4 w-4" />;
-  }
+  user_id: string;
 }
 
 export function ActivityFeed() {
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClientComponentClient();
+
+  useEffect(() => {
+    async function fetchActivities() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from("reading_activities")
+          .select(
+            `
+            *,
+            books (
+              title
+            )
+          `
+          )
+          .eq("user_id", user.id)
+          .order("timestamp", { ascending: false })
+          .limit(10);
+
+        if (error) throw error;
+
+        const formattedActivities = data.map((activity) => ({
+          ...activity,
+          book_title: activity.books.title,
+        }));
+
+        setActivities(formattedActivities);
+      } catch (error) {
+        console.error("Error fetching activities:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchActivities();
+  }, [supabase]);
+
+  function ActivityIcon({ type }: { type: Activity["type"] }) {
+    switch (type) {
+      case "started":
+        return <BookOpen className="h-4 w-4" />;
+      case "finished":
+        return <Book className="h-4 w-4" />;
+      case "highlight":
+        return <Bookmark className="h-4 w-4" />;
+      case "tagged":
+        return <Tag className="h-4 w-4" />;
+    }
+  }
+
+  if (loading) {
+    return <div>Loading activity feed...</div>;
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Recent Activity</CardTitle>
+        <CardTitle>Activity Feed</CardTitle>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[400px] pr-4">
+        <ScrollArea className="h-[300px]">
           <div className="space-y-4">
             {activities.map((activity) => (
-              <div
-                key={activity.id}
-                className="flex items-start space-x-4 rounded-lg border p-3"
-              >
-                <div className="mt-1">
-                  <ActivityIcon type={activity.type} />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium leading-none">
-                    {activity.book}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {activity.type === "started" && "Started reading"}
-                    {activity.type === "finished" && "Finished reading"}
-                    {activity.type === "highlight" && "Added highlights"}
-                    {activity.type === "tagged" && "Updated tags"}
-                  </p>
+              <div key={activity.id} className="flex items-start gap-4 text-sm">
+                <ActivityIcon type={activity.type} />
+                <div className="grid gap-1">
+                  <p className="font-medium">{activity.book_title}</p>
                   {activity.details && (
-                    <p className="text-sm text-muted-foreground">
-                      {activity.details}
-                    </p>
+                    <p className="text-muted-foreground">{activity.details}</p>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    {activity.timestamp}
+                    {new Date(activity.timestamp).toLocaleString()}
                   </p>
                 </div>
               </div>

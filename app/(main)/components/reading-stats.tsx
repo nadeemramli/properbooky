@@ -11,25 +11,66 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from "recharts";
+import { useEffect, useState } from "react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
-const weeklyData = [
-  { name: "Mon", pages: 45 },
-  { name: "Tue", pages: 52 },
-  { name: "Wed", pages: 38 },
-  { name: "Thu", pages: 65 },
-  { name: "Fri", pages: 48 },
-  { name: "Sat", pages: 91 },
-  { name: "Sun", pages: 73 },
-];
+interface ReadingData {
+  name: string;
+  pages: number;
+}
 
-const monthlyData = [
-  { name: "Week 1", pages: 320 },
-  { name: "Week 2", pages: 285 },
-  { name: "Week 3", pages: 412 },
-  { name: "Week 4", pages: 380 },
-];
+interface ReadingMetrics {
+  pagesRead: number;
+  readingTime: number;
+  booksCompleted: number;
+  dailyAverage: number;
+  weeklyData: ReadingData[];
+  monthlyData: ReadingData[];
+  weeklyChange: number;
+}
 
 export function ReadingStats() {
+  const [metrics, setMetrics] = useState<ReadingMetrics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClientComponentClient();
+
+  useEffect(() => {
+    async function fetchReadingStats() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Fetch reading statistics from your database
+        const { data: readingStats, error } = await supabase
+          .from("reading_statistics")
+          .select("*")
+          .eq("user_id", user.id)
+          .single();
+
+        if (error) throw error;
+
+        // Transform the data as needed
+        setMetrics(readingStats);
+      } catch (error) {
+        console.error("Error fetching reading stats:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchReadingStats();
+  }, [supabase]);
+
+  if (loading) {
+    return <div>Loading statistics...</div>;
+  }
+
+  if (!metrics) {
+    return <div>No reading statistics available.</div>;
+  }
+
   return (
     <Card className="col-span-2">
       <CardHeader>
@@ -50,9 +91,10 @@ export function ReadingStats() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">412</div>
+                  <div className="text-2xl font-bold">{metrics.pagesRead}</div>
                   <p className="text-xs text-muted-foreground">
-                    +20.1% from last week
+                    {metrics.weeklyChange > 0 ? "+" : ""}
+                    {metrics.weeklyChange}% from last week
                   </p>
                 </CardContent>
               </Card>
@@ -63,9 +105,11 @@ export function ReadingStats() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">6.2h</div>
+                  <div className="text-2xl font-bold">
+                    {(metrics.readingTime / 60).toFixed(1)}h
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    +15% from last week
+                    hours this week
                   </p>
                 </CardContent>
               </Card>
@@ -76,10 +120,10 @@ export function ReadingStats() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">2</div>
-                  <p className="text-xs text-muted-foreground">
-                    Same as last week
-                  </p>
+                  <div className="text-2xl font-bold">
+                    {metrics.booksCompleted}
+                  </div>
+                  <p className="text-xs text-muted-foreground">this week</p>
                 </CardContent>
               </Card>
               <Card>
@@ -89,14 +133,16 @@ export function ReadingStats() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">59</div>
+                  <div className="text-2xl font-bold">
+                    {metrics.dailyAverage}
+                  </div>
                   <p className="text-xs text-muted-foreground">pages per day</p>
                 </CardContent>
               </Card>
             </div>
             <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weeklyData}>
+                <BarChart data={metrics.weeklyData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
                   <YAxis />
@@ -108,7 +154,7 @@ export function ReadingStats() {
           </TabsContent>
           <TabsContent value="monthly" className="h-[400px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyData}>
+              <BarChart data={metrics.monthlyData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />

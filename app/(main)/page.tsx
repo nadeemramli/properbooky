@@ -3,6 +3,7 @@ import { MissionBoard } from "./components/mission-board";
 import { GoalsChallenges } from "./components/goals-challenges";
 import { ActivityFeed } from "./components/activity-feed";
 import { ReadingStats } from "./components/reading-stats";
+import { TestFeatures } from "./components/test-features";
 
 export const metadata: Metadata = {
   title: "Dashboard - ProperBooky",
@@ -15,6 +16,7 @@ export default function HomePage() {
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
       </div>
+      <TestFeatures />
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MissionBoard />
         <GoalsChallenges />
