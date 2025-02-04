@@ -49,22 +49,47 @@ export default function SignUpForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       setIsLoading(true);
-      const { error } = await supabase.auth.signUp({
+
+      // Log the signup attempt
+      console.log("Attempting signup with email:", values.email);
+
+      const { data, error } = await supabase.auth.signUp({
         email: values.email,
         password: values.password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            email: values.email,
+          },
         },
       });
 
       if (error) {
+        console.error("Signup error:", error);
         throw error;
       }
 
-      toast.success("Check your email to confirm your account");
-      form.reset();
+      console.log("Signup response:", data);
+
+      if (data.user && !data.user.confirmed_at) {
+        toast.success(
+          "Please check your email to confirm your account. Check your spam folder if you don't see it."
+        );
+        form.reset();
+      } else if (data.user && data.user.confirmed_at) {
+        toast.success("Account created successfully!");
+        router.push("/library");
+        router.refresh();
+      } else {
+        toast.error("Something went wrong. Please try again.");
+      }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to sign up");
+      console.error("Caught error:", error);
+      toast.error(
+        error instanceof Error
+          ? `Failed to sign up: ${error.message}`
+          : "Failed to sign up. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
