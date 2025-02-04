@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -14,8 +13,6 @@ const nextConfig = {
     };
     return config;
   },
-  // Configure static export
-  trailingSlash: true,
 };
 
 module.exports = nextConfig;
