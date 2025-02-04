@@ -14,18 +14,38 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useBooks } from "@/lib/hooks/use-books";
-import { Book } from "@/types/book";
+import type { Book } from "@/types/book";
 import { useToast } from "@/components/ui/use-toast";
 
 interface BookGridProps {
   searchQuery?: string;
+  view: string | null;
+  status: string | null;
 }
 
-export function BookGrid({ searchQuery }: BookGridProps) {
+export function BookGrid({ searchQuery, view, status }: BookGridProps) {
   const { books, loading, error, deleteBook, updateBook } =
     useBooks(searchQuery);
   const { toast } = useToast();
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+
+  // Filter books based on view and status
+  const filteredBooks = books.filter((book) => {
+    // Filter by status if specified
+    if (status && book.status !== status) {
+      return false;
+    }
+
+    // Filter by view (tags view is handled by parent component)
+    if (view === "recent") {
+      // Show books added in the last 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      return new Date(book.created_at) > sevenDaysAgo;
+    }
+
+    return true;
+  });
 
   const handleDelete = async (id: string) => {
     try {
@@ -69,7 +89,7 @@ export function BookGrid({ searchQuery }: BookGridProps) {
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-      {books.map((book) => (
+      {filteredBooks.map((book) => (
         <Card key={book.id} className="overflow-hidden">
           <CardContent className="p-0">
             <div className="relative aspect-[3/4] bg-muted">
@@ -79,6 +99,7 @@ export function BookGrid({ searchQuery }: BookGridProps) {
                   alt={book.title}
                   fill
                   className="object-cover"
+                  priority={false}
                 />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center">

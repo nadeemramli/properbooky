@@ -20,36 +20,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-interface Book {
-  id: string;
-  title: string;
-  cover_url: string;
-  format: "epub" | "pdf";
-  status: "unread" | "reading" | "completed";
-  progress?: number;
-  author?: string;
-  added_date?: string;
-  last_read?: string;
-  metadata?: {
-    publisher?: string;
-    published_date?: string;
-    language?: string;
-    pages?: number;
-    isbn?: string;
-    description?: string;
-  };
-  highlights?: Array<{
-    id: string;
-    content: string;
-    page: number;
-    created_at: string;
-    tags?: string[];
-  }>;
-}
+import type { Book } from "@/types/book";
 
 interface BookListProps {
   searchQuery?: string;
+  view: string | null;
+  status: string | null;
 }
 
 // Mock data - replace with actual data from your API
@@ -58,12 +34,15 @@ const mockBooks: Book[] = [
     id: "1",
     title: "The Pragmatic Programmer",
     cover_url: "/placeholder-book.jpg",
+    file_url: "/books/pragmatic-programmer.epub",
     format: "epub",
     status: "reading",
     progress: 45,
     author: "Dave Thomas, Andy Hunt",
-    added_date: "2024-01-15",
+    created_at: "2024-01-15",
+    updated_at: "2024-01-20",
     last_read: "2024-01-20",
+    user_id: "user123",
     metadata: {
       publisher: "Addison-Wesley Professional",
       published_date: "2019-09-23",
@@ -73,35 +52,20 @@ const mockBooks: Book[] = [
       description:
         "The Pragmatic Programmer is one of those rare tech books you'll read, re-read, and read again over the years. Whether you're new to the field or an experienced practitioner, you'll come away with fresh insights each and every time.",
     },
-    highlights: [
-      {
-        id: "h1",
-        content:
-          "You Should Care About Craftsmanship. We want to write code we're proud of.",
-        page: 45,
-        created_at: "2024-01-18",
-        tags: ["craftsmanship", "principles"],
-      },
-      {
-        id: "h2",
-        content:
-          "Don't Live with Broken Windows. Fix bad designs, wrong decisions, and poor code when you see them.",
-        page: 78,
-        created_at: "2024-01-19",
-        tags: ["maintenance", "quality"],
-      },
-    ],
   },
   {
     id: "2",
     title: "Clean Code",
     cover_url: "/placeholder-book.jpg",
+    file_url: "/books/clean-code.pdf",
     format: "pdf",
     status: "completed",
     progress: 100,
     author: "Robert C. Martin",
-    added_date: "2024-01-10",
+    created_at: "2024-01-10",
+    updated_at: "2024-01-14",
     last_read: "2024-01-14",
+    user_id: "user123",
     metadata: {
       publisher: "Prentice Hall",
       published_date: "2008-08-01",
@@ -111,26 +75,37 @@ const mockBooks: Book[] = [
       description:
         "Even bad code can function. But if code isn't clean, it can bring a development organization to its knees. Every year, countless hours and significant resources are lost because of poorly written code. But it doesn't have to be that way.",
     },
-    highlights: [
-      {
-        id: "h3",
-        content:
-          "Functions should do one thing. They should do it well. They should do it only.",
-        page: 35,
-        created_at: "2024-01-12",
-        tags: ["functions", "principles"],
-      },
-    ],
   },
 ];
 
-export function BookList({ searchQuery }: BookListProps) {
+export function BookList({ searchQuery, view, status }: BookListProps) {
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
 
   // Filter books based on search query
-  const filteredBooks = mockBooks.filter((book) =>
-    book.title.toLowerCase().includes(searchQuery?.toLowerCase() ?? "")
-  );
+  const filteredBooks = mockBooks.filter((book) => {
+    // Filter by search query
+    if (
+      searchQuery &&
+      !book.title.toLowerCase().includes(searchQuery.toLowerCase())
+    ) {
+      return false;
+    }
+
+    // Filter by status if specified
+    if (status && book.status !== status) {
+      return false;
+    }
+
+    // Filter by view (tags view is handled by parent component)
+    if (view === "recent") {
+      // Show books added in the last 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      return new Date(book.created_at) > sevenDaysAgo;
+    }
+
+    return true;
+  });
 
   return (
     <>
@@ -155,7 +130,7 @@ export function BookList({ searchQuery }: BookListProps) {
                   <div className="flex items-center gap-3">
                     <div className="relative h-16 w-12 overflow-hidden rounded">
                       <Image
-                        src={book.cover_url}
+                        src={book.cover_url || "/placeholder-book.jpg"}
                         alt={book.title}
                         fill
                         className="object-cover"
@@ -180,10 +155,10 @@ export function BookList({ searchQuery }: BookListProps) {
                   <Badge
                     variant={
                       book.status === "completed"
-                        ? "success"
+                        ? "default"
                         : book.status === "reading"
-                        ? "warning"
-                        : "secondary"
+                        ? "secondary"
+                        : "outline"
                     }
                   >
                     {book.status}
@@ -200,7 +175,7 @@ export function BookList({ searchQuery }: BookListProps) {
                   )}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {book.added_date}
+                  {book.created_at}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {book.last_read}

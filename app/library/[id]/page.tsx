@@ -1,12 +1,67 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
+import type { Book, Highlight } from "@/types/book";
+
+interface DatabaseHighlight {
+  id: string;
+  content: string;
+  page_number: number;
+  tags: string[] | null;
+  created_at: string;
+}
+
+interface DatabaseBook extends Omit<Book, "highlights"> {
+  highlights?: DatabaseHighlight[];
+}
+
+// Create a Supabase client that works during build time
+const createBuildTimeClient = () => {
+  const supabaseUrl = process.env["NEXT_PUBLIC_SUPABASE_URL"];
+  const supabaseAnonKey = process.env["NEXT_PUBLIC_SUPABASE_ANON_KEY"];
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("Missing Supabase environment variables");
+    return null;
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey);
+};
+
+// Add generateStaticParams function
+export async function generateStaticParams(): Promise<{ id: string }[]> {
+  const supabase = createBuildTimeClient();
+  if (!supabase) {
+    return [];
+  }
+
+  try {
+    const { data: books } = await supabase.from("books").select("id");
+
+    if (!books) {
+      return [];
+    }
+
+    return books.map((book: { id: string }) => ({
+      id: book.id,
+    }));
+  } catch (error) {
+    console.error("Error generating static params:", error);
+    return [];
+  }
+}
+
+// Remove dynamic flags for static export
+export const revalidate = false;
 
 export default async function BookProfilePage({
-  params: { id },
+  params,
 }: {
   params: { id: string };
 }) {
-  const supabase = createClient();
+  const supabase = createBuildTimeClient();
+  if (!supabase) {
+    notFound();
+  }
 
   const { data: book, error } = await supabase
     .from("books")
@@ -17,27 +72,43 @@ export default async function BookProfilePage({
         id,
         content,
         page_number,
-        tags
+        tags,
+        created_at
       )
     `
     )
-    .eq("id", id)
-    .single();
+    .eq("id", params.id)
+    .single<DatabaseBook>();
 
   if (error || !book) {
     console.error("Error fetching book:", error);
     notFound();
   }
 
+  // Transform database highlights to match our Highlight type
+  const transformedHighlights: Highlight[] =
+    book.highlights?.map((highlight: DatabaseHighlight) => ({
+      id: highlight.id,
+      content: highlight.content,
+      page: highlight.page_number,
+      created_at: highlight.created_at,
+      tags: highlight.tags || undefined,
+    })) || [];
+
+  const transformedBook: Book = {
+    ...book,
+    highlights: transformedHighlights,
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
         {/* Book Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">{book.title}</h1>
+          <h1 className="text-3xl font-bold mb-2">{transformedBook.title}</h1>
           <div className="flex gap-4 text-sm text-gray-600">
-            <span>Format: {book.format}</span>
-            <span>Status: {book.status}</span>
+            <span>Format: {transformedBook.format}</span>
+            <span>Status: {transformedBook.status}</span>
           </div>
         </div>
 
@@ -45,16 +116,18 @@ export default async function BookProfilePage({
         <div className="bg-gray-50 p-6 rounded-lg mb-8">
           <h2 className="text-xl font-semibold mb-4">Book Details</h2>
           <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Object.entries(book.metadata || {}).map(([key, value]) => (
-              <div key={key}>
-                <dt className="text-sm font-medium text-gray-500 capitalize">
-                  {key}
-                </dt>
-                <dd className="mt-1 text-sm text-gray-900">
-                  {value as string}
-                </dd>
-              </div>
-            ))}
+            {Object.entries(transformedBook.metadata || {}).map(
+              ([key, value]) => (
+                <div key={key}>
+                  <dt className="text-sm font-medium text-gray-500 capitalize">
+                    {key}
+                  </dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {value as string}
+                  </dd>
+                </div>
+              )
+            )}
           </dl>
         </div>
 
@@ -62,30 +135,22 @@ export default async function BookProfilePage({
         <div>
           <h2 className="text-xl font-semibold mb-4">Highlights</h2>
           <div className="space-y-4">
-            {book.highlights?.map((highlight) => (
+            {transformedBook.highlights?.map((highlight: Highlight) => (
               <div
                 key={highlight.id}
                 className="bg-white p-4 rounded-lg border"
               >
                 <p className="mb-2">{highlight.content}</p>
                 <div className="flex gap-2 text-sm text-gray-500">
-                  {highlight.page_number && (
-                    <span>Page {highlight.page_number}</span>
-                  )}
-                  {highlight.tags &&
-                    (highlight.tags as string[]).map((tag) => (
-                      <span key={tag} className="bg-gray-100 px-2 py-1 rounded">
-                        {tag}
-                      </span>
-                    ))}
+                  <span>Page {highlight.page}</span>
+                  {highlight.tags?.map((tag) => (
+                    <span key={tag} className="bg-gray-100 px-2 py-1 rounded">
+                      {tag}
+                    </span>
+                  ))}
                 </div>
               </div>
             ))}
-            {(!book.highlights || book.highlights.length === 0) && (
-              <p className="text-gray-500 text-center py-4">
-                No highlights added yet
-              </p>
-            )}
           </div>
         </div>
       </div>

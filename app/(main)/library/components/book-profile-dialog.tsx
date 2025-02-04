@@ -22,7 +22,8 @@ import {
   Type,
   User,
 } from "lucide-react";
-import { Book } from "@/types/book";
+import type { Book } from "@/types/book";
+import { BOOK_STATUS_VARIANTS } from "@/lib/constants";
 
 interface BookProfileDialogProps {
   book: Book | null;
@@ -46,12 +47,18 @@ export function BookProfileDialog({
         <div className="grid gap-6 py-4">
           <div className="flex gap-6">
             <div className="relative aspect-[3/4] h-48 overflow-hidden rounded-lg">
-              <Image
-                src={book.cover_url}
-                alt={book.title}
-                fill
-                className="object-cover"
-              />
+              {book.cover_url ? (
+                <Image
+                  src={book.cover_url}
+                  alt={book.title}
+                  fill
+                  className="object-cover"
+                />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                  <BookOpen className="h-12 w-12 text-muted-foreground" />
+                </div>
+              )}
             </div>
             <div className="flex-1 space-y-4">
               <div>
@@ -62,19 +69,11 @@ export function BookProfileDialog({
               </div>
               <div className="flex gap-2">
                 <Badge variant="secondary">{book.format.toUpperCase()}</Badge>
-                <Badge
-                  variant={
-                    book.status === "completed"
-                      ? "success"
-                      : book.status === "reading"
-                      ? "warning"
-                      : "secondary"
-                  }
-                >
+                <Badge variant={BOOK_STATUS_VARIANTS[book.status]}>
                   {book.status}
                 </Badge>
               </div>
-              {book.progress !== undefined && (
+              {book.progress !== undefined && book.progress !== null && (
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Reading Progress</span>
@@ -91,7 +90,9 @@ export function BookProfileDialog({
           <Tabs defaultValue="details" className="flex-1">
             <TabsList>
               <TabsTrigger value="details">Details</TabsTrigger>
-              <TabsTrigger value="highlights">Highlights</TabsTrigger>
+              <TabsTrigger value="highlights" disabled>
+                Highlights
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="details" className="mt-4 space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
@@ -140,13 +141,13 @@ export function BookProfileDialog({
                     <span className="text-sm">{book.metadata.isbn}</span>
                   </div>
                 )}
-                {book.added_date && (
+                {book.created_at && (
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">
                       Added:
                     </span>
-                    <span className="text-sm">{book.added_date}</span>
+                    <span className="text-sm">{book.created_at}</span>
                   </div>
                 )}
               </div>
@@ -162,36 +163,9 @@ export function BookProfileDialog({
             <TabsContent value="highlights" className="mt-4">
               <ScrollArea className="h-[400px] pr-4">
                 <div className="space-y-4">
-                  {book.highlights?.map((highlight) => (
-                    <div
-                      key={highlight.id}
-                      className="rounded-lg border p-4 space-y-2"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">
-                          Page {highlight.page}
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          {highlight.created_at}
-                        </span>
-                      </div>
-                      <p className="text-sm">{highlight.content}</p>
-                      {highlight.tags && highlight.tags.length > 0 && (
-                        <div className="flex gap-1">
-                          {highlight.tags.map((tag) => (
-                            <Badge key={tag} variant="secondary">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {(!book.highlights || book.highlights.length === 0) && (
-                    <p className="text-center text-sm text-muted-foreground py-8">
-                      No highlights added yet
-                    </p>
-                  )}
+                  <p className="text-center text-sm text-muted-foreground py-8">
+                    Highlights feature coming soon
+                  </p>
                 </div>
               </ScrollArea>
             </TabsContent>

@@ -1,4 +1,4 @@
-import { Metadata } from "next";
+import type { Metadata } from "next";
 import { MissionBoard } from "./components/mission-board";
 import { GoalsChallenges } from "./components/goals-challenges";
 import { ActivityFeed } from "./components/activity-feed";

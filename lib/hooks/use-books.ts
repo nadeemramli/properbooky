@@ -1,9 +1,17 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Book } from '@/types/book'
+import type { TableInsert } from '@/types/supabase'
+import type { Book as AppBook } from '@/types/book'
+import type { Book as DbBook } from '@/types/supabase'
+
+// Transform database book to application book
+const transformBook = (book: DbBook): AppBook => ({
+  ...book,
+  metadata: book.metadata as AppBook['metadata']
+})
 
 export function useBooks(searchQuery?: string) {
-  const [books, setBooks] = useState<Book[]>([])
+  const [books, setBooks] = useState<AppBook[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
@@ -24,7 +32,7 @@ export function useBooks(searchQuery?: string) {
       const { data, error } = await query
 
       if (error) throw error
-      setBooks(data || [])
+      setBooks((data || []).map(transformBook))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -33,7 +41,7 @@ export function useBooks(searchQuery?: string) {
   }
 
   // Add book
-  const addBook = async (bookData: Omit<Book, 'id'>) => {
+  const addBook = async (bookData: TableInsert<'books'>) => {
     try {
       const { data, error } = await supabase
         .from('books')
@@ -42,8 +50,9 @@ export function useBooks(searchQuery?: string) {
         .single()
 
       if (error) throw error
-      setBooks(prev => [data, ...prev])
-      return data
+      const transformedBook = transformBook(data)
+      setBooks(prev => [transformedBook, ...prev])
+      return transformedBook
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error adding book')
       throw err
@@ -51,7 +60,7 @@ export function useBooks(searchQuery?: string) {
   }
 
   // Update book
-  const updateBook = async (id: string, updates: Partial<Book>) => {
+  const updateBook = async (id: string, updates: Partial<AppBook>) => {
     try {
       const { data, error } = await supabase
         .from('books')
@@ -61,8 +70,9 @@ export function useBooks(searchQuery?: string) {
         .single()
 
       if (error) throw error
-      setBooks(prev => prev.map(book => book.id === id ? data : book))
-      return data
+      const transformedBook = transformBook(data)
+      setBooks(prev => prev.map(book => book.id === id ? transformedBook : book))
+      return transformedBook
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error updating book')
       throw err

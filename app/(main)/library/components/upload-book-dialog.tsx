@@ -46,16 +46,19 @@ export function UploadBookDialog() {
       // Create the book entry in the database
       await addBook({
         title: formData.get("title") as string,
-        author: formData.get("author") as string,
+        author: (formData.get("author") as string) || null,
+        cover_url: null,
         format: formData.get("format") as "epub" | "pdf",
         file_url: filePath,
         status: "unread",
+        progress: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        last_read: null,
         user_id: (await supabase.auth.getUser()).data.user?.id || "",
         metadata: {
-          description: formData.get("description") as string,
-          isbn: formData.get("isbn") as string,
+          description: (formData.get("description") as string) || undefined,
+          isbn: (formData.get("isbn") as string) || undefined,
         },
       });
 
