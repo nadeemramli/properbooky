@@ -13,6 +13,10 @@ const nextConfig = {
     };
     return config;
   },
+  // Environment configuration
+  env: {
+    NEXT_PHASE: process.env["NEXT_PHASE"] || "development",
+  },
 };
 
 module.exports = nextConfig;
