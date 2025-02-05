@@ -1,31 +1,40 @@
+// Book status type
 export type BookStatus = "unread" | "reading" | "completed" | "wishlist";
 
-export interface Book {
-  id?: string;
+// Book metadata type
+export type BookMetadata = {
+  description?: string;
+  isbn?: string;
+  recommendation?: string;
+  notes?: string;
+  source?: string;
+  priority?: number;
+};
+
+// Main book type
+export type Book = {
+  id: string;
   title: string;
-  author: string | null;
-  cover_url: string | null;
-  file_url: string | null;
-  format: "epub" | "pdf" | null;
-  status: BookStatus;
-  progress: number | null;
+  author?: string;
+  format: "pdf" | "epub";
+  file_url: string;
   created_at: string;
   updated_at: string;
-  last_read: string | null;
   user_id: string;
-  metadata: {
-    description?: string;
-    isbn?: string;
-    recommendation?: string;
-    notes?: string;
-    source?: string;
-    priority?: number;
-  };
-}
+  size?: number;
+  pages?: number;
+  cover_url: string | null;
+  status: BookStatus;
+  progress: number | null;
+  last_read: string | null;
+  metadata: BookMetadata;
+};
 
-// For the upload operation
-export interface BookUpload {
+// Upload operation types
+export type BookFormat = "pdf" | "epub";
+
+export type BookUpload = {
   file: File;
-  format: "epub" | "pdf";
+  format: BookFormat;
   file_url: string;
-} 
+}; 

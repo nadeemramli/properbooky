@@ -18,6 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useAuth } from "@/lib/hooks/use-auth";
+import { PasswordStrength } from "./password-strength";
 
 const formSchema = z
   .object({
@@ -27,6 +28,9 @@ const formSchema = z
       .min(6, "Password must be at least 6 characters")
       .max(72, "Password must be less than 72 characters"),
     confirmPassword: z.string(),
+    acceptTerms: z.boolean().refine((val) => val === true, {
+      message: "You must accept the Terms of Service and Privacy Policy",
+    }),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -45,6 +49,7 @@ export default function SignUpForm() {
       email: "",
       password: "",
       confirmPassword: "",
+      acceptTerms: false,
     },
   });
 
@@ -108,6 +113,8 @@ export default function SignUpForm() {
     }
   }
 
+  const watchPassword = form.watch("password");
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -143,6 +150,7 @@ export default function SignUpForm() {
                   {...field}
                 />
               </FormControl>
+              <PasswordStrength password={field.value} />
               <FormMessage />
             </FormItem>
           )}
@@ -162,6 +170,45 @@ export default function SignUpForm() {
                 />
               </FormControl>
               <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="acceptTerms"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md">
+              <FormControl>
+                <input
+                  type="checkbox"
+                  checked={field.value}
+                  onChange={field.onChange}
+                  className="mt-1"
+                />
+              </FormControl>
+              <div className="space-y-1 leading-none">
+                <FormLabel>
+                  I agree to the{" "}
+                  <a
+                    href="/terms"
+                    className="text-primary hover:underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Terms of Service
+                  </a>{" "}
+                  and{" "}
+                  <a
+                    href="/privacy"
+                    className="text-primary hover:underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Privacy Policy
+                  </a>
+                </FormLabel>
+                <FormMessage />
+              </div>
             </FormItem>
           )}
         />

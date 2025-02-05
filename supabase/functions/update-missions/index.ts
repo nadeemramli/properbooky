@@ -1,18 +1,20 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import type { Book, ErrorResponse } from '../types'
+import { isBook } from '../types/guards'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const supabase = createClient(
+    const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     )
@@ -20,105 +22,57 @@ serve(async (req) => {
     // Get auth user
     const {
       data: { user },
-    } = await supabase.auth.getUser()
+    } = await supabaseClient.auth.getUser()
 
     if (!user) throw new Error('No user')
 
-    // Get all active missions
-    const { data: missions, error: missionsError } = await supabase
-      .from('missions')
+    // Get all books for the user
+    const { data: booksData, error: booksError } = await supabaseClient
+      .from('books')
       .select('*')
       .eq('user_id', user.id)
-      .eq('status', 'active')
 
-    if (missionsError) throw missionsError
+    if (booksError) throw booksError
+    if (!booksData) throw new Error('No books found')
 
-    const now = new Date()
+    // Filter and validate books
+    const books = booksData.filter(isBook)
 
-    // Process each mission
-    for (const mission of missions) {
-      let progress = 0
-      let status = mission.status
+    // Calculate mission progress
+    const completedBooks = books.filter((book) => book.status === 'completed').length
+    const readingBooks = books.filter((book) => book.status === 'reading').length
 
-      // Calculate if mission has expired
-      const endDate = mission.end_date ? new Date(mission.end_date) : null
-      if (endDate && endDate < now) {
-        status = mission.progress >= 100 ? 'completed' : 'paused'
-      } else {
-        // Calculate progress based on mission type and targets
-        const targetBooks = mission.target_books as string[]
-        const targetTags = mission.target_tags as string[]
+    // Update user's missions
+    const { error: updateError } = await supabaseClient
+      .from('user_missions')
+      .upsert({
+        user_id: user.id,
+        completed_books: completedBooks,
+        reading_books: readingBooks,
+        last_updated: new Date().toISOString(),
+      })
 
-        if (targetBooks.length > 0) {
-          // Check progress of specific books
-          const { data: completedBooks } = await supabase
-            .from('reading_activities')
-            .select('book_id')
-            .eq('user_id', user.id)
-            .eq('type', 'finished')
-            .in('book_id', targetBooks)
-
-          progress = Math.min(Math.round(((completedBooks?.length || 0) / targetBooks.length) * 100), 100)
-        } else if (targetTags.length > 0) {
-          // Check progress of books with specific tags
-          const { data: books } = await supabase
-            .from('books')
-            .select('id, metadata')
-            .eq('user_id', user.id)
-            .eq('status', 'completed')
-
-          const completedTaggedBooks = books?.filter(book => {
-            const bookTags = book.metadata?.tags || []
-            return targetTags.some(tag => bookTags.includes(tag))
-          }) || []
-
-          progress = Math.min(Math.round((completedTaggedBooks.length / targetTags.length) * 100), 100)
-        }
-
-        // Check if mission is completed
-        if (progress >= 100) {
-          status = 'completed'
-          
-          // Create activity record for completion
-          await supabase
-            .from('reading_activities')
-            .insert({
-              user_id: user.id,
-              type: 'mission_completed',
-              details: {
-                mission_id: mission.id,
-                mission_title: mission.title
-              },
-              timestamp: new Date().toISOString()
-            })
-        }
-      }
-
-      // Update mission
-      await supabase
-        .from('missions')
-        .update({
-          progress,
-          status,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', mission.id)
-    }
+    if (updateError) throw updateError
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({
+        success: true,
+        data: { completedBooks, readingBooks },
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       }
     )
-  } catch (error) {
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      }
-    )
+  } catch (error: unknown) {
+    const errorResponse: ErrorResponse = {
+      error: error instanceof Error ? error.message : 'An unknown error occurred',
+      details: error,
+    }
+
+    return new Response(JSON.stringify(errorResponse), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 400,
+    })
   }
 }) 

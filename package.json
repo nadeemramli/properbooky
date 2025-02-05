@@ -4,10 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run build:edge && next build",
+    "build:edge": "cd supabase/functions && npm run build",
+    "build:edge:watch": "cd supabase/functions && npm run type-check:watch",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
+    "clean": "rimraf .next && cd supabase/functions && npm run clean",
     "supabase:types": "supabase gen types typescript --project-id weyclyuthdbqyjdeelzb > lib/database.types.ts"
   },
   "dependencies": {
@@ -49,6 +52,8 @@
     "@types/node": "20.6.2",
     "@types/react": "18.2.22",
     "@types/react-dom": "18.2.7",
+    "@upstash/ratelimit": "^2.0.5",
+    "@upstash/redis": "^1.34.4",
     "autoprefixer": "10.4.15",
     "bufferutil": "^4.0.8",
     "class-variance-authority": "^0.7.1",
@@ -68,6 +73,7 @@
     "react": "18.2.0",
     "react-day-picker": "^8.10.1",
     "react-dom": "18.2.0",
+    "react-dropzone": "^14.3.5",
     "react-hook-form": "^7.53.0",
     "react-resizable-panels": "^2.1.3",
     "recharts": "^2.12.7",

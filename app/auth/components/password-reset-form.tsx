@@ -15,10 +15,11 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 
 const formSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().email("Please enter a valid email address"),
 });
 
 type PasswordResetFormProps = {
@@ -29,6 +30,7 @@ export default function PasswordResetForm({
   onBackToLogin,
 }: PasswordResetFormProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [isRequestSent, setIsRequestSent] = useState(false);
   const supabase = createClient();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -44,7 +46,7 @@ export default function PasswordResetForm({
       const { error } = await supabase.auth.resetPasswordForEmail(
         values.email,
         {
-          redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password`,
+          redirectTo: `${window.location.origin}/auth/reset-password`,
         }
       );
 
@@ -52,62 +54,98 @@ export default function PasswordResetForm({
         throw error;
       }
 
-      toast.success("Check your email for the password reset link");
+      setIsRequestSent(true);
+      toast.success(
+        "If an account exists with this email, you will receive password reset instructions."
+      );
       form.reset();
-      onBackToLogin();
     } catch (error) {
+      console.error("Password reset error:", error);
       toast.error(
-        error instanceof Error ? error.message : "Failed to reset password"
+        "Unable to process your request at this time. Please try again later."
       );
     } finally {
       setIsLoading(false);
     }
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <h2 className="text-2xl font-semibold">Reset Password</h2>
-        <p className="text-sm text-muted-foreground">
-          Enter your email address and we'll send you a link to reset your
-          password.
+  if (isRequestSent) {
+    return (
+      <div className="space-y-4 text-center">
+        <h2 className="text-lg font-semibold">Check Your Email</h2>
+        <p className="text-muted-foreground">
+          We've sent password reset instructions to your email address. Please
+          check your inbox and spam folder.
         </p>
+        <div className="space-y-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => setIsRequestSent(false)}
+          >
+            Try another email
+          </Button>
+          <Button
+            type="button"
+            variant="link"
+            className="w-full"
+            onClick={onBackToLogin}
+          >
+            Back to login
+          </Button>
+        </div>
       </div>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="name@example.com"
-                    type="email"
-                    disabled={isLoading}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <div className="flex flex-col space-y-2">
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Sending reset link..." : "Send reset link"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onBackToLogin}
-              disabled={isLoading}
-            >
-              Back to login
-            </Button>
-          </div>
-        </form>
-      </Form>
-    </div>
+    );
+  }
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <div className="space-y-2">
+          <h2 className="text-lg font-semibold">Reset Password</h2>
+          <p className="text-sm text-muted-foreground">
+            Enter your email address and we'll send you instructions to reset
+            your password.
+          </p>
+        </div>
+
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="name@example.com"
+                  type="email"
+                  disabled={isLoading}
+                  {...field}
+                />
+              </FormControl>
+              <FormDescription>
+                We'll send a password reset link to this email address.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="space-y-2">
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? "Sending instructions..." : "Send reset instructions"}
+          </Button>
+          <Button
+            type="button"
+            variant="link"
+            className="w-full"
+            onClick={onBackToLogin}
+          >
+            Back to login
+          </Button>
+        </div>
+      </form>
+    </Form>
   );
 }

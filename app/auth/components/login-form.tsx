@@ -31,6 +31,7 @@ type LoginFormProps = {
 
 export default function LoginForm({ onResetClick }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const router = useRouter();
   const supabase = createClient();
   const { signIn } = useAuth();
@@ -48,7 +49,7 @@ export default function LoginForm({ onResetClick }: LoginFormProps) {
       setIsLoading(true);
       await signIn();
     } catch (error) {
-      toast.error("Failed to sign in with Google");
+      toast.error("Failed to sign in with Google. Please try again later.");
     } finally {
       setIsLoading(false);
     }
@@ -57,20 +58,57 @@ export default function LoginForm({ onResetClick }: LoginFormProps) {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       setIsLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error, data } = await supabase.auth.signInWithPassword({
         email: values.email,
         password: values.password,
       });
 
       if (error) {
-        throw error;
+        // Handle specific error cases
+        switch (error.message) {
+          case "Invalid login credentials":
+            toast.error("Invalid email or password. Please try again.");
+            break;
+          case "Email not confirmed":
+            toast.error(
+              "Please verify your email address. Check your inbox for the confirmation link."
+            );
+            break;
+          case "Too many requests":
+            toast.error(
+              "Too many login attempts. Please wait a few minutes before trying again."
+            );
+            break;
+          default:
+            toast.error(error.message);
+        }
+        return;
       }
 
-      toast.success("Logged in successfully");
+      // Handle successful login
+      toast.success("Logged in successfully!");
+
+      // Set session persistence based on remember me option
+      if (rememberMe && data.session) {
+        await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+
+        // Set a longer expiration for the session in localStorage
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
+        localStorage.setItem(
+          "supabase.auth.token.expiry",
+          expiresAt.toISOString()
+        );
+      }
+
       router.push("/library");
       router.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to login");
+      console.error("Login error:", error);
+      toast.error("An unexpected error occurred. Please try again later.");
     } finally {
       setIsLoading(false);
     }
@@ -115,14 +153,28 @@ export default function LoginForm({ onResetClick }: LoginFormProps) {
             </FormItem>
           )}
         />
-        <Button
-          type="button"
-          variant="link"
-          className="px-0 font-normal"
-          onClick={onResetClick}
-        >
-          Forgot password?
-        </Button>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="remember"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <label htmlFor="remember" className="text-sm text-gray-600">
+              Keep me signed in
+            </label>
+          </div>
+          <Button
+            type="button"
+            variant="link"
+            className="px-0 font-normal"
+            onClick={onResetClick}
+          >
+            Forgot password?
+          </Button>
+        </div>
         <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading ? "Signing in..." : "Sign in with Email"}
         </Button>

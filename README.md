@@ -9,6 +9,19 @@ A modern library management system built with Next.js and Supabase.
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# Google OAuth
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+
+# NextAuth.js
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your_nextauth_secret
+
+# Upstash Redis (Rate Limiting)
+UPSTASH_REDIS_REST_URL=your_redis_url
+UPSTASH_REDIS_REST_TOKEN=your_redis_token
 ```
 
 ### Vercel Deployment Configuration
@@ -83,6 +96,82 @@ export interface Book {
 }
 ```
 
+## Edge Functions
+
+The application uses Supabase Edge Functions for serverless computation. These functions are located in the `supabase/functions` directory.
+
+### Available Edge Functions
+
+1. **calculate-priority**
+   - Calculates and updates book priority scores based on reading status and engagement
+   - Uses book metadata and highlights for scoring
+
+2. **obsidian-sync**
+   - Exports book highlights to Obsidian-compatible markdown format
+   - Includes book titles and highlight notes
+
+3. **update-challenges**
+   - Tracks and updates user reading challenges
+   - Calculates total reading time and progress
+
+4. **update-missions**
+   - Manages user reading missions and goals
+   - Tracks completed and in-progress books
+
+5. **update-reading-stats**
+   - Maintains user reading statistics
+   - Tracks daily and weekly reading progress
+
+### Edge Function Types
+
+```typescript
+// Common response types
+interface SuccessResponse {
+  success: boolean;
+  data?: unknown;
+}
+
+interface ErrorResponse {
+  error: string;
+  details?: unknown;
+}
+
+// Book types for Edge Functions
+interface DatabaseBook {
+  id: string;
+  title: string;
+  status: 'reading' | 'unread' | 'completed';
+  metadata: Record<string, unknown>;
+  user_id: string;
+  priority_score?: number;
+}
+
+interface Book extends DatabaseBook {
+  highlights: Array<DatabaseHighlight>;
+}
+```
+
+### Development Guidelines for Edge Functions
+
+1. **Type Safety**
+   - Use strict TypeScript checking
+   - Define proper interfaces for data structures
+   - Implement type guards for runtime checks
+
+2. **Error Handling**
+   - Use consistent error response format
+   - Include detailed error messages
+   - Handle all potential error cases
+
+3. **CORS Headers**
+   - Include proper CORS headers for all responses
+   - Handle OPTIONS requests appropriately
+
+4. **Environment Variables**
+   - Access using Deno.env.get
+   - Always provide fallback values
+   - Keep sensitive information secure
+
 ## Authentication
 
 Authentication is handled through Supabase with the following features:
@@ -91,6 +180,7 @@ Authentication is handled through Supabase with the following features:
 - Email/Password authentication
 - Password reset functionality
 - Email verification
+- Rate limiting for auth endpoints
 
 Authentication hooks and utilities are located in:
 - `lib/hooks/use-auth.ts`
@@ -104,74 +194,6 @@ We use dynamic redirect URLs based on the environment:
 // Dynamic redirect URL configuration
 redirectTo: `${window.location.origin}/auth/callback`
 ```
-
-## Static Site Generation & Server-Side Rendering
-
-### Next.js Configuration
-
-```javascript
-// next.config.js
-const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  images: { unoptimized: true },
-  transpilePackages: ['@radix-ui/react-progress'],
-  webpack: (config) => {
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@radix-ui/react-progress': require.resolve('@radix-ui/react-progress'),
-    };
-    return config;
-  },
-  env: {
-    NEXT_PHASE: process.env["NEXT_PHASE"] || "development",
-  },
-};
-```
-
-### Dynamic Routes
-
-For dynamic routes (e.g., `/library/[id]`), we implement `generateStaticParams` with build-time considerations:
-
-```typescript
-export async function generateStaticParams() {
-  if (process.env["NEXT_PHASE"] === "build") {
-    return [];
-  }
-
-  try {
-    const supabase = createClient();
-    const { data: books } = await supabase.from("books").select("id");
-    // ... handle data and return params
-  } catch (error) {
-    console.error("Error generating static params:", error);
-    return [];
-  }
-}
-```
-
-## UI Components
-
-We use a combination of custom components and shadcn/ui components:
-
-### Progress Component
-```typescript
-// components/ui/progress.tsx
-const Progress = React.forwardRef<
-  React.ElementRef<typeof ProgressPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root> & {
-    value?: number | null;
-  }
->((props) => {
-  // Implementation
-});
-```
-
-### Book Components
-- `BookProfileDialog`: Displays detailed book information
-- `BookGrid`: Grid view of books
-- `BookList`: List view of books
 
 ## Development Guidelines
 
@@ -210,6 +232,7 @@ const Progress = React.forwardRef<
    - Server-side client for SSR
    - Client-side hooks for real-time updates
    - Type-safe database operations
+   - Edge Functions for serverless computation
 
 ## Future Considerations
 
@@ -219,11 +242,13 @@ const Progress = React.forwardRef<
    - Optimize image loading and processing
 
 2. **Feature Additions**:
-   - Reading progress synchronization
-   - Book highlights and notes
+   - Enhanced reading progress synchronization
+   - Advanced book highlights and notes
    - Social sharing features
+   - Reading statistics and analytics
 
 3. **Security Enhancements**:
-   - Implement rate limiting
+   - Enhanced rate limiting strategies
    - Add CSRF protection
-   - Enhanced error logging
+   - Enhanced error logging and monitoring
+   - Security headers and best practices

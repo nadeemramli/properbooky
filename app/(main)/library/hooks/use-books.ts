@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Book } from "../types";
+import type { Book } from "../types";
 import { uploadBookFile as uploadFile, deleteBookFile } from "../services/file-upload";
 
 export function useBooks() {
