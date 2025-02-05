@@ -1,5 +1,28 @@
--- Add reading_statistics table
-CREATE TABLE IF NOT EXISTS reading_statistics (
+/*
+  # User Features Enhancement
+
+  1. Features
+    - Reading statistics
+    - User challenges
+    - Reading missions
+    - Activity tracking
+    - Reading sessions
+
+  2. Improvements
+    - Better data organization
+    - Enhanced tracking capabilities
+    - Improved user engagement features
+*/
+
+-- Drop existing tables if they exist
+DROP TABLE IF EXISTS public.reading_statistics CASCADE;
+DROP TABLE IF EXISTS public.challenges CASCADE;
+DROP TABLE IF EXISTS public.missions CASCADE;
+DROP TABLE IF EXISTS public.reading_activities CASCADE;
+DROP TABLE IF EXISTS public.reading_sessions CASCADE;
+
+-- Create reading_statistics table
+CREATE TABLE public.reading_statistics (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
     pages_read integer NOT NULL DEFAULT 0,

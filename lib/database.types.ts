@@ -6,258 +6,428 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       books: {
         Row: {
+          created_at: string | null
+          format: string
           id: string
-          user_id: string
-          title: string
-          author: string | null
-          cover_url: string | null
-          file_url: string
-          format: 'epub' | 'pdf'
-          status: 'unread' | 'reading' | 'completed'
-          progress: number | null
-          priority_score: number | null
           metadata: Json | null
-          created_at: string
-          updated_at: string
-          last_read: string | null
-        }
-        Insert: {
-          id?: string
-          user_id: string
+          priority_score: number | null
+          search_vector: unknown | null
+          status: string
           title: string
-          author?: string | null
-          cover_url?: string | null
-          file_url: string
-          format: 'epub' | 'pdf'
-          status?: 'unread' | 'reading' | 'completed'
-          progress?: number | null
-          priority_score?: number | null
-          metadata?: Json | null
-          created_at?: string
-          updated_at?: string
-          last_read?: string | null
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          title?: string
-          author?: string | null
-          cover_url?: string | null
-          file_url?: string
-          format?: 'epub' | 'pdf'
-          status?: 'unread' | 'reading' | 'completed'
-          progress?: number | null
-          priority_score?: number | null
-          metadata?: Json | null
-          created_at?: string
-          updated_at?: string
-          last_read?: string | null
-        }
-      }
-      reading_statistics: {
-        Row: {
-          id: string
+          updated_at: string | null
           user_id: string
-          pages_read: number
-          reading_time: number
-          books_completed: number
-          daily_average: number
-          weekly_data: Json
-          monthly_data: Json
-          weekly_change: number
-          created_at: string
-          updated_at: string
         }
         Insert: {
+          created_at?: string | null
+          format: string
           id?: string
+          metadata?: Json | null
+          priority_score?: number | null
+          search_vector?: unknown | null
+          status?: string
+          title: string
+          updated_at?: string | null
           user_id: string
-          pages_read?: number
-          reading_time?: number
-          books_completed?: number
-          daily_average?: number
-          weekly_data?: Json
-          monthly_data?: Json
-          weekly_change?: number
-          created_at?: string
-          updated_at?: string
         }
         Update: {
+          created_at?: string | null
+          format?: string
           id?: string
+          metadata?: Json | null
+          priority_score?: number | null
+          search_vector?: unknown | null
+          status?: string
+          title?: string
+          updated_at?: string | null
           user_id?: string
-          pages_read?: number
-          reading_time?: number
-          books_completed?: number
-          daily_average?: number
-          weekly_data?: Json
-          monthly_data?: Json
-          weekly_change?: number
-          created_at?: string
-          updated_at?: string
         }
+        Relationships: []
       }
       challenges: {
         Row: {
-          id: string
-          user_id: string
-          title: string
-          description: string
-          type: 'daily' | 'weekly' | 'monthly' | 'special'
-          progress: number
-          total: number
-          days_left: number | null
-          reward: string | null
-          status: 'active' | 'completed' | 'failed'
-          start_date: string
-          end_date: string | null
           created_at: string
+          days_left: number | null
+          description: string
+          end_date: string | null
+          id: string
+          progress: number
+          reward: string | null
+          start_date: string
+          status: string
+          title: string
+          total: number
+          type: string
           updated_at: string
+          user_id: string
         }
         Insert: {
-          id?: string
-          user_id: string
-          title: string
-          description: string
-          type: 'daily' | 'weekly' | 'monthly' | 'special'
-          progress?: number
-          total: number
-          days_left?: number | null
-          reward?: string | null
-          status?: 'active' | 'completed' | 'failed'
-          start_date?: string
-          end_date?: string | null
           created_at?: string
+          days_left?: number | null
+          description: string
+          end_date?: string | null
+          id?: string
+          progress?: number
+          reward?: string | null
+          start_date?: string
+          status?: string
+          title: string
+          total: number
+          type: string
           updated_at?: string
+          user_id: string
         }
         Update: {
-          id?: string
-          user_id?: string
-          title?: string
-          description?: string
-          type?: 'daily' | 'weekly' | 'monthly' | 'special'
-          progress?: number
-          total?: number
-          days_left?: number | null
-          reward?: string | null
-          status?: 'active' | 'completed' | 'failed'
-          start_date?: string
-          end_date?: string | null
           created_at?: string
+          days_left?: number | null
+          description?: string
+          end_date?: string | null
+          id?: string
+          progress?: number
+          reward?: string | null
+          start_date?: string
+          status?: string
+          title?: string
+          total?: number
+          type?: string
           updated_at?: string
+          user_id?: string
         }
+        Relationships: []
+      }
+      highlights: {
+        Row: {
+          book_id: string
+          content: string
+          created_at: string | null
+          id: string
+          page_number: number | null
+          search_vector: unknown | null
+          tags: Json | null
+          user_id: string
+        }
+        Insert: {
+          book_id: string
+          content: string
+          created_at?: string | null
+          id?: string
+          page_number?: number | null
+          search_vector?: unknown | null
+          tags?: Json | null
+          user_id: string
+        }
+        Update: {
+          book_id?: string
+          content?: string
+          created_at?: string | null
+          id?: string
+          page_number?: number | null
+          search_vector?: unknown | null
+          tags?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "highlights_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       missions: {
         Row: {
-          id: string
-          user_id: string
-          title: string
-          description: string
-          progress: number
-          icon_type: 'target' | 'trophy' | 'book'
-          target_books: Json
-          target_tags: Json
-          start_date: string
-          end_date: string | null
-          status: 'active' | 'completed' | 'paused'
           created_at: string
+          description: string
+          end_date: string | null
+          icon_type: string
+          id: string
+          progress: number
+          start_date: string
+          status: string
+          target_books: Json | null
+          target_tags: Json | null
+          title: string
           updated_at: string
+          user_id: string
         }
         Insert: {
-          id?: string
-          user_id: string
-          title: string
-          description: string
-          progress?: number
-          icon_type: 'target' | 'trophy' | 'book'
-          target_books?: Json
-          target_tags?: Json
-          start_date?: string
-          end_date?: string | null
-          status?: 'active' | 'completed' | 'paused'
           created_at?: string
+          description: string
+          end_date?: string | null
+          icon_type: string
+          id?: string
+          progress?: number
+          start_date?: string
+          status?: string
+          target_books?: Json | null
+          target_tags?: Json | null
+          title: string
           updated_at?: string
+          user_id: string
         }
         Update: {
-          id?: string
-          user_id?: string
-          title?: string
-          description?: string
-          progress?: number
-          icon_type?: 'target' | 'trophy' | 'book'
-          target_books?: Json
-          target_tags?: Json
-          start_date?: string
-          end_date?: string | null
-          status?: 'active' | 'completed' | 'paused'
           created_at?: string
+          description?: string
+          end_date?: string | null
+          icon_type?: string
+          id?: string
+          progress?: number
+          start_date?: string
+          status?: string
+          target_books?: Json | null
+          target_tags?: Json | null
+          title?: string
           updated_at?: string
+          user_id?: string
         }
+        Relationships: []
+      }
+      obsidian_sync: {
+        Row: {
+          created_at: string | null
+          last_sync_time: string | null
+          obsidian_api_token: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          last_sync_time?: string | null
+          obsidian_api_token?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          last_sync_time?: string | null
+          obsidian_api_token?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       reading_activities: {
         Row: {
-          id: string
-          user_id: string
           book_id: string
-          type: 'started' | 'finished' | 'highlight' | 'tagged' | 'progress_update' | 'challenge_completed' | 'mission_completed'
-          details: Json
+          details: Json | null
+          id: string
           timestamp: string
+          type: string
+          user_id: string
         }
         Insert: {
-          id?: string
-          user_id: string
           book_id: string
-          type: 'started' | 'finished' | 'highlight' | 'tagged' | 'progress_update' | 'challenge_completed' | 'mission_completed'
-          details?: Json
+          details?: Json | null
+          id?: string
           timestamp?: string
+          type: string
+          user_id: string
         }
         Update: {
-          id?: string
-          user_id?: string
           book_id?: string
-          type?: 'started' | 'finished' | 'highlight' | 'tagged' | 'progress_update' | 'challenge_completed' | 'mission_completed'
-          details?: Json
+          details?: Json | null
+          id?: string
           timestamp?: string
+          type?: string
+          user_id?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "reading_activities_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reading_sessions: {
         Row: {
-          id: string
-          user_id: string
           book_id: string
-          start_time: string
-          end_time: string | null
-          pages_read: number
           created_at: string
+          end_time: string | null
+          id: string
+          pages_read: number | null
+          start_time: string
+          user_id: string
         }
         Insert: {
-          id?: string
-          user_id: string
           book_id: string
-          start_time: string
-          end_time?: string | null
-          pages_read?: number
           created_at?: string
+          end_time?: string | null
+          id?: string
+          pages_read?: number | null
+          start_time: string
+          user_id: string
         }
         Update: {
-          id?: string
-          user_id?: string
           book_id?: string
-          start_time?: string
-          end_time?: string | null
-          pages_read?: number
           created_at?: string
+          end_time?: string | null
+          id?: string
+          pages_read?: number | null
+          start_time?: string
+          user_id?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "reading_sessions_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reading_statistics: {
+        Row: {
+          books_completed: number
+          created_at: string
+          daily_average: number
+          id: string
+          monthly_data: Json
+          pages_read: number
+          reading_time: number
+          updated_at: string
+          user_id: string
+          weekly_change: number
+          weekly_data: Json
+        }
+        Insert: {
+          books_completed?: number
+          created_at?: string
+          daily_average?: number
+          id?: string
+          monthly_data?: Json
+          pages_read?: number
+          reading_time?: number
+          updated_at?: string
+          user_id: string
+          weekly_change?: number
+          weekly_data?: Json
+        }
+        Update: {
+          books_completed?: number
+          created_at?: string
+          daily_average?: number
+          id?: string
+          monthly_data?: Json
+          pages_read?: number
+          reading_time?: number
+          updated_at?: string
+          user_id?: string
+          weekly_change?: number
+          weekly_data?: Json
+        }
+        Relationships: []
+      }
+      tags: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          parent_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          parent_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          parent_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tags_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      gtrgm_compress: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      gtrgm_decompress: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      gtrgm_in: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      gtrgm_options: {
+        Args: {
+          "": unknown
+        }
+        Returns: undefined
+      }
+      gtrgm_out: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      set_limit: {
+        Args: {
+          "": number
+        }
+        Returns: number
+      }
+      show_limit: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      show_trgm: {
+        Args: {
+          "": string
+        }
+        Returns: string[]
+      }
     }
     Enums: {
       [_ in never]: never
