@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import ProtectedRoute from "@/components/auth/protected-route";
+import ProtectedRoute from "@/app/auth/components/protected-route";
 import { Sidebar } from "./components/sidebar";
 
 export default function MainLayout({
