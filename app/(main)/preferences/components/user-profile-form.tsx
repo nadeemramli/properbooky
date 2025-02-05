@@ -18,12 +18,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/client";
+import { useEffect } from "react";
+import type { User, UserMetadata } from "@/types/database";
+import { db, isDbResultOk } from "@/lib/utils/database";
+import { getErrorMessage } from "@/lib/utils/error";
 
 const profileFormSchema = z.object({
-  username: z
+  name: z
     .string()
-    .min(2, "Username must be at least 2 characters.")
-    .max(30, "Username must not be longer than 30 characters."),
+    .min(2, "Name must be at least 2 characters.")
+    .max(30, "Name must not be longer than 30 characters."),
   email: z.string().email("Invalid email address."),
   bio: z
     .string()
@@ -39,29 +43,68 @@ export function UserProfileForm() {
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
-      username: "",
+      name: "",
       email: "",
       bio: "",
       avatar_url: "",
     },
   });
 
+  // Load user profile data
+  useEffect(() => {
+    async function loadUserProfile() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not found");
+
+        const result = await db.getUserProfile(user.id);
+        if (!isDbResultOk(result)) {
+          throw new Error(result.error?.message || "Failed to load profile");
+        }
+
+        const profile = result.data;
+
+        // Set form values
+        form.reset({
+          name: profile.name || "",
+          email: profile.email,
+          bio: profile.metadata?.bio || "",
+          avatar_url: profile.avatar_url || "",
+        });
+      } catch (error) {
+        console.error("Error loading profile:", error);
+        toast.error(getErrorMessage(error));
+      }
+    }
+
+    loadUserProfile();
+  }, [form, supabase]);
+
   async function onSubmit(data: ProfileFormValues) {
     try {
-      const { error } = await supabase
-        .from("users")
-        .update({
-          username: data.username,
-          bio: data.bio,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", (await supabase.auth.getUser()).data.user?.id);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
 
-      if (error) throw error;
+      const result = await db.updateUserProfile(user.id, {
+        name: data.name,
+        avatar_url: data.avatar_url,
+        metadata: {
+          bio: data.bio,
+        },
+      });
+
+      if (!isDbResultOk(result)) {
+        throw new Error(result.error?.message || "Failed to update profile");
+      }
+
       toast.success("Profile updated successfully");
     } catch (error) {
-      toast.error("Failed to update profile");
-      console.error(error);
+      console.error("Error updating profile:", error);
+      toast.error(getErrorMessage(error));
     }
   }
 
@@ -69,8 +112,13 @@ export function UserProfileForm() {
     <div className="space-y-6">
       <div className="flex items-center gap-x-6">
         <Avatar className="h-20 w-20">
-          <AvatarImage src="/placeholder-avatar.jpg" alt="Profile picture" />
-          <AvatarFallback>CN</AvatarFallback>
+          <AvatarImage
+            src={form.watch("avatar_url") || "/placeholder-avatar.jpg"}
+            alt="Profile picture"
+          />
+          <AvatarFallback>
+            {form.watch("name")?.charAt(0)?.toUpperCase() || "U"}
+          </AvatarFallback>
         </Avatar>
         <div>
           <Button variant="outline" size="sm">
@@ -86,12 +134,12 @@ export function UserProfileForm() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FormField
             control={form.control}
-            name="username"
+            name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Username</FormLabel>
+                <FormLabel>Name</FormLabel>
                 <FormControl>
-                  <Input placeholder="Your username" {...field} />
+                  <Input placeholder="Your name" {...field} />
                 </FormControl>
                 <FormDescription>
                   This is your public display name.
@@ -147,7 +195,11 @@ export function UserProfileForm() {
 
           <div className="flex gap-4">
             <Button type="submit">Update profile</Button>
-            <Button type="reset" variant="outline">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => form.reset()}
+            >
               Reset
             </Button>
           </div>

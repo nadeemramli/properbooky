@@ -6,48 +6,59 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type Database = {
+export interface Database {
   public: {
     Tables: {
       books: {
         Row: {
-          created_at: string | null
-          format: string
-          id: string
-          metadata: Json | null
-          priority_score: number | null
-          search_vector: unknown | null
-          status: string
-          title: string
-          updated_at: string | null
-          user_id: string
-        }
+          id: string;
+          title: string;
+          author: string | null;
+          format: 'pdf' | 'epub';
+          file_url: string;
+          cover_url: string | null;
+          status: 'unread' | 'reading' | 'completed';
+          progress: number;
+          user_id: string;
+          metadata: Json;
+          priority_score: number;
+          created_at: string;
+          updated_at: string;
+          last_read: string | null;
+        };
         Insert: {
-          created_at?: string | null
-          format: string
-          id?: string
-          metadata?: Json | null
-          priority_score?: number | null
-          search_vector?: unknown | null
-          status?: string
-          title: string
-          updated_at?: string | null
-          user_id: string
-        }
+          id?: string;
+          title: string;
+          author?: string | null;
+          format: 'pdf' | 'epub';
+          file_url: string;
+          cover_url?: string | null;
+          status?: 'unread' | 'reading' | 'completed';
+          progress?: number;
+          user_id: string;
+          metadata?: Json;
+          priority_score?: number;
+          created_at?: string;
+          updated_at?: string;
+          last_read?: string | null;
+        };
         Update: {
-          created_at?: string | null
-          format?: string
-          id?: string
-          metadata?: Json | null
-          priority_score?: number | null
-          search_vector?: unknown | null
-          status?: string
-          title?: string
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
+          id?: string;
+          title?: string;
+          author?: string | null;
+          format?: 'pdf' | 'epub';
+          file_url?: string;
+          cover_url?: string | null;
+          status?: 'unread' | 'reading' | 'completed';
+          progress?: number;
+          user_id?: string;
+          metadata?: Json;
+          priority_score?: number;
+          created_at?: string;
+          updated_at?: string;
+          last_read?: string | null;
+        };
+      };
       challenges: {
         Row: {
           created_at: string

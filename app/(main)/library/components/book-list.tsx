@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Book } from "@/types/book";
+import type { Book, BookMetadata } from "@/types/book";
 
 interface BookListProps {
   searchQuery?: string;
@@ -28,44 +28,65 @@ interface BookListProps {
   status: string | null;
 }
 
-// Mock data - replace with actual data from your API
-const mockBooks: Book[] = [
-  {
-    id: "1",
-    title: "The Pragmatic Programmer",
+// Helper function to create a book with default values
+const createMockBook = (overrides: Partial<Book>): Book => {
+  const defaultBook: Book = {
+    id: "",
+    title: "",
+    author: null,
     cover_url: "/placeholder-book.jpg",
-    file_url: "/books/pragmatic-programmer.epub",
-    format: "epub",
-    status: "reading",
-    progress: 45,
-    author: "Dave Thomas, Andy Hunt",
-    created_at: "2024-01-15",
-    updated_at: "2024-01-20",
-    last_read: "2024-01-20",
+    file_url: "",
+    format: "pdf",
+    status: "unread",
+    progress: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    last_read: null,
     user_id: "user123",
     metadata: {
-      publisher: "Addison-Wesley Professional",
-      published_date: "2019-09-23",
-      language: "English",
-      pages: 352,
-      isbn: "9780135957059",
-      description:
-        "The Pragmatic Programmer is one of those rare tech books you'll read, re-read, and read again over the years. Whether you're new to the field or an experienced practitioner, you'll come away with fresh insights each and every time.",
+      publisher: "",
+      published_date: "",
+      language: "en",
+      pages: 0,
+      isbn: "",
+      description: "",
     },
-  },
-  {
+    priority_score: 0,
+  };
+
+  return { ...defaultBook, ...overrides };
+};
+
+// Mock data with type-safe creation
+const mockBooks: Book[] = [
+  createMockBook({
+    id: "1",
+    title: "The Pragmatic Programmer",
+    author: "David Thomas, Andrew Hunt",
+    file_url: "/books/pragmatic-programmer.pdf",
+    format: "epub",
+    status: "reading",
+    last_read: new Date().toISOString(),
+    metadata: {
+      publisher: "Addison-Wesley",
+      published_date: "2019-09-13",
+      language: "en",
+      pages: 352,
+      isbn: "978-0135957059",
+      description: "The Pragmatic Programmer: Your Journey to Mastery",
+    },
+  }),
+  createMockBook({
     id: "2",
     title: "Clean Code",
-    cover_url: "/placeholder-book.jpg",
+    author: "Robert C. Martin",
     file_url: "/books/clean-code.pdf",
     format: "pdf",
     status: "completed",
     progress: 100,
-    author: "Robert C. Martin",
     created_at: "2024-01-10",
     updated_at: "2024-01-14",
     last_read: "2024-01-14",
-    user_id: "user123",
     metadata: {
       publisher: "Prentice Hall",
       published_date: "2008-08-01",
@@ -75,7 +96,8 @@ const mockBooks: Book[] = [
       description:
         "Even bad code can function. But if code isn't clean, it can bring a development organization to its knees. Every year, countless hours and significant resources are lost because of poorly written code. But it doesn't have to be that way.",
     },
-  },
+    priority_score: 1,
+  }),
 ];
 
 export function BookList({ searchQuery, view, status }: BookListProps) {

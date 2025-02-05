@@ -1,42 +1,49 @@
-'use client';
+"use client";
 
-import { useQuery } from '@tanstack/react-query';
-import { createClient } from '@/lib/supabase/client';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useQuery } from "@tanstack/react-query";
+import { createClient } from "@/lib/supabase/client";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { createTypeSafeQuery } from "@/lib/utils/supabase-query";
+import type { Tables } from "@/types/database";
 
 interface BookProfileProps {
   bookId: string;
 }
 
+type Book = Tables["books"]["Row"];
+type Highlight = Tables["highlights"]["Row"];
+
 export default function BookProfile({ bookId }: BookProfileProps) {
   const supabase = createClient();
 
-  const { data: book, isLoading: bookLoading } = useQuery({
-    queryKey: ['book', bookId],
+  const { data: book, isLoading: bookLoading } = useQuery<Book>({
+    queryKey: ["book", bookId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('books')
-        .select('*')
-        .eq('id', bookId)
-        .single();
-
+        .from("books")
+        .select("*")
+        .eq("id", bookId)
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error("Book not found");
       return data;
     },
   });
 
-  const { data: highlights, isLoading: highlightsLoading } = useQuery({
-    queryKey: ['highlights', bookId],
+  const { data: highlights = [], isLoading: highlightsLoading } = useQuery<
+    Highlight[]
+  >({
+    queryKey: ["highlights", bookId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('highlights')
-        .select('*')
-        .eq('book_id', bookId)
-        .order('created_at', { ascending: false });
+        .from("highlights")
+        .select("*")
+        .eq("book_id", bookId)
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data;
+      return data ?? [];
     },
   });
 
@@ -82,7 +89,7 @@ export default function BookProfile({ bookId }: BookProfileProps) {
 
             <TabsContent value="highlights">
               <div className="space-y-4">
-                {highlights?.map((highlight) => (
+                {highlights.map((highlight: Highlight) => (
                   <Card key={highlight.id}>
                     <CardContent className="pt-6">
                       <blockquote className="border-l-2 pl-6 italic">

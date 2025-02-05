@@ -1,39 +1,54 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAuth } from "@/lib/hooks/use-auth";
-import { createClient } from "@/lib/supabase/client";
+import { useSupabase } from "@/lib/hooks/use-supabase";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import type { Database } from "@/lib/database.types";
+
+type Book = Database["public"]["Tables"]["books"]["Insert"];
 
 export function AuthDebug() {
   const { user, session } = useAuth();
+  const { insert, remove } = useSupabase<"books">();
   const [testResult, setTestResult] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
-  const supabase = createClient();
 
   // Test RLS by trying to insert a test book
   const testRLS = async () => {
+    if (!user?.id) {
+      toast.error("You must be logged in to run tests");
+      return;
+    }
+
     try {
       setIsLoading(true);
       setTestResult("Testing RLS...");
 
       // Test 1: Insert (only required fields)
-      const { data: insertData, error: insertError } = await supabase
-        .from("books")
-        .insert({
-          title: "Test Book",
-          file_url: "test.pdf",
-          format: "pdf",
-          status: "unread",
-          user_id: user?.id,
-        })
-        .select()
-        .single();
+      const testBook: Book = {
+        title: "Test Book",
+        file_url: "test.pdf",
+        format: "pdf",
+        status: "unread",
+        user_id: user.id,
+      };
+
+      const { data: insertData, error: insertError } = await insert(
+        "books",
+        testBook
+      );
 
       if (insertError) {
         console.error("Insert Error:", insertError);
-        setTestResult(`❌ Insert Test Failed: ${insertError.message}`);
+        setTestResult(`❌ Insert Test Failed: ${insertError}`);
+        toast.error("RLS insert test failed");
+        return;
+      }
+
+      if (!insertData?.id) {
+        setTestResult("❌ Insert Test Failed: No data returned");
         toast.error("RLS insert test failed");
         return;
       }
@@ -41,26 +56,28 @@ export function AuthDebug() {
       setTestResult("✅ Insert Test Passed\nTesting delete...");
 
       // Test 2: Delete
-      const { error: deleteError } = await supabase
-        .from("books")
-        .delete()
-        .eq("id", insertData.id);
+      const { error: deleteError } = await remove("books", insertData.id);
 
       if (deleteError) {
         console.error("Delete Error:", deleteError);
-        setTestResult(`❌ Delete Test Failed: ${deleteError.message}`);
+        setTestResult(`❌ Delete Test Failed: ${deleteError}`);
         toast.error("RLS delete test failed");
         return;
       }
 
       // Test 3: Try to access another user's data (should fail)
-      const { error: unauthorizedError } = await supabase.from("books").insert({
+      const unauthorizedBook: Book = {
         title: "Test Book",
         file_url: "test.pdf",
         format: "pdf",
         status: "unread",
         user_id: "some-other-user-id", // This should fail
-      });
+      };
+
+      const { error: unauthorizedError } = await insert(
+        "books",
+        unauthorizedBook
+      );
 
       if (unauthorizedError) {
         setTestResult(

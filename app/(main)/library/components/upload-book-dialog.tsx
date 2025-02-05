@@ -19,66 +19,95 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, Loader2 } from "lucide-react";
+import { Upload } from "lucide-react";
 import { useBooks } from "@/lib/hooks/use-books";
 import { useToast } from "@/components/ui/use-toast";
-import { createClient } from "@/lib/supabase/client";
+import type { BookCreate } from "@/types/book";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+
+const formSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  author: z.string().nullable(),
+  format: z.enum(["epub", "pdf"]),
+  isbn: z.string().optional(),
+  description: z.string().optional(),
+});
+
+type FormValues = z.infer<typeof formSchema>;
 
 export function UploadBookDialog() {
   const [open, setOpen] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const { addBook, uploadBookFile } = useBooks();
   const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!selectedFile) return;
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      title: "",
+      author: null,
+      format: "pdf",
+      isbn: "",
+      description: "",
+    },
+  });
 
-    setIsUploading(true);
-    const formData = new FormData(e.currentTarget);
-    const supabase = createClient();
-
+  const onSubmit = async (values: FormValues) => {
     try {
-      // Upload the file to storage
+      if (!selectedFile) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Please select a file to upload",
+        });
+        return;
+      }
+
       const filePath = await uploadBookFile(selectedFile);
 
-      // Create the book entry in the database
-      await addBook({
-        title: formData.get("title") as string,
-        author: (formData.get("author") as string) || null,
-        cover_url: null,
-        format: formData.get("format") as "epub" | "pdf",
+      const newBook: BookCreate = {
+        title: values.title,
+        author: values.author,
+        format: values.format,
         file_url: filePath,
         status: "unread",
-        progress: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        last_read: null,
-        user_id: (await supabase.auth.getUser()).data.user?.id || "",
+        progress: 0,
+        priority_score: 0,
+        user_id: "user123", // This should come from auth context
         metadata: {
-          description: (formData.get("description") as string) || undefined,
-          isbn: (formData.get("isbn") as string) || undefined,
+          isbn: values.isbn,
+          description: values.description,
+          language: "en",
         },
-      });
+      };
+
+      await addBook(newBook);
 
       setOpen(false);
       setSelectedFile(null);
-      (e.target as HTMLFormElement).reset();
-
+      form.reset();
       toast({
         title: "Success",
-        description: "Book uploaded successfully!",
+        description: "Book uploaded successfully",
       });
     } catch (error) {
       console.error("Error uploading book:", error);
       toast({
-        title: "Error",
-        description: "Failed to upload book. Please try again.",
         variant: "destructive",
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Failed to upload book",
       });
-    } finally {
-      setIsUploading(false);
     }
   };
 
@@ -94,52 +123,104 @@ export function UploadBookDialog() {
         <DialogHeader>
           <DialogTitle>Upload Book</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="file">Book File</Label>
-            <Input
-              id="file"
-              type="file"
-              accept=".epub,.pdf"
-              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-              required
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="file">Book File</Label>
+              <Input
+                id="file"
+                type="file"
+                accept=".epub,.pdf"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                required
+              />
+            </div>
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Title</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
-            <Input id="title" name="title" required />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="author">Author</Label>
-            <Input id="author" name="author" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="format">Format</Label>
-            <Select name="format" required defaultValue="epub">
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="epub">EPUB</SelectItem>
-                <SelectItem value="pdf">PDF</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="isbn">ISBN</Label>
-            <Input id="isbn" name="isbn" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea id="description" name="description" />
-          </div>
-          <div className="flex justify-end">
-            <Button type="submit" disabled={isUploading || !selectedFile}>
-              {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isUploading ? "Uploading..." : "Upload"}
-            </Button>
-          </div>
-        </form>
+            <FormField
+              control={form.control}
+              name="author"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Author</FormLabel>
+                  <FormControl>
+                    <Input {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="format"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Format</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="epub">EPUB</SelectItem>
+                      <SelectItem value="pdf">PDF</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="isbn"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>ISBN</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                disabled={!selectedFile || form.formState.isSubmitting}
+              >
+                {form.formState.isSubmitting ? "Uploading..." : "Upload"}
+              </Button>
+            </div>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
