@@ -12,6 +12,7 @@ export interface Database {
       books: {
         Row: {
           id: string
+          user_id: string
           title: string
           author: string | null
           cover_url: string | null
@@ -19,14 +20,15 @@ export interface Database {
           format: 'epub' | 'pdf'
           status: 'unread' | 'reading' | 'completed'
           progress: number | null
+          priority_score: number | null
+          metadata: Json | null
           created_at: string
           updated_at: string
           last_read: string | null
-          user_id: string
-          metadata: Json | null
         }
         Insert: {
           id?: string
+          user_id: string
           title: string
           author?: string | null
           cover_url?: string | null
@@ -34,14 +36,15 @@ export interface Database {
           format: 'epub' | 'pdf'
           status?: 'unread' | 'reading' | 'completed'
           progress?: number | null
+          priority_score?: number | null
+          metadata?: Json | null
           created_at?: string
           updated_at?: string
           last_read?: string | null
-          user_id: string
-          metadata?: Json | null
         }
         Update: {
           id?: string
+          user_id?: string
           title?: string
           author?: string | null
           cover_url?: string | null
@@ -49,11 +52,204 @@ export interface Database {
           format?: 'epub' | 'pdf'
           status?: 'unread' | 'reading' | 'completed'
           progress?: number | null
+          priority_score?: number | null
+          metadata?: Json | null
           created_at?: string
           updated_at?: string
           last_read?: string | null
+        }
+      }
+      reading_statistics: {
+        Row: {
+          id: string
+          user_id: string
+          pages_read: number
+          reading_time: number
+          books_completed: number
+          daily_average: number
+          weekly_data: Json
+          monthly_data: Json
+          weekly_change: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          pages_read?: number
+          reading_time?: number
+          books_completed?: number
+          daily_average?: number
+          weekly_data?: Json
+          monthly_data?: Json
+          weekly_change?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
           user_id?: string
-          metadata?: Json | null
+          pages_read?: number
+          reading_time?: number
+          books_completed?: number
+          daily_average?: number
+          weekly_data?: Json
+          monthly_data?: Json
+          weekly_change?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      challenges: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          description: string
+          type: 'daily' | 'weekly' | 'monthly' | 'special'
+          progress: number
+          total: number
+          days_left: number | null
+          reward: string | null
+          status: 'active' | 'completed' | 'failed'
+          start_date: string
+          end_date: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          description: string
+          type: 'daily' | 'weekly' | 'monthly' | 'special'
+          progress?: number
+          total: number
+          days_left?: number | null
+          reward?: string | null
+          status?: 'active' | 'completed' | 'failed'
+          start_date?: string
+          end_date?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          description?: string
+          type?: 'daily' | 'weekly' | 'monthly' | 'special'
+          progress?: number
+          total?: number
+          days_left?: number | null
+          reward?: string | null
+          status?: 'active' | 'completed' | 'failed'
+          start_date?: string
+          end_date?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      missions: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          description: string
+          progress: number
+          icon_type: 'target' | 'trophy' | 'book'
+          target_books: Json
+          target_tags: Json
+          start_date: string
+          end_date: string | null
+          status: 'active' | 'completed' | 'paused'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          description: string
+          progress?: number
+          icon_type: 'target' | 'trophy' | 'book'
+          target_books?: Json
+          target_tags?: Json
+          start_date?: string
+          end_date?: string | null
+          status?: 'active' | 'completed' | 'paused'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          description?: string
+          progress?: number
+          icon_type?: 'target' | 'trophy' | 'book'
+          target_books?: Json
+          target_tags?: Json
+          start_date?: string
+          end_date?: string | null
+          status?: 'active' | 'completed' | 'paused'
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      reading_activities: {
+        Row: {
+          id: string
+          user_id: string
+          book_id: string
+          type: 'started' | 'finished' | 'highlight' | 'tagged' | 'progress_update' | 'challenge_completed' | 'mission_completed'
+          details: Json
+          timestamp: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          book_id: string
+          type: 'started' | 'finished' | 'highlight' | 'tagged' | 'progress_update' | 'challenge_completed' | 'mission_completed'
+          details?: Json
+          timestamp?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          book_id?: string
+          type?: 'started' | 'finished' | 'highlight' | 'tagged' | 'progress_update' | 'challenge_completed' | 'mission_completed'
+          details?: Json
+          timestamp?: string
+        }
+      }
+      reading_sessions: {
+        Row: {
+          id: string
+          user_id: string
+          book_id: string
+          start_time: string
+          end_time: string | null
+          pages_read: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          book_id: string
+          start_time: string
+          end_time?: string | null
+          pages_read?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          book_id?: string
+          start_time?: string
+          end_time?: string | null
+          pages_read?: number
+          created_at?: string
         }
       }
     }
