@@ -21,6 +21,10 @@ DROP TABLE IF EXISTS public.missions CASCADE;
 DROP TABLE IF EXISTS public.reading_activities CASCADE;
 DROP TABLE IF EXISTS public.reading_sessions CASCADE;
 
+-- Drop existing triggers first
+DROP TRIGGER IF EXISTS on_auth_user_created_stats ON auth.users;
+DROP FUNCTION IF EXISTS create_user_reading_statistics() CASCADE;
+
 -- Create reading_statistics table
 CREATE TABLE public.reading_statistics (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -182,16 +186,29 @@ CREATE INDEX IF NOT EXISTS idx_reading_sessions_book_id ON reading_sessions(book
 
 -- Create function to automatically create reading statistics for new users
 CREATE OR REPLACE FUNCTION create_user_reading_statistics()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
 BEGIN
+    -- Check if stats already exist
+    IF EXISTS (SELECT 1 FROM public.reading_statistics WHERE user_id = NEW.id) THEN
+        RETURN NEW;
+    END IF;
+
+    -- Create new stats
     INSERT INTO reading_statistics (user_id)
     VALUES (NEW.id);
     RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+    -- Log error details
+    RAISE LOG 'Error in create_user_reading_statistics for user % : %', NEW.id, SQLERRM;
+    RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$;
 
 -- Create trigger to automatically create reading statistics for new users
-DROP TRIGGER IF EXISTS on_auth_user_created_stats ON auth.users;
 CREATE TRIGGER on_auth_user_created_stats
     AFTER INSERT ON auth.users
     FOR EACH ROW
