@@ -88,20 +88,48 @@ ALTER TABLE tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE highlight_tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE obsidian_sync ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies for all tables
+-- Books policies
+DROP POLICY IF EXISTS "Users can view their own books" ON books;
+DROP POLICY IF EXISTS "Users can create their own books" ON books;
+DROP POLICY IF EXISTS "Users can update their own books" ON books;
+DROP POLICY IF EXISTS "Users can delete their own books" ON books;
+
+-- Highlights policies
+DROP POLICY IF EXISTS "Users can view their own highlights" ON highlights;
+DROP POLICY IF EXISTS "Users can insert their own highlights" ON highlights;
+DROP POLICY IF EXISTS "Users can update their own highlights" ON highlights;
+DROP POLICY IF EXISTS "Users can delete their own highlights" ON highlights;
+
+-- Tags policies
+DROP POLICY IF EXISTS "Users can view their own tags" ON tags;
+DROP POLICY IF EXISTS "Users can insert their own tags" ON tags;
+DROP POLICY IF EXISTS "Users can update their own tags" ON tags;
+DROP POLICY IF EXISTS "Users can delete their own tags" ON tags;
+
+-- Highlight tags policies
+DROP POLICY IF EXISTS "Users can view their own highlight tags" ON highlight_tags;
+DROP POLICY IF EXISTS "Users can insert their own highlight tags" ON highlight_tags;
+DROP POLICY IF EXISTS "Users can delete their own highlight tags" ON highlight_tags;
+
+-- ObsidianSync policies
+DROP POLICY IF EXISTS "Users can view their own obsidian sync" ON obsidian_sync;
+DROP POLICY IF EXISTS "Users can insert their own obsidian sync" ON obsidian_sync;
+DROP POLICY IF EXISTS "Users can update their own obsidian sync" ON obsidian_sync;
+
 -- Create RLS Policies
 -- Books policies
 CREATE POLICY "Users can view their own books"
     ON books FOR SELECT
     USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can insert their own books"
+CREATE POLICY "Users can create their own books"
     ON books FOR INSERT
     WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can update their own books"
     ON books FOR UPDATE
-    USING (auth.uid() = user_id)
-    WITH CHECK (auth.uid() = user_id);
+    USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can delete their own books"
     ON books FOR DELETE
@@ -190,6 +218,9 @@ BEGIN
     RETURN NEW;
 END;
 $$ language 'plpgsql';
+
+-- Drop existing trigger before creating new one
+DROP TRIGGER IF EXISTS update_books_updated_at ON books;
 
 -- Create trigger for books table
 CREATE TRIGGER update_books_updated_at

@@ -87,18 +87,27 @@ END $$;
 DROP TABLE IF EXISTS highlight_tags CASCADE;
 
 -- Update tags table structure
-DO $$ 
+DO $$
+DECLARE
+    constraint_exists boolean;
 BEGIN
     IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'tags') THEN
         -- Remove old foreign key if it exists
         ALTER TABLE tags
             DROP CONSTRAINT IF EXISTS tags_parent_tag_id_fkey;
 
+        -- Drop existing unique constraint if it exists
+        ALTER TABLE tags
+            DROP CONSTRAINT IF EXISTS tags_name_user_id_parent_id_key;
+        
+        ALTER TABLE tags
+            DROP CONSTRAINT IF EXISTS tags_name_user_id_key;
+
         -- Update columns
         IF NOT EXISTS (
-            SELECT 1 
-            FROM information_schema.columns 
-            WHERE table_name = 'tags' 
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_name = 'tags'
             AND column_name = 'parent_id'
         ) THEN
             ALTER TABLE tags
@@ -106,10 +115,18 @@ BEGIN
                 ADD COLUMN parent_id uuid REFERENCES public.tags(id);
         END IF;
 
-        -- Update constraints
-        ALTER TABLE tags
-            DROP CONSTRAINT IF EXISTS tags_name_user_id_key,
-            ADD CONSTRAINT tags_name_user_id_parent_id_key UNIQUE (name, user_id, parent_id);
+        -- Check if constraint exists
+        SELECT EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conname = 'tags_name_user_id_parent_id_key'
+        ) INTO constraint_exists;
+
+        -- Add new constraint if it doesn't exist
+        IF NOT constraint_exists THEN
+            ALTER TABLE tags
+                ADD CONSTRAINT tags_name_user_id_parent_id_key UNIQUE (name, user_id, parent_id);
+        END IF;
     END IF;
 END $$;
 
