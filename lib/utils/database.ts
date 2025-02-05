@@ -41,17 +41,17 @@ export const db = {
     id: string,
   ): Promise<DbResult<TableTypes<T>['Row']>> {
     const supabase = createClient();
-    const query = createTypeSafeQuery(supabase, table);
-    const result = await query
-      .select()
-      .eq('id', id)
+    const result = await supabase
+      .from(table)
+      .select('*')
+      .eq('id' as any, id)
       .maybeSingle();
     
     if (result.error) {
       return { data: null, error: result.error };
     }
     
-    return { data: result.data, error: null };
+    return { data: result.data as TableTypes<T>['Row'] | null, error: null };
   },
 
   /**
@@ -63,10 +63,10 @@ export const db = {
     data: TableTypes<T>['Update'],
   ): Promise<DbResult<TableTypes<T>['Row']>> {
     const supabase = createClient();
-    const query = createTypeSafeQuery(supabase, table);
-    const result = await query
-      .update(data)
-      .eq('id', id)
+    const result = await supabase
+      .from(table)
+      .update(data as any)
+      .eq('id' as any, id)
       .select()
       .maybeSingle();
     
@@ -74,7 +74,7 @@ export const db = {
       return { data: null, error: result.error };
     }
     
-    return { data: result.data, error: null };
+    return { data: result.data as TableTypes<T>['Row'] | null, error: null };
   },
 
   /**
@@ -82,10 +82,10 @@ export const db = {
    */
   async getUserProfile(userId: string): Promise<DbResult<User>> {
     const supabase = createClient();
-    const query = createTypeSafeQuery(supabase, 'users');
-    const result = await query
+    const result = await supabase
+      .from('users')
       .select()
-      .eq('id', userId)
+      .eq('id' as any, userId)
       .maybeSingle();
     
     if (result.error) {
@@ -102,10 +102,10 @@ export const db = {
       email: result.data.email,
       created_at: result.data.created_at,
       updated_at: result.data.updated_at,
-      metadata: result.data.metadata || {},
-      name: result.data.name || '',
-      avatar_url: result.data.avatar_url || '',
-      provider: result.data.provider || 'email',
+      metadata: (result.data as any).metadata || {},
+      name: (result.data as any).name || '',
+      avatar_url: (result.data as any).avatar_url || '',
+      provider: (result.data as any).provider || 'email',
     };
     
     return { data: user, error: null };
@@ -130,19 +130,17 @@ export const db = {
       return currentProfile;
     }
 
-    const query = createTypeSafeQuery(supabase, 'users');
-    const updateData = {
-      ...data,
-      metadata: {
-        ...currentProfile.data.metadata,
-        ...data.metadata,
-      },
-      updated_at: new Date().toISOString(),
-    };
-
-    const result = await query
-      .update(updateData)
-      .eq('id', userId)
+    const result = await supabase
+      .from('users')
+      .update({
+        ...data,
+        metadata: {
+          ...currentProfile.data.metadata,
+          ...data.metadata,
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id' as any, userId)
       .select()
       .maybeSingle();
     
@@ -160,10 +158,10 @@ export const db = {
       email: result.data.email,
       created_at: result.data.created_at,
       updated_at: result.data.updated_at,
-      metadata: result.data.metadata || {},
-      name: result.data.name || '',
-      avatar_url: result.data.avatar_url || '',
-      provider: result.data.provider || 'email',
+      metadata: (result.data as any).metadata || {},
+      name: (result.data as any).name || '',
+      avatar_url: (result.data as any).avatar_url || '',
+      provider: (result.data as any).provider || 'email',
     };
     
     return { data: user, error: null };
@@ -175,9 +173,9 @@ export const db = {
   ): Promise<DatabaseResponse<TableTypes<T>['Row']>> {
     try {
       const supabase = createClient();
-      const query = createTypeSafeQuery(supabase, table);
-      const result = await query
-        .insert(data)
+      const result = await supabase
+        .from(table)
+        .insert(data as any)
         .select()
         .maybeSingle();
 
@@ -185,7 +183,7 @@ export const db = {
         return { data: null, error: result.error };
       }
 
-      return { data: result.data, error: null };
+      return { data: result.data as TableTypes<T>['Row'] | null, error: null };
     } catch (error) {
       return {
         data: null,
@@ -201,10 +199,10 @@ export const db = {
   ): Promise<DatabaseResponse<TableTypes<T>['Row']>> {
     try {
       const supabase = createClient();
-      const query = createTypeSafeQuery(supabase, table);
-      const result = await query
-        .update(data)
-        .eq('id', id)
+      const result = await supabase
+        .from(table)
+        .update(data as any)
+        .eq('id' as any, id)
         .select()
         .maybeSingle();
       
@@ -212,7 +210,7 @@ export const db = {
         return { data: null, error: result.error };
       }
 
-      return { data: result.data, error: null };
+      return { data: result.data as TableTypes<T>['Row'] | null, error: null };
     } catch (error) {
       return {
         data: null,
@@ -227,10 +225,10 @@ export const db = {
   ): Promise<DatabaseResponse<null>> {
     try {
       const supabase = createClient();
-      const query = createTypeSafeQuery(supabase, table);
-      const result = await query
+      const result = await supabase
+        .from(table)
         .delete()
-        .eq('id', id);
+        .eq('id' as any, id);
 
       if (result.error) {
         return { data: null, error: result.error };
@@ -251,17 +249,17 @@ export const db = {
   ): Promise<DatabaseResponse<TableTypes<T>['Row']>> {
     try {
       const supabase = createClient();
-      const query = createTypeSafeQuery(supabase, table);
-      const result = await query
+      const result = await supabase
+        .from(table)
         .select()
-        .eq('id', id)
+        .eq('id' as any, id)
         .maybeSingle();
 
       if (result.error) {
         return { data: null, error: result.error };
       }
 
-      return { data: result.data, error: null };
+      return { data: result.data as TableTypes<T>['Row'] | null, error: null };
     } catch (error) {
       return {
         data: null,

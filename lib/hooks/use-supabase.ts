@@ -74,7 +74,7 @@ export function useSupabase<T extends TableName>() {
       const { data: result, error } = await supabase
         .from(table)
         .update(data as any)
-        .eq('id' as string, id)
+        .eq('id' as any, id)
         .select()
         .single();
 
@@ -104,7 +104,7 @@ export function useSupabase<T extends TableName>() {
       const { error } = await supabase
         .from(table)
         .delete()
-        .eq('id' as string, id);
+        .eq('id' as any, id);
 
       return {
         data: null,
@@ -185,7 +185,7 @@ export function useSupabase<T extends TableName>() {
       const { data: result, error } = await queryBuilder;
 
       return {
-        data: result || [],
+        data: (result as unknown as TableTypes<T>['Row'][]) || [],
         error: handleError(error),
         isLoading: false,
       };
