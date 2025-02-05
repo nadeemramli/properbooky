@@ -16,9 +16,14 @@
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Drop existing types if they exist
-DROP TYPE IF EXISTS book_status CASCADE;
-DROP TYPE IF EXISTS highlight_color CASCADE;
+-- Create updated_at trigger function if it doesn't exist
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
 -- Enhance books table with search capabilities
 DO $$ 
@@ -43,11 +48,6 @@ BEGIN
     ALTER TABLE books 
         DROP CONSTRAINT IF EXISTS books_format_check,
         ADD CONSTRAINT books_format_check CHECK (format IN ('epub', 'pdf'));
-
-    -- Update status constraints
-    ALTER TABLE books 
-        DROP CONSTRAINT IF EXISTS books_status_check,
-        ADD CONSTRAINT books_status_check CHECK (status IN ('unread', 'reading', 'completed'));
 END $$;
 
 -- Enhance highlights table
@@ -78,7 +78,7 @@ BEGIN
         ) THEN
             ALTER TABLE highlights
                 ADD COLUMN search_vector tsvector 
-                GENERATED ALWAYS AS (to_tsvector('english', text)) STORED;
+                GENERATED ALWAYS AS (to_tsvector('english', content)) STORED;
         END IF;
     END IF;
 END $$;
@@ -207,12 +207,3 @@ BEGIN
             EXECUTE FUNCTION update_updated_at();
     END IF;
 END $$;
-
--- Create updated_at trigger function if it doesn't exist
-CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;

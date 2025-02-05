@@ -6,31 +6,18 @@ VALUES
     ('d0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c8', 'test1@example.com'),
     ('d0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c9', 'test2@example.com');
 
--- Insert user profiles
-INSERT INTO public.users (id, email, name, avatar_url, provider, metadata)
-VALUES
-    ('d0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c8', 'test1@example.com', 'Test User 1', 'https://example.com/avatar1.jpg', 'google', '{"theme": "dark", "language": "en"}'),
-    ('d0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c9', 'test2@example.com', 'Test User 2', 'https://example.com/avatar2.jpg', 'google', '{"theme": "light", "language": "en"}');
-
 -- Insert sample books
-INSERT INTO public.books (id, title, author, format, file_url, cover_url, status, progress, user_id, metadata, priority_score)
+INSERT INTO public.books (id, user_id, title, author, format, status, priority_score, metadata)
 VALUES
-    ('b1fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c1', 'The Great Gatsby', 'F. Scott Fitzgerald', 'epub', 'https://example.com/books/gatsby.epub', 'https://example.com/covers/gatsby.jpg', 'reading', 45, 'd0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c8', '{"isbn": "9780743273565", "pages": 180, "publisher": "Scribner", "published_date": "1925-04-10"}', 8),
-    ('b1fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c2', '1984', 'George Orwell', 'pdf', 'https://example.com/books/1984.pdf', 'https://example.com/covers/1984.jpg', 'unread', 0, 'd0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c8', '{"isbn": "9780451524935", "pages": 328, "publisher": "Signet Classic", "published_date": "1949-06-08"}', 5),
-    ('b1fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c3', 'To Kill a Mockingbird', 'Harper Lee', 'epub', 'https://example.com/books/mockingbird.epub', 'https://example.com/covers/mockingbird.jpg', 'completed', 100, 'd0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c9', '{"isbn": "9780446310789", "pages": 281, "publisher": "Grand Central Publishing", "published_date": "1960-07-11"}', 10);
-
--- Insert reading sessions
-INSERT INTO public.reading_sessions (user_id, book_id, start_time, end_time, pages_read)
-VALUES
-    ('d0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c8', 'b1fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c1', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '1 hour', 20),
-    ('d0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c8', 'b1fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c1', NOW() - INTERVAL '1 day', NOW() - INTERVAL '23 hours', 25),
-    ('d0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c9', 'b1fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c3', NOW() - INTERVAL '3 days', NOW() - INTERVAL '71 hours', 281);
+    ('b1fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c1', 'd0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c8', 'The Great Gatsby', 'F. Scott Fitzgerald', 'epub', 'reading', 8, '{"isbn": "9780743273565", "pages": 180, "publisher": "Scribner", "published_date": "1925-04-10"}'),
+    ('b1fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c2', 'd0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c8', '1984', 'George Orwell', 'pdf', 'unread', 5, '{"isbn": "9780451524935", "pages": 328, "publisher": "Signet Classic", "published_date": "1949-06-08"}'),
+    ('b1fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c3', 'd0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c9', 'To Kill a Mockingbird', 'Harper Lee', 'epub', 'completed', 10, '{"isbn": "9780446310789", "pages": 281, "publisher": "Grand Central Publishing", "published_date": "1960-07-11"}');
 
 -- Insert highlights
-INSERT INTO public.highlights (book_id, user_id, text, note, page, tags)
+INSERT INTO public.highlights (id, book_id, user_id, text, page)
 VALUES
-    ('b1fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c1', 'd0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c8', 'So we beat on, boats against the current, borne back ceaselessly into the past.', 'Final line of the book', 180, '["favorite", "quotes"]'),
-    ('b1fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c3', 'd0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c9', 'Until I feared I would lose it, I never loved to read. One does not love breathing.', 'Scout about reading', 18, '["quotes", "reading"]');
+    (uuid_generate_v4(), 'b1fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c1', 'd0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c8', 'So we beat on, boats against the current, borne back ceaselessly into the past.', 180),
+    (uuid_generate_v4(), 'b1fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c3', 'd0fc7e7c-8e3a-4dc6-b6c3-c0b10b1fa0c9', 'Until I feared I would lose it, I never loved to read. One does not love breathing.', 18);
 
 -- Insert user challenges
 INSERT INTO public.user_challenges (user_id, total_reading_time, books_read, current_streak, longest_streak, last_read_date)

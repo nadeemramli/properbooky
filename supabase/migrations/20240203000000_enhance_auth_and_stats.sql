@@ -24,38 +24,13 @@ DROP TABLE IF EXISTS public.reading_sessions CASCADE;
 DROP TABLE IF EXISTS public.highlights CASCADE;
 DROP TABLE IF EXISTS public.books CASCADE;
 
--- Enhance users table if it exists, create if it doesn't
-DO $$ 
-BEGIN
-    IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'users') THEN
-        -- Add columns if they don't exist
-        ALTER TABLE public.users
-            ADD COLUMN IF NOT EXISTS name text,
-            ADD COLUMN IF NOT EXISTS avatar_url text,
-            ADD COLUMN IF NOT EXISTS provider text,
-            ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
-    ELSE
-        -- Create users table
-        CREATE TABLE public.users (
-            id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-            email text UNIQUE NOT NULL,
-            name text,
-            avatar_url text,
-            provider text,
-            metadata jsonb DEFAULT '{}'::jsonb,
-            created_at timestamptz DEFAULT now(),
-            updated_at timestamptz DEFAULT now()
-        );
-    END IF;
-END $$;
-
 -- Create books table
 CREATE TABLE public.books (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     title text NOT NULL,
     author text,
     format text NOT NULL CHECK (format IN ('pdf', 'epub')),
-    file_url text NOT NULL,
+    file_url text,
     cover_url text,
     status text NOT NULL DEFAULT 'unread' CHECK (status IN ('unread', 'reading', 'completed')),
     progress integer DEFAULT 0,
@@ -161,22 +136,12 @@ CREATE INDEX IF NOT EXISTS highlights_book_id_idx ON public.highlights(book_id);
 CREATE INDEX IF NOT EXISTS highlights_user_id_idx ON public.highlights(user_id);
 
 -- Enable RLS on all tables
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.books ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reading_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_challenges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_missions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_reading_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.highlights ENABLE ROW LEVEL SECURITY;
-
--- Create RLS policies for users
-CREATE POLICY "Users can view own profile"
-    ON public.users FOR SELECT
-    USING (auth.uid() = id);
-
-CREATE POLICY "Users can update own profile"
-    ON public.users FOR UPDATE
-    USING (auth.uid() = id);
 
 -- Create RLS policies for books
 CREATE POLICY "Users can view own books"
@@ -264,72 +229,75 @@ CREATE POLICY "Users can delete own highlights"
     ON public.highlights FOR DELETE
     USING (auth.uid() = user_id);
 
--- Create or update triggers for updated_at
+-- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION handle_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = now();
     RETURN NEW;
 END;
-$$ language plpgsql;
+$$ LANGUAGE plpgsql;
 
--- Add triggers to all tables that need updated_at
+-- Create triggers for updated_at
 DO $$
 BEGIN
-    -- Users table trigger
-    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'handle_users_updated_at') THEN
-        CREATE TRIGGER handle_users_updated_at
-            BEFORE UPDATE ON public.users
-            FOR EACH ROW
-            EXECUTE FUNCTION handle_updated_at();
-    END IF;
-
-    -- Books table trigger
-    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'handle_books_updated_at') THEN
+    -- Books
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger WHERE tgname = 'handle_books_updated_at'
+    ) THEN
         CREATE TRIGGER handle_books_updated_at
             BEFORE UPDATE ON public.books
             FOR EACH ROW
             EXECUTE FUNCTION handle_updated_at();
     END IF;
 
-    -- Reading sessions trigger
-    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'handle_reading_sessions_updated_at') THEN
+    -- Reading Sessions
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger WHERE tgname = 'handle_reading_sessions_updated_at'
+    ) THEN
         CREATE TRIGGER handle_reading_sessions_updated_at
             BEFORE UPDATE ON public.reading_sessions
             FOR EACH ROW
             EXECUTE FUNCTION handle_updated_at();
     END IF;
 
-    -- User challenges trigger
-    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'handle_user_challenges_updated_at') THEN
+    -- User Challenges
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger WHERE tgname = 'handle_user_challenges_updated_at'
+    ) THEN
         CREATE TRIGGER handle_user_challenges_updated_at
             BEFORE UPDATE ON public.user_challenges
             FOR EACH ROW
             EXECUTE FUNCTION handle_updated_at();
     END IF;
 
-    -- User missions trigger
-    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'handle_user_missions_updated_at') THEN
+    -- User Missions
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger WHERE tgname = 'handle_user_missions_updated_at'
+    ) THEN
         CREATE TRIGGER handle_user_missions_updated_at
             BEFORE UPDATE ON public.user_missions
             FOR EACH ROW
             EXECUTE FUNCTION handle_updated_at();
     END IF;
 
-    -- User reading stats trigger
-    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'handle_user_reading_stats_updated_at') THEN
+    -- User Reading Stats
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger WHERE tgname = 'handle_user_reading_stats_updated_at'
+    ) THEN
         CREATE TRIGGER handle_user_reading_stats_updated_at
             BEFORE UPDATE ON public.user_reading_stats
             FOR EACH ROW
             EXECUTE FUNCTION handle_updated_at();
     END IF;
 
-    -- Highlights trigger
-    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'handle_highlights_updated_at') THEN
+    -- Highlights
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger WHERE tgname = 'handle_highlights_updated_at'
+    ) THEN
         CREATE TRIGGER handle_highlights_updated_at
             BEFORE UPDATE ON public.highlights
             FOR EACH ROW
             EXECUTE FUNCTION handle_updated_at();
     END IF;
-END
-$$; 
+END $$; 

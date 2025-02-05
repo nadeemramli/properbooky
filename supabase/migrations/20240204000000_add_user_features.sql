@@ -191,8 +191,8 @@ END;
 $$ language 'plpgsql';
 
 -- Create trigger to automatically create reading statistics for new users
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
+DROP TRIGGER IF EXISTS on_auth_user_created_stats ON auth.users;
+CREATE TRIGGER on_auth_user_created_stats
     AFTER INSERT ON auth.users
     FOR EACH ROW
     EXECUTE FUNCTION create_user_reading_statistics(); 
