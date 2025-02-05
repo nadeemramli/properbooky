@@ -1,3 +1,15 @@
+-- Clean up any existing reading statistics related objects
+DO $$ 
+BEGIN
+    -- Drop triggers if they exist
+    DROP TRIGGER IF EXISTS on_auth_user_created_stats ON auth.users;
+    DROP TRIGGER IF EXISTS create_user_reading_statistics ON auth.users;
+    
+    -- Drop functions if they exist
+    DROP FUNCTION IF EXISTS create_user_reading_statistics() CASCADE;
+    DROP FUNCTION IF EXISTS handle_reading_statistics() CASCADE;
+END $$;
+
 -- Handle function drops first
 DROP FUNCTION IF EXISTS handle_new_user() CASCADE;
 DROP FUNCTION IF EXISTS update_updated_at() CASCADE;
@@ -86,6 +98,7 @@ BEGIN
     _avatar_url := COALESCE(NEW.raw_user_meta_data->>'avatar_url', '');
     _provider := COALESCE(NEW.raw_user_meta_data->>'provider', 'email');
 
+    -- Create user profile
     INSERT INTO public.users (id, email, name, avatar_url, provider, metadata)
     VALUES (
         NEW.id,
@@ -100,6 +113,7 @@ BEGIN
             )
         )
     );
+
     RETURN NEW;
 EXCEPTION WHEN OTHERS THEN
     -- Log error details
@@ -125,6 +139,7 @@ GRANT EXECUTE ON FUNCTION update_updated_at() TO authenticated;
 
 -- Create trigger for automatic profile creation
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP TRIGGER IF EXISTS on_auth_user_created_stats ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW

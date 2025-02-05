@@ -14,31 +14,17 @@
     - Improved user engagement features
 */
 
+-- Drop existing triggers and functions first
+DROP TRIGGER IF EXISTS on_auth_user_created_stats ON auth.users;
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP FUNCTION IF EXISTS create_user_reading_statistics() CASCADE;
+DROP FUNCTION IF EXISTS handle_new_user() CASCADE;
+
 -- Drop existing tables if they exist
-DROP TABLE IF EXISTS public.reading_statistics CASCADE;
 DROP TABLE IF EXISTS public.challenges CASCADE;
 DROP TABLE IF EXISTS public.missions CASCADE;
 DROP TABLE IF EXISTS public.reading_activities CASCADE;
 DROP TABLE IF EXISTS public.reading_sessions CASCADE;
-
--- Drop existing triggers first
-DROP TRIGGER IF EXISTS on_auth_user_created_stats ON auth.users;
-DROP FUNCTION IF EXISTS create_user_reading_statistics() CASCADE;
-
--- Create reading_statistics table
-CREATE TABLE public.reading_statistics (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-    pages_read integer NOT NULL DEFAULT 0,
-    reading_time integer NOT NULL DEFAULT 0, -- in minutes
-    books_completed integer NOT NULL DEFAULT 0,
-    daily_average integer NOT NULL DEFAULT 0,
-    weekly_data jsonb NOT NULL DEFAULT '[]'::jsonb,
-    monthly_data jsonb NOT NULL DEFAULT '[]'::jsonb,
-    weekly_change numeric(5,2) NOT NULL DEFAULT 0,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    updated_at timestamptz DEFAULT now() NOT NULL
-);
 
 -- Add challenges table
 CREATE TABLE IF NOT EXISTS challenges (
@@ -97,24 +83,10 @@ CREATE TABLE IF NOT EXISTS reading_sessions (
 );
 
 -- Enable RLS
-ALTER TABLE reading_statistics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE challenges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE missions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reading_activities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reading_sessions ENABLE ROW LEVEL SECURITY;
-
--- Reading statistics policies
-CREATE POLICY "Users can view their own reading statistics"
-    ON reading_statistics FOR SELECT
-    USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own reading statistics"
-    ON reading_statistics FOR UPDATE
-    USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own reading statistics"
-    ON reading_statistics FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
 
 -- Challenges policies
 CREATE POLICY "Users can view their own challenges"
@@ -173,7 +145,6 @@ CREATE POLICY "Users can update their own reading sessions"
     USING (auth.uid() = user_id);
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_reading_statistics_user_id ON reading_statistics(user_id);
 CREATE INDEX IF NOT EXISTS idx_challenges_user_id ON challenges(user_id);
 CREATE INDEX IF NOT EXISTS idx_challenges_status ON challenges(status);
 CREATE INDEX IF NOT EXISTS idx_missions_user_id ON missions(user_id);
@@ -182,34 +153,4 @@ CREATE INDEX IF NOT EXISTS idx_reading_activities_user_id ON reading_activities(
 CREATE INDEX IF NOT EXISTS idx_reading_activities_book_id ON reading_activities(book_id);
 CREATE INDEX IF NOT EXISTS idx_reading_activities_timestamp ON reading_activities(timestamp);
 CREATE INDEX IF NOT EXISTS idx_reading_sessions_user_id ON reading_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_reading_sessions_book_id ON reading_sessions(book_id);
-
--- Create function to automatically create reading statistics for new users
-CREATE OR REPLACE FUNCTION create_user_reading_statistics()
-RETURNS TRIGGER
-SECURITY DEFINER
-SET search_path = public
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    -- Check if stats already exist
-    IF EXISTS (SELECT 1 FROM public.reading_statistics WHERE user_id = NEW.id) THEN
-        RETURN NEW;
-    END IF;
-
-    -- Create new stats
-    INSERT INTO reading_statistics (user_id)
-    VALUES (NEW.id);
-    RETURN NEW;
-EXCEPTION WHEN OTHERS THEN
-    -- Log error details
-    RAISE LOG 'Error in create_user_reading_statistics for user % : %', NEW.id, SQLERRM;
-    RETURN NEW;
-END;
-$$;
-
--- Create trigger to automatically create reading statistics for new users
-CREATE TRIGGER on_auth_user_created_stats
-    AFTER INSERT ON auth.users
-    FOR EACH ROW
-    EXECUTE FUNCTION create_user_reading_statistics(); 
+CREATE INDEX IF NOT EXISTS idx_reading_sessions_book_id ON reading_sessions(book_id); 
