@@ -27,6 +27,7 @@ const MOCK_SESSION: Session = {
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const supabase = createClient()
@@ -36,6 +37,7 @@ export function useAuth() {
     if (process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true') {
       setUser(MOCK_USER)
       setSession(MOCK_SESSION)
+      setIsAuthenticated(true)
       setLoading(false)
       return
     }
@@ -53,6 +55,7 @@ export function useAuth() {
       
       setSession(session)
       setUser(session?.user ?? null)
+      setIsAuthenticated(!!session?.user)
       setLoading(false)
     })
 
@@ -72,6 +75,7 @@ export function useAuth() {
 
       setSession(session)
       setUser(session?.user ?? null)
+      setIsAuthenticated(!!session?.user)
       setLoading(false)
     })
 
@@ -120,6 +124,6 @@ export function useAuth() {
     loading,
     signIn,
     signOut,
-    isAuthenticated: !!session?.user,
+    isAuthenticated,
   }
 } 
