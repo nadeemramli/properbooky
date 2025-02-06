@@ -10,13 +10,24 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Upload, Loader2, FileText, X } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
+import { Upload, X, FileText, AlertCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useUploadQueue } from "../hooks/use-upload-queue";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
+import { useUploadQueue } from "@/lib/hooks/use-upload-queue";
+import { useToast } from "@/components/ui/use-toast";
+
+interface QueueItem {
+  id: string;
+  file: File;
+  progress: number;
+  status: "pending" | "uploading" | "completed" | "error";
+  error?: string;
+}
 
 export function BulkUploadDialog() {
   const [open, setOpen] = useState(false);
+  const { toast } = useToast();
   const {
     queue,
     isUploading,
@@ -43,14 +54,37 @@ export function BulkUploadDialog() {
   });
 
   const handleUpload = async () => {
-    await processQueue();
+    try {
+      await processQueue();
+      toast({
+        title: "Upload Complete",
+        description: `Successfully uploaded ${queue.length} files`,
+      });
+      setOpen(false); // Close dialog after successful upload
+      clearQueue(); // Clear the queue after successful upload
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Upload Failed",
+        description:
+          error instanceof Error ? error.message : "Failed to upload files",
+      });
+    }
+  };
+
+  // Reset state when dialog closes
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (!newOpen && !isUploading) {
+      clearQueue();
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="h-10">
-          <Upload className="mr-2 h-4 w-4" />
+        <Button variant="outline" size="sm" className="gap-2">
+          <Upload className="h-4 w-4" />
           Bulk Upload
         </Button>
       </DialogTrigger>
@@ -59,76 +93,101 @@ export function BulkUploadDialog() {
           <DialogTitle>Bulk Upload Books</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
+          {/* Drag & Drop Zone */}
           <div
             {...getRootProps()}
             className={cn(
-              "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
-              isDragActive
-                ? "border-primary bg-primary/10"
-                : "border-gray-300 hover:border-primary"
+              "border-2 border-dashed rounded-lg p-8 transition-colors",
+              "hover:border-primary/50 hover:bg-muted/50",
+              isDragActive ? "border-primary bg-primary/5" : "border-muted"
             )}
           >
             <input {...getInputProps()} />
-            <FileText className="mx-auto h-12 w-12 text-gray-400" />
-            <p className="mt-2 text-sm text-gray-600">
-              {isDragActive
-                ? "Drop the files here..."
-                : "Drag and drop files here, or click to select files"}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              PDF and EPUB files only (max 100MB)
-            </p>
+            <div className="flex flex-col items-center gap-2 text-center">
+              <Upload className="h-8 w-8 text-muted-foreground" />
+              {isDragActive ? (
+                <p className="text-primary">Drop the files here ...</p>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Drag & drop files here, or click to select files
+                  </p>
+                  <p className="text-xs text-muted-foreground/80">
+                    Supports: PDF, EPUB (max 100MB)
+                  </p>
+                </>
+              )}
+            </div>
           </div>
 
+          {/* File List */}
           {queue.length > 0 && (
-            <div className="space-y-2">
-              {queue.map((file) => (
-                <div
-                  key={file.id}
-                  className="flex items-center justify-between p-2 border rounded"
-                >
-                  <div className="flex items-center space-x-2 flex-1">
-                    <FileText className="h-4 w-4" />
-                    <span className="text-sm truncate">{file.name}</span>
+            <ScrollArea className="h-[200px] rounded-md border border-muted p-4">
+              <div className="space-y-2">
+                {queue.map((item: QueueItem) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-muted bg-muted/50 p-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                      <span className="text-sm truncate">{item.file.name}</span>
+                      {item.error && (
+                        <span className="text-xs text-destructive truncate">
+                          {item.error}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {item.status === "error" && (
+                        <AlertCircle className="h-4 w-4 text-destructive" />
+                      )}
+                      {item.status === "uploading" && (
+                        <div className="w-20">
+                          <Progress value={item.progress} className="h-2" />
+                          <span className="text-xs text-muted-foreground">
+                            {item.progress}%
+                          </span>
+                        </div>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 hover:bg-muted"
+                        onClick={() => removeFromQueue(item.id)}
+                        disabled={isUploading && item.status === "uploading"}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    {file.status === "uploading" && (
-                      <Progress value={file.progress} className="w-20" />
-                    )}
-                    {file.status === "completed" && (
-                      <span className="text-green-500 text-sm">Done</span>
-                    )}
-                    {file.status === "error" && (
-                      <span className="text-red-500 text-sm">Error</span>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeFromQueue(file.id)}
-                      disabled={isUploading}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-
-              <div className="flex justify-end space-x-2">
-                <Button
-                  variant="outline"
-                  onClick={clearQueue}
-                  disabled={isUploading}
-                >
-                  Clear All
-                </Button>
-                <Button onClick={handleUpload} disabled={isUploading}>
-                  {isUploading && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  {isUploading ? "Uploading..." : "Upload All"}
-                </Button>
+                ))}
               </div>
+            </ScrollArea>
+          )}
+
+          {/* Upload Buttons */}
+          {queue.length > 0 && (
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearQueue}
+                disabled={isUploading}
+              >
+                Clear All
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleUpload}
+                disabled={isUploading || queue.length === 0}
+              >
+                {isUploading && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {isUploading ? "Uploading..." : `Upload ${queue.length} files`}
+              </Button>
             </div>
           )}
         </div>
