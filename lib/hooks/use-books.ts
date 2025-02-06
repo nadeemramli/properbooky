@@ -49,6 +49,13 @@ export function useBooks(searchQuery?: string) {
   // Fetch books
   const fetchBooks = async () => {
     try {
+      // Check for development bypass
+      if (process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true') {
+        setBooks([]);
+        setLoading(false);
+        return;
+      }
+
       if (!user) {
         setBooks([]);
         setError("User not authenticated");
