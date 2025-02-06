@@ -44,19 +44,12 @@ export function useBooks(searchQuery?: string) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
-  const { user } = useAuth()
+  const { user, isAuthenticated } = useAuth()
 
   // Fetch books
   const fetchBooks = async () => {
     try {
-      // Check for development bypass
-      if (process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true') {
-        setBooks([]);
-        setLoading(false);
-        return;
-      }
-
-      if (!user) {
+      if (!isAuthenticated) {
         setBooks([]);
         setError("User not authenticated");
         return;
@@ -66,7 +59,7 @@ export function useBooks(searchQuery?: string) {
       const query = supabase
         .from('books')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', user?.id || 'dev-user')
         .order('created_at', { ascending: false })
 
       const filteredQuery = searchQuery 
