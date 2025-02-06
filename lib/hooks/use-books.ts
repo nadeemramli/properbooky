@@ -49,9 +49,24 @@ export function useBooks(searchQuery?: string) {
   // Fetch books
   const fetchBooks = async () => {
     try {
+      console.log('Auth Debug:', { 
+        isAuthenticated, 
+        user: user ? { 
+          id: user.id, 
+          email: user.email,
+          role: user.role 
+        } : null,
+        env: process.env.NODE_ENV
+      });
+
       if (!isAuthenticated) {
         setBooks([]);
         setError("User not authenticated");
+        return;
+      }
+
+      if (!user?.id) {
+        setBooks([]);
         return;
       }
 
@@ -59,14 +74,24 @@ export function useBooks(searchQuery?: string) {
       const query = supabase
         .from('books')
         .select('*')
-        .eq('user_id', user?.id || 'dev-user')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
+
+      console.log('Query Debug:', {
+        userId: user?.id
+      });
 
       const filteredQuery = searchQuery 
         ? query.ilike('title', `%${searchQuery}%`)
         : query;
 
       const { data, error: queryError } = await filteredQuery;
+
+      console.log('Query Result:', {
+        success: !queryError,
+        error: queryError,
+        dataLength: data?.length ?? 0
+      });
 
       if (queryError) throw queryError;
       

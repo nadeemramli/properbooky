@@ -42,6 +42,15 @@ export function useAuth() {
 
     // Get session from storage
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Auth Session Debug:', {
+        hasSession: !!session,
+        user: session?.user ? {
+          id: session.user.id,
+          email: session.user.email,
+          role: session.user.role
+        } : null
+      });
+      
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
@@ -51,6 +60,16 @@ export function useAuth() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+      console.log('Auth State Change:', {
+        event,
+        hasSession: !!session,
+        user: session?.user ? {
+          id: session.user.id,
+          email: session.user.email,
+          role: session.user.role
+        } : null
+      });
+
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
@@ -101,6 +120,6 @@ export function useAuth() {
     loading,
     signIn,
     signOut,
-    isAuthenticated: process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true' ? true : !!user,
+    isAuthenticated: !!session?.user,
   }
 } 
