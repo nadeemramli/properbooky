@@ -56,19 +56,18 @@ export default function LibraryPage() {
   }, [debouncedSearch, pathname, router, searchParams]);
 
   return (
-    <div className="container max-w-7xl mx-auto py-6 space-y-6">
-      <div className="flex flex-col h-full">
-        <div className="flex-none space-y-4 px-4 md:px-0">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h2 className="text-3xl font-bold tracking-tight">Library</h2>
-            <div className="flex items-center gap-2 shrink-0">
-              <UploadBookDialog />
-              <BulkUploadDialog />
+    <div className="h-full flex flex-col">
+      {/* Top Bar */}
+      <div className="flex-none border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container max-w-7xl mx-auto py-4">
+          <div className="flex flex-col gap-4">
+            {/* Header */}
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">Library</h2>
             </div>
-          </div>
 
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-            <div className="flex-1 flex items-center gap-2 min-w-0 w-full md:w-auto">
+            {/* Search, View Toggle, and Upload Buttons */}
+            <div className="flex items-center gap-4">
               <div className="relative flex-1">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <Input
@@ -78,7 +77,7 @@ export default function LibraryPage() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <div className="flex items-center gap-2 border rounded-md p-1 shrink-0">
+              <div className="flex items-center gap-2 border rounded-md p-1">
                 <Button
                   variant={viewMode === "grid" ? "secondary" : "ghost"}
                   size="icon"
@@ -96,27 +95,43 @@ export default function LibraryPage() {
                   <List className="h-4 w-4" />
                 </Button>
               </div>
-            </div>
-            <div className="w-full md:w-auto shrink-0">
-              <BookFilters />
+              <div className="flex items-center gap-2">
+                <UploadBookDialog />
+                <BulkUploadDialog />
+              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="flex-1 px-4 md:px-0 pb-4">
-          {viewMode === "grid" ? (
-            <BookGrid
-              searchQuery={debouncedSearch}
-              view={currentView}
-              status={currentStatus}
-            />
-          ) : (
-            <BookList
-              searchQuery={debouncedSearch}
-              view={currentView}
-              status={currentStatus}
-            />
-          )}
+      {/* Main Content */}
+      <div className="flex-1">
+        <div className="container max-w-7xl mx-auto">
+          <div className="flex flex-col-reverse md:flex-row gap-6 py-6">
+            {/* Book Grid/List */}
+            <div className="flex-1 min-w-0">
+              {viewMode === "grid" ? (
+                <BookGrid
+                  searchQuery={debouncedSearch}
+                  view={currentView}
+                  status={currentStatus}
+                />
+              ) : (
+                <BookList
+                  searchQuery={debouncedSearch}
+                  view={currentView}
+                  status={currentStatus}
+                />
+              )}
+            </div>
+
+            {/* Sidebar Filters */}
+            <div className="w-full md:w-64 flex-none">
+              <div className="sticky top-4">
+                <BookFilters />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
