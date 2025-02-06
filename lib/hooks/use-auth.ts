@@ -32,6 +32,12 @@ export function useAuth() {
   const router = useRouter()
   const supabase = createClient()
 
+  const updateAuthState = (session: Session | null) => {
+    setSession(session)
+    setUser(session?.user ?? null)
+    setIsAuthenticated(!!session?.user)
+  }
+
   useEffect(() => {
     // Check for development bypass
     if (process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true') {
@@ -41,6 +47,8 @@ export function useAuth() {
       setLoading(false)
       return
     }
+
+    let mounted = true
 
     // Get session from storage
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -53,10 +61,10 @@ export function useAuth() {
         } : null
       });
       
-      setSession(session)
-      setUser(session?.user ?? null)
-      setIsAuthenticated(!!session?.user)
-      setLoading(false)
+      if (mounted) {
+        updateAuthState(session)
+        setLoading(false)
+      }
     })
 
     // Listen for auth changes
@@ -73,13 +81,16 @@ export function useAuth() {
         } : null
       });
 
-      setSession(session)
-      setUser(session?.user ?? null)
-      setIsAuthenticated(!!session?.user)
-      setLoading(false)
+      if (mounted) {
+        updateAuthState(session)
+        setLoading(false)
+      }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const signIn = async () => {

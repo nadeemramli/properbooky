@@ -44,11 +44,16 @@ export function useBooks(searchQuery?: string) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, loading: authLoading } = useAuth()
 
   // Fetch books
   const fetchBooks = async () => {
     try {
+      // Don't fetch if auth is still loading
+      if (authLoading) {
+        return;
+      }
+
       console.log('Auth Debug:', { 
         isAuthenticated, 
         user: user ? { 
@@ -56,17 +61,13 @@ export function useBooks(searchQuery?: string) {
           email: user.email,
           role: user.role 
         } : null,
-        env: process.env.NODE_ENV
+        env: process.env.NODE_ENV,
+        authLoading
       });
 
-      if (!isAuthenticated) {
+      if (!isAuthenticated || !user?.id) {
         setBooks([]);
         setError("User not authenticated");
-        return;
-      }
-
-      if (!user?.id) {
-        setBooks([]);
         return;
       }
 
@@ -78,7 +79,8 @@ export function useBooks(searchQuery?: string) {
         .order('created_at', { ascending: false })
 
       console.log('Query Debug:', {
-        userId: user?.id
+        userId: user.id,
+        authState: { isAuthenticated, authLoading }
       });
 
       const filteredQuery = searchQuery 
