@@ -4,6 +4,7 @@ import { isPostgrestError, getErrorMessage } from '@/lib/utils/error'
 import type { Book as AppBook, BookCreate, BookUpdate, BookMetadata } from '@/types/book'
 import type { Database } from '@/types/database'
 import type { Json } from '@/types/database'
+import { useAuth } from './use-auth'
 
 type DbBook = Database['public']['Tables']['books']['Row']
 
@@ -43,14 +44,22 @@ export function useBooks(searchQuery?: string) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
+  const { user } = useAuth()
 
   // Fetch books
   const fetchBooks = async () => {
     try {
+      if (!user) {
+        setBooks([]);
+        setError("User not authenticated");
+        return;
+      }
+
       setLoading(true)
       const query = supabase
         .from('books')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
       const filteredQuery = searchQuery 
@@ -80,6 +89,10 @@ export function useBooks(searchQuery?: string) {
   // Add book
   const addBook = async (bookData: BookCreate) => {
     try {
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
       const { data, error: insertError } = await supabase
         .from('books')
         .insert({
@@ -91,7 +104,7 @@ export function useBooks(searchQuery?: string) {
           status: bookData.status ?? 'unread',
           progress: bookData.progress ?? 0,
           priority_score: bookData.priority_score ?? 0,
-          user_id: bookData.user_id,
+          user_id: user.id,
           metadata: transformMetadata(bookData.metadata as BookMetadata),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -116,6 +129,10 @@ export function useBooks(searchQuery?: string) {
   // Update book
   const updateBook = async (id: string, updates: BookUpdate) => {
     try {
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
       const updateData: Partial<DbBook> = {
         ...(updates.title && { title: updates.title }),
         ...(updates.author !== undefined && { author: updates.author }),
@@ -134,6 +151,7 @@ export function useBooks(searchQuery?: string) {
         .from('books')
         .update(updateData)
         .eq('id', id)
+        .eq('user_id', user.id)
         .select()
         .single();
 
@@ -153,10 +171,15 @@ export function useBooks(searchQuery?: string) {
   // Delete book
   const deleteBook = async (id: string) => {
     try {
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
       const { error: deleteError } = await supabase
         .from('books')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', user.id);
 
       if (deleteError) throw deleteError;
       setBooks(prev => prev.filter(book => book.id !== id));
@@ -170,9 +193,13 @@ export function useBooks(searchQuery?: string) {
   // Upload book file
   const uploadBookFile = async (file: File) => {
     try {
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = fileName;
+      const filePath = `${user.id}/${fileName}`;
 
       const { error: uploadError } = await supabase
         .storage
@@ -180,7 +207,13 @@ export function useBooks(searchQuery?: string) {
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
-      return filePath;
+      
+      const { data: { publicUrl } } = supabase
+        .storage
+        .from('books')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
     } catch (err) {
       const errorMessage = getErrorMessage(err);
       setError(errorMessage);
@@ -191,7 +224,7 @@ export function useBooks(searchQuery?: string) {
   // Fetch books on mount and when search query changes
   useEffect(() => {
     fetchBooks()
-  }, [searchQuery])
+  }, [searchQuery, user])
 
   return {
     books,

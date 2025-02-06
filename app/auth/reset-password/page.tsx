@@ -15,7 +15,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 
 const formSchema = z
@@ -56,23 +56,36 @@ export default function ResetPasswordPage() {
       });
 
       if (error) {
+        if (error.message.includes("auth session")) {
+          toast.error("Session Expired", {
+            description:
+              "Your password reset link has expired. Please request a new one.",
+          });
+          router.push("/auth/forgot-password");
+          return;
+        }
         throw error;
       }
 
-      toast({
-        title: "Password updated",
-        description: "Your password has been successfully reset",
+      toast.success("Password updated", {
+        description:
+          "Your password has been successfully reset. Please log in with your new password.",
       });
 
-      // Redirect to login page
-      router.push("/auth/login");
+      // Clear form
+      form.reset();
+
+      // Redirect to login page after a short delay
+      setTimeout(() => {
+        router.push("/auth");
+      }, 2000);
     } catch (error) {
       console.error("Error:", error);
-      toast({
-        title: "Error",
-        description: "Failed to reset password. Please try again.",
-        variant: "destructive",
-      });
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to reset password. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }

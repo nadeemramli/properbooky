@@ -83,8 +83,29 @@ export default function SignUpForm() {
       });
 
       if (error) {
-        console.error("Signup error:", error);
-        throw error;
+        // Handle specific error cases
+        switch (error.message) {
+          case "User already registered":
+            toast.error(
+              "An account with this email already exists. Please log in instead."
+            );
+            break;
+          case "Password should be at least 6 characters":
+            toast.error("Password should be at least 6 characters long.");
+            break;
+          case "Unable to validate email address":
+            toast.error("Please enter a valid email address.");
+            break;
+          case "Rate limit exceeded":
+            toast.error("Too many signup attempts. Please try again later.");
+            break;
+          default:
+            console.error("Signup error:", error);
+            toast.error(
+              error.message || "Failed to create account. Please try again."
+            );
+        }
+        return;
       }
 
       console.log("Signup response:", data);

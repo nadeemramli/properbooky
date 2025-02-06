@@ -14,7 +14,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
 
 const formSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -35,27 +36,29 @@ export default function ForgotPasswordPage() {
   async function onSubmit(data: FormData) {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/auth/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+      const supabase = createClient();
+      const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to send reset email");
+      if (error) {
+        throw error;
       }
 
-      toast({
-        title: "Reset email sent",
-        description: "Check your email for the password reset link",
+      toast.success("Reset email sent", {
+        description:
+          "If an account exists with this email, you will receive password reset instructions.",
       });
+
+      // Clear the form
+      form.reset();
     } catch (error) {
       console.error("Error:", error);
-      toast({
-        title: "Error",
-        description: "Failed to send reset email. Please try again.",
-        variant: "destructive",
-      });
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to send reset email. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }

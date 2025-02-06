@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { BookOpen, MoreVertical } from "lucide-react";
+import { BookOpen, MoreVertical, Trash2, Edit } from "lucide-react";
 import { BookProfileDialog } from "./book-profile-dialog";
 import {
   DropdownMenu,
@@ -20,7 +20,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Book, BookMetadata } from "@/types/book";
+import type { Book } from "@/types/book";
+import { useBooks } from "@/lib/hooks/use-books";
+import { useToast } from "@/components/ui/use-toast";
 
 interface BookListProps {
   searchQuery?: string;
@@ -28,91 +30,14 @@ interface BookListProps {
   status: string | null;
 }
 
-// Helper function to create a book with default values
-const createMockBook = (overrides: Partial<Book>): Book => {
-  const defaultBook: Book = {
-    id: "",
-    title: "",
-    author: null,
-    cover_url: "/placeholder-book.jpg",
-    file_url: "",
-    format: "pdf",
-    status: "unread",
-    progress: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    last_read: null,
-    user_id: "user123",
-    metadata: {
-      publisher: "",
-      published_date: "",
-      language: "en",
-      pages: 0,
-      isbn: "",
-      description: "",
-    },
-    priority_score: 0,
-  };
-
-  return { ...defaultBook, ...overrides };
-};
-
-// Mock data with type-safe creation
-const mockBooks: Book[] = [
-  createMockBook({
-    id: "1",
-    title: "The Pragmatic Programmer",
-    author: "David Thomas, Andrew Hunt",
-    file_url: "/books/pragmatic-programmer.pdf",
-    format: "epub",
-    status: "reading",
-    last_read: new Date().toISOString(),
-    metadata: {
-      publisher: "Addison-Wesley",
-      published_date: "2019-09-13",
-      language: "en",
-      pages: 352,
-      isbn: "978-0135957059",
-      description: "The Pragmatic Programmer: Your Journey to Mastery",
-    },
-  }),
-  createMockBook({
-    id: "2",
-    title: "Clean Code",
-    author: "Robert C. Martin",
-    file_url: "/books/clean-code.pdf",
-    format: "pdf",
-    status: "completed",
-    progress: 100,
-    created_at: "2024-01-10",
-    updated_at: "2024-01-14",
-    last_read: "2024-01-14",
-    metadata: {
-      publisher: "Prentice Hall",
-      published_date: "2008-08-01",
-      language: "English",
-      pages: 464,
-      isbn: "9780132350884",
-      description:
-        "Even bad code can function. But if code isn't clean, it can bring a development organization to its knees. Every year, countless hours and significant resources are lost because of poorly written code. But it doesn't have to be that way.",
-    },
-    priority_score: 1,
-  }),
-];
-
 export function BookList({ searchQuery, view, status }: BookListProps) {
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const { books, loading, error, deleteBook, updateBook } =
+    useBooks(searchQuery);
+  const { toast } = useToast();
 
-  // Filter books based on search query
-  const filteredBooks = mockBooks.filter((book) => {
-    // Filter by search query
-    if (
-      searchQuery &&
-      !book.title.toLowerCase().includes(searchQuery.toLowerCase())
-    ) {
-      return false;
-    }
-
+  // Filter books based on view and status
+  const filteredBooks = books.filter((book) => {
     // Filter by status if specified
     if (status && book.status !== status) {
       return false;
@@ -128,6 +53,46 @@ export function BookList({ searchQuery, view, status }: BookListProps) {
 
     return true;
   });
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteBook(id);
+      toast({
+        title: "Book deleted",
+        description: "The book has been removed from your library.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete the book. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleStatusUpdate = async (id: string, status: Book["status"]) => {
+    try {
+      await updateBook(id, { status });
+      toast({
+        title: "Status updated",
+        description: "Book status has been updated successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update book status. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (loading) {
+    return <div>Loading your library...</div>;
+  }
+
+  if (error) {
+    return <div>Error loading books: {error}</div>;
+  }
 
   return (
     <>
@@ -151,12 +116,18 @@ export function BookList({ searchQuery, view, status }: BookListProps) {
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <div className="relative h-16 w-12 overflow-hidden rounded">
-                      <Image
-                        src={book.cover_url || "/placeholder-book.jpg"}
-                        alt={book.title}
-                        fill
-                        className="object-cover"
-                      />
+                      {book.cover_url ? (
+                        <Image
+                          src={book.cover_url}
+                          alt={book.title}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                          <BookOpen className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                      )}
                     </div>
                     <Button
                       variant="link"
@@ -197,10 +168,12 @@ export function BookList({ searchQuery, view, status }: BookListProps) {
                   )}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {book.created_at}
+                  {new Date(book.created_at).toLocaleDateString()}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {book.last_read}
+                  {book.last_read
+                    ? new Date(book.last_read).toLocaleDateString()
+                    : "-"}
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>
@@ -210,8 +183,29 @@ export function BookList({ searchQuery, view, status }: BookListProps) {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Edit</DropdownMenuItem>
-                      <DropdownMenuItem>Delete</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setSelectedBook(book)}>
+                        <Edit className="mr-2 h-4 w-4" />
+                        View Details
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleStatusUpdate(book.id, "reading")}
+                      >
+                        <BookOpen className="mr-2 h-4 w-4" />
+                        Mark as Reading
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleStatusUpdate(book.id, "completed")}
+                      >
+                        <BookOpen className="mr-2 h-4 w-4" />
+                        Mark as Completed
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-red-600"
+                        onClick={() => handleDelete(book.id)}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>

@@ -3,6 +3,27 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { User, Session, AuthChangeEvent } from '@supabase/supabase-js'
 
+// Mock user for development
+const MOCK_USER: User = {
+  id: 'dev-user',
+  email: 'dev@example.com',
+  created_at: new Date().toISOString(),
+  app_metadata: {},
+  user_metadata: {},
+  aud: 'authenticated',
+  role: 'authenticated'
+}
+
+// Mock session for development
+const MOCK_SESSION: Session = {
+  access_token: 'mock-token',
+  token_type: 'bearer',
+  expires_in: 3600,
+  refresh_token: 'mock-refresh-token',
+  user: MOCK_USER,
+  expires_at: Math.floor(Date.now() / 1000) + 3600
+}
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
@@ -11,6 +32,14 @@ export function useAuth() {
   const supabase = createClient()
 
   useEffect(() => {
+    // Check for development bypass
+    if (process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true') {
+      setUser(MOCK_USER)
+      setSession(MOCK_SESSION)
+      setLoading(false)
+      return
+    }
+
     // Get session from storage
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -31,6 +60,13 @@ export function useAuth() {
   }, [])
 
   const signIn = async () => {
+    // If in development bypass mode, simulate successful sign in
+    if (process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true') {
+      setUser(MOCK_USER)
+      setSession(MOCK_SESSION)
+      return
+    }
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -44,6 +80,14 @@ export function useAuth() {
   }
 
   const signOut = async () => {
+    // If in development bypass mode, simulate sign out
+    if (process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true') {
+      setUser(null)
+      setSession(null)
+      router.push('/auth')
+      return
+    }
+
     const { error } = await supabase.auth.signOut()
     if (error) {
       throw error
@@ -57,6 +101,6 @@ export function useAuth() {
     loading,
     signIn,
     signOut,
-    isAuthenticated: !!user,
+    isAuthenticated: process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true' ? true : !!user,
   }
 } 

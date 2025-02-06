@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UserProfileForm } from "./components/user-profile-form";
 import { SettingsForm } from "./components/settings-form";
 import { Card } from "@/components/ui/card";
+import { SignOutButton } from "@/app/(main)/preferences/components/sign-out-button";
 
 export const metadata: Metadata = {
   title: "Preferences - ProperBooky",
@@ -14,6 +15,7 @@ export default function PreferencesPage() {
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Preferences</h2>
+        <SignOutButton />
       </div>
 
       <Card className="p-6">

@@ -10,8 +10,6 @@ import { Input } from "@/components/ui/input";
 import { LayoutGrid, List, Search } from "lucide-react";
 import { useDebounce } from "@/lib/hooks/use-debounce";
 import { useSearchParams } from "next/navigation";
-import { ModeToggle } from "@/components/mode-toggle";
-import { AuthDebug } from "./components/auth-debug";
 
 type ViewMode = "grid" | "list";
 
@@ -25,14 +23,11 @@ export default function LibraryPage() {
 
   return (
     <div className="container py-6 space-y-6">
-      <h1 className="text-3xl font-bold">Library</h1>
-      <AuthDebug />
       <div className="flex flex-col h-full">
         <div className="flex-none space-y-4 p-4 md:p-8 pt-6">
           <div className="flex items-center justify-between">
             <h2 className="text-3xl font-bold tracking-tight">Library</h2>
             <div className="flex items-center gap-2">
-              <ModeToggle />
               <UploadBookDialog />
             </div>
           </div>
