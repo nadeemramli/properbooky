@@ -80,7 +80,13 @@ export async function testStorageConnection(): Promise<boolean> {
   try {
     const supabase = createClient();
     const { data, error } = await supabase.storage.from("books").list();
-    if (error) throw error;
+    if (error) {
+      console.error("Storage connection test error:", error);
+      if (error.message.includes("Bucket not found")) {
+        throw new Error("Storage bucket 'books' not found. Please ensure the storage bucket is properly configured.");
+      }
+      throw error;
+    }
     return true;
   } catch (error) {
     console.error("Storage connection test failed:", error);
@@ -183,6 +189,12 @@ export async function uploadBookFile(
       progress: 0
     });
 
+    // Test storage connection before proceeding
+    const isConnected = await testStorageConnection();
+    if (!isConnected) {
+      throw new Error("Storage system is not properly configured. Please contact support.");
+    }
+
     // Compress file if needed
     const compressedFile = await compressFile(file);
     
@@ -225,12 +237,6 @@ export async function uploadBookFile(
 
     const supabase = createClient();
 
-    // Test storage connection before upload
-    const isConnected = await testStorageConnection();
-    if (!isConnected) {
-      throw new Error("Cannot connect to storage. Please try again later.");
-    }
-
     // Update progress before upload
     onProgress?.({
       bytesTransferred: Math.floor(file.size * 0.6),
@@ -249,13 +255,16 @@ export async function uploadBookFile(
           .from("books")
           .upload(filePath, compressedFile, {
             cacheControl: "3600",
-            contentType: file.type, // Explicitly set content type
+            contentType: file.type,
             duplex: "half",
             upsert: false,
           });
 
         if (error) {
           console.error("Upload error:", error);
+          if (error.message.includes("Bucket not found")) {
+            throw new Error("Storage system is not properly configured. Please contact support.");
+          }
           throw error;
         }
 
@@ -268,6 +277,12 @@ export async function uploadBookFile(
       } catch (error) {
         console.error(`Upload attempt ${uploadAttempts + 1} failed:`, error);
         uploadError = error as Error;
+        
+        // If it's a bucket error, no need to retry
+        if (error instanceof Error && error.message.includes("Storage system is not properly configured")) {
+          throw error;
+        }
+        
         uploadAttempts++;
         if (uploadAttempts < maxAttempts) {
           await new Promise(resolve => setTimeout(resolve, 1000 * uploadAttempts));
@@ -276,6 +291,9 @@ export async function uploadBookFile(
     }
 
     if (uploadError) {
+      if (uploadError.message.includes("Bucket not found")) {
+        throw new Error("Storage system is not properly configured. Please contact support.");
+      }
       throw new Error(`Upload failed after ${maxAttempts} attempts: ${uploadError.message}`);
     }
 
@@ -325,7 +343,14 @@ export async function uploadBookFile(
       throw error;
     }
     console.error("Error uploading file:", error);
-    throw new Error(error instanceof Error ? error.message : "Failed to upload file");
+    // Ensure we throw a user-friendly error message
+    if (error instanceof Error) {
+      if (error.message.includes("Bucket not found") || error.message.includes("Storage system")) {
+        throw new Error("Storage system is not properly configured. Please contact support.");
+      }
+      throw error;
+    }
+    throw new Error("Failed to upload file. Please try again later.");
   }
 }
 
