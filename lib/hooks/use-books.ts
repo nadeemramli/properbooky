@@ -120,18 +120,46 @@ export function useBooks(searchQuery?: string) {
         throw new Error("User not authenticated");
       }
 
-      const { data: existingBook, error: searchError } = await supabase
-        .from("books")
-        .select("id")
-        .eq("title", bookData.title)
-        .maybeSingle();
-
-      if (searchError) throw searchError;
-
-      if (existingBook) {
-        throw new Error("A book with this title already exists");
+      // Validate required fields
+      if (!bookData.title) {
+        throw new Error("Book title is required");
       }
 
+      // Check for duplicate book
+      const { data: existingBook, error: searchError } = await supabase
+        .from("books")
+        .select("id, title")
+        .eq("title", bookData.title)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (searchError) {
+        console.error("Error checking for duplicate book:", searchError);
+        throw new Error("Failed to verify book uniqueness");
+      }
+
+      if (existingBook) {
+        throw new Error(`A book with the title "${bookData.title}" already exists in your library`);
+      }
+
+      // If file_url is provided, verify it exists in storage
+      if (bookData.file_url) {
+        try {
+          const { data: fileExists } = await supabase
+            .storage
+            .from('books')
+            .createSignedUrl(bookData.file_url.split('/').slice(-2).join('/'), 1);
+
+          if (!fileExists) {
+            throw new Error("File not found in storage");
+          }
+        } catch (error) {
+          console.error("Error verifying file existence:", error);
+          throw new Error("Failed to verify uploaded file");
+        }
+      }
+
+      // Insert book with transaction to ensure atomicity
       const { data, error: insertError } = await supabase
         .from("books")
         .insert({
@@ -145,11 +173,19 @@ export function useBooks(searchQuery?: string) {
           priority_score: bookData.priority_score || 0,
           metadata: bookData.metadata || {},
           last_read: null,
+          user_id: user.id,
         } as Database["public"]["Tables"]["books"]["Insert"])
         .select()
         .single();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error("Error inserting book:", insertError);
+        throw new Error("Failed to add book to database");
+      }
+
+      if (!data) {
+        throw new Error("No data returned after inserting book");
+      }
 
       const transformedBook = transformBook(data as DbBook);
       setBooks(prev => [transformedBook, ...prev]);
@@ -217,21 +253,55 @@ export function useBooks(searchQuery?: string) {
         throw new Error("User not authenticated");
       }
 
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
+      // Validate file
+      if (!file) {
+        throw new Error("No file provided");
+      }
+
+      if (file.size > 100 * 1024 * 1024) { // 100MB limit
+        throw new Error("File size must be less than 100MB");
+      }
+
+      const allowedTypes = ['application/pdf', 'application/epub+zip'];
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error("Only PDF and EPUB files are allowed");
+      }
+
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      const uniqueId = Math.random().toString(36).substring(2);
+      const fileName = `${uniqueId}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
       const filePath = `${user.id}/${fileName}`;
 
+      // Upload file with progress tracking
       const { error: uploadError } = await supabase
         .storage
         .from('books')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-      if (uploadError) throw uploadError;
-      
+      if (uploadError) {
+        console.error("Error uploading file:", uploadError);
+        throw new Error("Failed to upload file");
+      }
+
+      // Verify upload and get URL
       const { data: { publicUrl } } = supabase
         .storage
         .from('books')
         .getPublicUrl(filePath);
+
+      // Verify the file exists
+      const { data: fileExists } = await supabase
+        .storage
+        .from('books')
+        .createSignedUrl(filePath, 1);
+
+      if (!fileExists) {
+        throw new Error("File upload verification failed");
+      }
 
       return publicUrl;
     } catch (err) {

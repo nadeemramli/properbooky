@@ -85,6 +85,8 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
   );
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const { addBook, uploadBookFile } = useBooks();
   const { user } = useAuth();
@@ -123,15 +125,32 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
       return;
     }
 
+    setIsSubmitting(true);
+    setSubmitError(null);
+
     try {
       let fileUrl = null;
 
       // If we have a file, upload it first
       if (values.file) {
-        fileUrl = await uploadBookFile(values.file);
+        try {
+          fileUrl = await uploadBookFile(values.file);
+        } catch (error) {
+          throw new Error(
+            `Failed to upload file: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`
+          );
+        }
       }
 
-      await addBook({
+      // Verify file URL if file was uploaded
+      if (values.file && !fileUrl) {
+        throw new Error("File upload failed: No URL returned");
+      }
+
+      // Add book to database
+      const book = await addBook({
         title: values.title,
         author: values.author || null,
         format: values.file ? getFileFormat(values.file.name) || "pdf" : "pdf",
@@ -152,21 +171,30 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
         },
       });
 
+      // Verify book was added successfully
+      if (!book || !book.id) {
+        throw new Error("Failed to add book to database");
+      }
+
       setOpen(false);
       form.reset();
       toast({
         title: "Success",
         description: fileUrl
-          ? "Book uploaded successfully"
+          ? "Book uploaded and added to your library"
           : "Book added to wishlist",
       });
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to add book";
+      setSubmitError(errorMessage);
       toast({
         variant: "destructive",
         title: "Error",
-        description:
-          error instanceof Error ? error.message : "Failed to add book",
+        description: errorMessage,
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -331,6 +359,7 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
       if (!isProcessing) {
         setCsvFile(null);
       }
+      setSubmitError(null);
       form.reset();
     }
   };
@@ -402,6 +431,24 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
                   onSubmit={form.handleSubmit(onSubmit)}
                   className="space-y-6"
                 >
+                  {submitError && (
+                    <div className="rounded-md bg-destructive/15 p-3">
+                      <div className="flex">
+                        <div className="flex-shrink-0">
+                          <AlertCircle className="h-5 w-5 text-destructive" />
+                        </div>
+                        <div className="ml-3">
+                          <h3 className="text-sm font-medium text-destructive">
+                            Error
+                          </h3>
+                          <div className="mt-1 text-sm text-destructive/90">
+                            {submitError}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Essential Information */}
                   <div className="space-y-4">
                     {mode === "upload" && (
@@ -627,8 +674,15 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
                   </div>
 
                   <div className="flex justify-end">
-                    <Button type="submit">
-                      {mode === "upload" ? "Upload Book" : "Add to Collection"}
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      {isSubmitting
+                        ? "Adding Book..."
+                        : mode === "upload"
+                        ? "Upload Book"
+                        : "Add to Collection"}
                     </Button>
                   </div>
                 </form>
