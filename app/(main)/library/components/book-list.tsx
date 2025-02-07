@@ -91,7 +91,7 @@ export function BookList({ searchQuery, view, status }: BookListProps) {
   }
 
   if (error) {
-    return <div>Error loading books: {error}</div>;
+    return <div>Error loading books: {error.message}</div>;
   }
 
   return (

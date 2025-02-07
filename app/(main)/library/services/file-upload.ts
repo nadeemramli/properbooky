@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/client";
 import type { BookUpload, BookFormat, BookMetadata } from "../types";
 import type { FileProgress } from "@/types";
+import type { PDFMetadata, PDFDocumentProxy } from "@/types/pdf";
+import type { EPUBBook, PackagingMetadataObject } from "@/types/epub";
 import pdfjs from "pdfjs-dist";
 import * as epubjs from "epubjs";
 
@@ -21,44 +23,58 @@ export class FileValidationError extends Error {
  * Extract metadata from a PDF file
  */
 async function extractPDFMetadata(file: File): Promise<Partial<BookMetadata>> {
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-  const metadata = await pdf.getMetadata();
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf: PDFDocumentProxy = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+    const metadata = await pdf.getMetadata() as PDFMetadata;
 
-  return {
-    title: metadata.info?.Title,
-    author: metadata.info?.Author,
-    publisher: metadata.info?.Publisher,
-    published_date: metadata.info?.CreationDate,
-    language: metadata.info?.Language,
-    pages: pdf.numPages,
-    isbn: metadata.info?.ISBN,
-    description: metadata.info?.Subject,
-  };
+    return {
+      title: metadata.info?.Title,
+      author: metadata.info?.Author,
+      publisher: metadata.info?.Publisher,
+      published_date: metadata.info?.CreationDate,
+      language: metadata.info?.Language,
+      pages: pdf.numPages,
+      isbn: metadata.info?.ISBN,
+      description: metadata.info?.Subject,
+    };
+  } catch (error) {
+    console.error("Error extracting PDF metadata:", error);
+    return {};
+  }
 }
 
 /**
  * Extract metadata from an EPUB file
  */
 async function extractEPUBMetadata(file: File): Promise<Partial<BookMetadata>> {
-  const book = epubjs.default();
-  await book.open(file);
-  const metadata = book.package.metadata;
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const book = epubjs.default();
+    await book.open(arrayBuffer);
 
-  return {
-    title: metadata.title,
-    author: metadata.creator,
-    publisher: metadata.publisher,
-    published_date: metadata.date,
-    language: metadata.language,
-    description: metadata.description,
-    isbn: metadata.identifier,
-  };
+    const metadata = book.packaging?.metadata as PackagingMetadataObject || {};
+
+    // Clean up resources
+    await book.destroy();
+
+    return {
+      title: metadata.title,
+      author: metadata.creator,
+      publisher: metadata.publisher,
+      published_date: metadata.pubdate,
+      language: metadata.language,
+      description: metadata.description,
+      isbn: metadata.identifier,
+    };
+  } catch (error) {
+    console.error("Error extracting EPUB metadata:", error);
+    return {};
+  }
 }
 
 /**
  * Test the connection to Supabase Storage
- * @returns Promise<boolean> true if connection is successful
  */
 export async function testStorageConnection(): Promise<boolean> {
   try {
@@ -72,6 +88,9 @@ export async function testStorageConnection(): Promise<boolean> {
   }
 }
 
+/**
+ * Validate file size and type
+ */
 export async function validateFile(file: File): Promise<void> {
   // Check file size
   if (file.size > MAX_FILE_SIZE) {
@@ -89,13 +108,17 @@ export async function validateFile(file: File): Promise<void> {
 
   // Additional validation for PDF files
   if (file.type === "application/pdf") {
-    const arrayBuffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer.slice(0, 5));
-    const pdfHeader = Array.from(bytes)
-      .map((byte) => String.fromCharCode(byte))
-      .join("");
-    if (!pdfHeader.startsWith("%PDF-")) {
-      throw new FileValidationError("Invalid PDF file");
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer.slice(0, 5));
+      const pdfHeader = Array.from(bytes)
+        .map((byte) => String.fromCharCode(byte))
+        .join("");
+      if (!pdfHeader.startsWith("%PDF-")) {
+        throw new FileValidationError("Invalid PDF file");
+      }
+    } catch (error) {
+      throw new FileValidationError("Failed to validate PDF file");
     }
   }
 
@@ -107,30 +130,47 @@ export async function validateFile(file: File): Promise<void> {
   }
 }
 
+/**
+ * Compress PDF files to reduce size
+ */
 export async function compressFile(file: File): Promise<File> {
   if (file.type === "application/pdf") {
-    const { PDFDocument } = await import("pdf-lib");
-    const arrayBuffer = await file.arrayBuffer();
-    const pdfDoc = await PDFDocument.load(arrayBuffer);
-    
-    const compressedPdfBytes = await pdfDoc.save({
-      useObjectStreams: true,
-      addDefaultPage: false,
-      useCompression: true,
-    });
+    try {
+      const { PDFDocument } = await import("pdf-lib");
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      
+      const compressedPdfBytes = await pdfDoc.save({
+        useObjectStreams: true,
+        addDefaultPage: false,
+        useCompression: true,
+      });
 
-    return new File([compressedPdfBytes], file.name, {
-      type: "application/pdf",
-    });
+      return new File([compressedPdfBytes], file.name, {
+        type: "application/pdf",
+      });
+    } catch (error) {
+      console.error("Error compressing PDF:", error);
+      return file;
+    }
   }
 
   return file;
 }
 
+export interface UploadProgress {
+  bytesTransferred: number;
+  totalBytes: number;
+  progress: number;
+}
+
+/**
+ * Upload a book file to storage and extract metadata
+ */
 export async function uploadBookFile(
   file: File,
   userId: string,
-  onProgress?: (progress: FileProgress) => void
+  onProgress?: (progress: UploadProgress) => void
 ): Promise<BookUpload & { metadata: Partial<BookMetadata> }> {
   try {
     await validateFile(file);
@@ -156,16 +196,12 @@ export async function uploadBookFile(
 
     const supabase = createClient();
 
-    // Upload the file with progress tracking
+    // Upload the file
     const { data, error } = await supabase.storage
       .from("books")
       .upload(`${userId}/${fileName}`, compressedFile, {
         cacheControl: "3600",
         upsert: false,
-        onUploadProgress: ({ loaded, total }) => {
-          const progress = (loaded / total) * 100;
-          onProgress?.({ progress });
-        },
       });
 
     if (error) throw error;
@@ -193,9 +229,17 @@ export async function uploadBookFile(
   }
 }
 
+/**
+ * Delete a book file from storage
+ */
 export async function deleteBookFile(fileUrl: string): Promise<void> {
-  const supabase = createClient();
-  const path = fileUrl.split("/").slice(-2).join("/"); // Get userId/fileName
-  const { error } = await supabase.storage.from("books").remove([path]);
-  if (error) throw error;
+  try {
+    const supabase = createClient();
+    const path = fileUrl.split("/").slice(-2).join("/"); // Get userId/fileName
+    const { error } = await supabase.storage.from("books").remove([path]);
+    if (error) throw error;
+  } catch (error) {
+    console.error("Error deleting file:", error);
+    throw new Error("Failed to delete file");
+  }
 } 

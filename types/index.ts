@@ -19,11 +19,11 @@ export type ApiResponse<T> = {
 export type LoadingState = 'idle' | 'loading' | 'success' | 'error';
 
 // File handling types
-export type FileProgress = {
+export interface FileProgress {
   bytesTransferred: number;
   totalBytes: number;
   progress: number;
-};
+}
 
 export type FileStatus = 'queued' | 'uploading' | 'completed' | 'error';
 

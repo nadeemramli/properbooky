@@ -84,7 +84,7 @@ export function BookGrid({ searchQuery, view, status }: BookGridProps) {
   }
 
   if (error) {
-    return <div>Error loading books: {error}</div>;
+    return <div>Error loading books: {error.message}</div>;
   }
 
   return (

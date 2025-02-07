@@ -42,6 +42,7 @@ import type { WishlistCSVRow } from "../types";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUploadQueue } from "@/lib/hooks/use-upload-queue";
+import { useAuth } from "@/lib/hooks/use-auth";
 
 const bookFormSchema = z.object({
   // Essential fields
@@ -86,6 +87,7 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   const { addBook, uploadBookFile } = useBooks();
+  const { user } = useAuth();
   const {
     queue,
     isUploading,
@@ -112,6 +114,15 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
   });
 
   const onSubmit = async (values: BookFormValues) => {
+    if (!user?.id) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "You must be logged in to add books",
+      });
+      return;
+    }
+
     try {
       let fileUrl = null;
 
@@ -127,6 +138,7 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
         file_url: fileUrl || "",
         status: (fileUrl ? "unread" : "wishlist") as BookStatus,
         progress: 0,
+        user_id: user.id,
         metadata: {
           isbn: values.isbn,
           description: values.description,
@@ -136,7 +148,7 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
           notes: values.notes,
           goodreads_url: values.goodreads_url,
           amazon_url: values.amazon_url,
-          added_date: new Date().toISOString(),
+          wishlist_added_date: new Date().toISOString(),
         },
       });
 
@@ -184,7 +196,7 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
   });
 
   const processCSV = async () => {
-    if (!csvFile) return;
+    if (!csvFile || !user?.id) return;
 
     setIsProcessing(true);
     try {
@@ -210,6 +222,7 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
                 file_url: "",
                 status: "wishlist" as BookStatus,
                 progress: 0,
+                user_id: user.id,
                 metadata: {
                   isbn: row.isbn,
                   wishlist_reason: row.reason,

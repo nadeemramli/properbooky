@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useState, useEffect, useCallback } from 'react'
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { isPostgrestError, getErrorMessage } from '@/lib/utils/error'
 import type { Book as AppBook, BookCreate, BookUpdate, BookMetadata } from '@/types/book'
 import type { Database } from '@/types/database'
@@ -7,6 +7,7 @@ import type { Json } from '@/types/database'
 import { useAuth } from './use-auth'
 
 type DbBook = Database['public']['Tables']['books']['Row']
+type BookStatus = "unread" | "reading" | "completed" | "wishlist";
 
 // Transform database book to application book
 const transformBook = (book: DbBook): AppBook => {
@@ -42,12 +43,11 @@ const transformMetadata = (metadata: BookMetadata | undefined): Json => {
 export function useBooks(searchQuery?: string) {
   const [books, setBooks] = useState<AppBook[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const supabase = createClient()
+  const [error, setError] = useState<Error | null>(null)
+  const supabase = createClientComponentClient<Database>()
   const { user, isAuthenticated, loading: authLoading } = useAuth()
 
-  // Fetch books
-  const fetchBooks = async () => {
+  const fetchBooks = useCallback(async () => {
     try {
       // Don't fetch if auth is still loading
       if (authLoading) {
@@ -67,12 +67,12 @@ export function useBooks(searchQuery?: string) {
 
       if (!isAuthenticated || !user?.id) {
         setBooks([]);
-        setError("User not authenticated");
+        setError(new Error("User not authenticated"));
         return;
       }
 
       setLoading(true)
-      const query = supabase
+      let query = supabase
         .from('books')
         .select('*')
         .eq('user_id', user.id)
@@ -83,11 +83,11 @@ export function useBooks(searchQuery?: string) {
         authState: { isAuthenticated, authLoading }
       });
 
-      const filteredQuery = searchQuery 
-        ? query.ilike('title', `%${searchQuery}%`)
-        : query;
+      if (searchQuery) {
+        query = query.ilike('title', `%${searchQuery}%`)
+      }
 
-      const { data, error: queryError } = await filteredQuery;
+      const { data, error: queryError } = await query;
 
       console.log('Query Result:', {
         success: !queryError,
@@ -106,12 +106,12 @@ export function useBooks(searchQuery?: string) {
       setBooks(transformedBooks);
     } catch (err) {
       const errorMessage = getErrorMessage(err);
-      setError(errorMessage);
+      setError(new Error(errorMessage));
       console.error('Error fetching books:', err);
     } finally {
       setLoading(false)
     }
-  }
+  }, [searchQuery, user, supabase, authLoading])
 
   // Add book
   const addBook = async (bookData: BookCreate) => {
@@ -120,35 +120,43 @@ export function useBooks(searchQuery?: string) {
         throw new Error("User not authenticated");
       }
 
+      const { data: existingBook, error: searchError } = await supabase
+        .from("books")
+        .select("id")
+        .eq("title", bookData.title)
+        .maybeSingle();
+
+      if (searchError) throw searchError;
+
+      if (existingBook) {
+        throw new Error("A book with this title already exists");
+      }
+
       const { data, error: insertError } = await supabase
-        .from('books')
+        .from("books")
         .insert({
           title: bookData.title,
-          author: bookData.author ?? null,
+          author: bookData.author,
           format: bookData.format,
           file_url: bookData.file_url,
-          cover_url: bookData.cover_url ?? null,
-          status: bookData.status ?? 'unread',
-          progress: bookData.progress ?? 0,
-          priority_score: bookData.priority_score ?? 0,
-          user_id: user.id,
-          metadata: transformMetadata(bookData.metadata as BookMetadata),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          last_read: null
-        })
+          cover_url: bookData.cover_url || null,
+          status: bookData.status || "unread",
+          progress: bookData.progress || 0,
+          priority_score: bookData.priority_score || 0,
+          metadata: bookData.metadata || {},
+          last_read: null,
+        } as Database["public"]["Tables"]["books"]["Insert"])
         .select()
         .single();
 
       if (insertError) throw insertError;
-      if (!data) throw new Error('No data returned from insert');
 
-      const transformedBook = transformBook(data);
+      const transformedBook = transformBook(data as DbBook);
       setBooks(prev => [transformedBook, ...prev]);
       return transformedBook;
     } catch (err) {
       const errorMessage = getErrorMessage(err);
-      setError(errorMessage);
+      setError(new Error(errorMessage));
       throw err;
     }
   }
@@ -160,37 +168,22 @@ export function useBooks(searchQuery?: string) {
         throw new Error("User not authenticated");
       }
 
-      const updateData: Partial<DbBook> = {
-        ...(updates.title && { title: updates.title }),
-        ...(updates.author !== undefined && { author: updates.author }),
-        ...(updates.format && { format: updates.format }),
-        ...(updates.file_url && { file_url: updates.file_url }),
-        ...(updates.cover_url !== undefined && { cover_url: updates.cover_url }),
-        ...(updates.status && { status: updates.status }),
-        ...(updates.progress !== undefined && { progress: updates.progress }),
-        ...(updates.priority_score !== undefined && { priority_score: updates.priority_score }),
-        ...(updates.metadata && { metadata: transformMetadata(updates.metadata as BookMetadata) }),
-        ...(updates.last_read !== undefined && { last_read: updates.last_read }),
-        updated_at: new Date().toISOString()
-      };
-
-      const { data, error: updateError } = await supabase
-        .from('books')
-        .update(updateData)
-        .eq('id', id)
-        .eq('user_id', user.id)
+      const { data, error } = await supabase
+        .from("books")
+        .update(updates as Database["public"]["Tables"]["books"]["Update"])
+        .eq("id", id)
+        .eq("user_id", user.id)
         .select()
         .single();
 
-      if (updateError) throw updateError;
-      if (!data) throw new Error('No data returned from update');
+      if (error) throw error;
 
-      const transformedBook = transformBook(data);
+      const transformedBook = transformBook(data as DbBook);
       setBooks(prev => prev.map(book => book.id === id ? transformedBook : book));
       return transformedBook;
     } catch (err) {
       const errorMessage = getErrorMessage(err);
-      setError(errorMessage);
+      setError(new Error(errorMessage));
       throw err;
     }
   }
@@ -202,17 +195,17 @@ export function useBooks(searchQuery?: string) {
         throw new Error("User not authenticated");
       }
 
-      const { error: deleteError } = await supabase
+      const { error } = await supabase
         .from('books')
         .delete()
         .eq('id', id)
         .eq('user_id', user.id);
 
-      if (deleteError) throw deleteError;
+      if (error) throw error;
       setBooks(prev => prev.filter(book => book.id !== id));
     } catch (err) {
       const errorMessage = getErrorMessage(err);
-      setError(errorMessage);
+      setError(new Error(errorMessage));
       throw err;
     }
   }
@@ -243,7 +236,7 @@ export function useBooks(searchQuery?: string) {
       return publicUrl;
     } catch (err) {
       const errorMessage = getErrorMessage(err);
-      setError(errorMessage);
+      setError(new Error(errorMessage));
       throw err;
     }
   }
@@ -251,7 +244,7 @@ export function useBooks(searchQuery?: string) {
   // Fetch books on mount and when search query changes
   useEffect(() => {
     fetchBooks()
-  }, [searchQuery, user])
+  }, [fetchBooks])
 
   return {
     books,

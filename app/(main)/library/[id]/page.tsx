@@ -11,32 +11,10 @@ const staticClient = createDirectClient<Database>(supabaseUrl, supabaseAnonKey);
 
 // This is required for static site generation with dynamic routes
 export async function generateStaticParams() {
-  // During build time, return an empty array if environment variables are not available
-  if (process.env["NEXT_PHASE"] === "build") {
-    return [];
-  }
-
-  try {
-    const supabase = createClient();
-    const { data: books, error } = await supabase.from("books").select("id");
-
-    if (error) {
-      console.error("Error fetching books:", error);
-      return [];
-    }
-
-    if (!books || books.length === 0) {
-      console.warn("No books found during static generation");
-      return [];
-    }
-
-    return books.map((book: { id: string }) => ({
-      id: book.id,
-    }));
-  } catch (error) {
-    console.error("Error generating static params:", error);
-    return [];
-  }
+  // Return an empty array during static generation
+  // This will allow the paths to be generated dynamically at runtime
+  // where we have proper authentication
+  return [];
 }
 
 interface DatabaseHighlight {

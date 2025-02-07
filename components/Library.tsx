@@ -22,7 +22,7 @@ export function Library({ view, searchQuery }: LibraryProps) {
   }
 
   if (error) {
-    return <div>Error: {error}</div>;
+    return <div>Error: {error.message}</div>;
   }
 
   return (
