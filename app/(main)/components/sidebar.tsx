@@ -24,7 +24,7 @@ import {
   User,
   LogOut,
 } from "lucide-react";
-import { UploadBookDialog } from "../library/components/upload-book-dialog";
+import { BookDialog } from "../library/components/book-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -386,6 +386,27 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
 
       {/* Support and User Profile */}
       <div className="mt-auto border-t border-gray-800">
+        {/* Quick Actions */}
+        <div className="p-3 border-b border-gray-800">
+          <BookDialog
+            mode="upload"
+            trigger={
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "w-full justify-start gap-2 text-gray-400 hover:text-white hover:bg-gray-800",
+                  isCollapsed && "justify-center px-2"
+                )}
+              >
+                <Upload className="h-4 w-4" />
+                {!isCollapsed && <span>Upload Book</span>}
+              </Button>
+            }
+          />
+        </div>
+
+        {/* Support Links */}
         <div className="px-4 py-2">
           <div className="grid gap-1">
             <Link href="/support" passHref>

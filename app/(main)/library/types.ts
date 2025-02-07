@@ -9,6 +9,22 @@ export type BookMetadata = {
   notes?: string;
   source?: string;
   priority?: number;
+  publisher?: string;
+  published_date?: string;
+  language?: string;
+  pages?: number;
+  categories?: string[];
+  tags?: string[];
+  cover_url?: string;
+  wishlist_reason?: string;
+  wishlist_source?: string;
+  wishlist_added_date?: string;
+  wishlist_priority?: number;
+  goodreads_url?: string;
+  amazon_url?: string;
+  size?: number;
+  title?: string;
+  author?: string;
 };
 
 // Main book type
@@ -16,8 +32,8 @@ export type Book = {
   id: string;
   title: string;
   author?: string;
-  format: "pdf" | "epub";
-  file_url: string;
+  format: "pdf" | "epub" | null; // null for wishlist items
+  file_url: string | null; // null for wishlist items
   created_at: string;
   updated_at: string;
   user_id: string;
@@ -37,4 +53,17 @@ export type BookUpload = {
   file: File;
   format: BookFormat;
   file_url: string;
+};
+
+// CSV import type for wishlist
+export type WishlistCSVRow = {
+  title: string;
+  author?: string;
+  isbn?: string;
+  reason?: string;
+  source?: string;
+  priority?: number;
+  notes?: string;
+  goodreads_url?: string;
+  amazon_url?: string;
 }; 

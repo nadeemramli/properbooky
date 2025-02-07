@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/client";
-import type { BookUpload, BookFormat } from "../types";
+import type { BookUpload, BookFormat, BookMetadata } from "../types";
 import type { FileProgress } from "@/types";
+import pdfjs from "pdfjs-dist";
+import * as epubjs from "epubjs";
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 const ALLOWED_TYPES: Record<string, BookFormat> = {
@@ -13,6 +15,45 @@ export class FileValidationError extends Error {
     super(message);
     this.name = "FileValidationError";
   }
+}
+
+/**
+ * Extract metadata from a PDF file
+ */
+async function extractPDFMetadata(file: File): Promise<Partial<BookMetadata>> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+  const metadata = await pdf.getMetadata();
+
+  return {
+    title: metadata.info?.Title,
+    author: metadata.info?.Author,
+    publisher: metadata.info?.Publisher,
+    published_date: metadata.info?.CreationDate,
+    language: metadata.info?.Language,
+    pages: pdf.numPages,
+    isbn: metadata.info?.ISBN,
+    description: metadata.info?.Subject,
+  };
+}
+
+/**
+ * Extract metadata from an EPUB file
+ */
+async function extractEPUBMetadata(file: File): Promise<Partial<BookMetadata>> {
+  const book = epubjs.default();
+  await book.open(file);
+  const metadata = book.package.metadata;
+
+  return {
+    title: metadata.title,
+    author: metadata.creator,
+    publisher: metadata.publisher,
+    published_date: metadata.date,
+    language: metadata.language,
+    description: metadata.description,
+    isbn: metadata.identifier,
+  };
 }
 
 /**
@@ -50,7 +91,9 @@ export async function validateFile(file: File): Promise<void> {
   if (file.type === "application/pdf") {
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer.slice(0, 5));
-    const pdfHeader = Array.from(bytes).map(byte => String.fromCharCode(byte)).join('');
+    const pdfHeader = Array.from(bytes)
+      .map((byte) => String.fromCharCode(byte))
+      .join("");
     if (!pdfHeader.startsWith("%PDF-")) {
       throw new FileValidationError("Invalid PDF file");
     }
@@ -88,10 +131,16 @@ export async function uploadBookFile(
   file: File,
   userId: string,
   onProgress?: (progress: FileProgress) => void
-): Promise<BookUpload> {
+): Promise<BookUpload & { metadata: Partial<BookMetadata> }> {
   try {
     await validateFile(file);
     const compressedFile = await compressFile(file);
+
+    // Extract metadata based on file type
+    const metadata =
+      file.type === "application/pdf"
+        ? await extractPDFMetadata(file)
+        : await extractEPUBMetadata(file);
 
     const timestamp = Date.now();
     const fileType = file.type as keyof typeof ALLOWED_TYPES;
@@ -107,24 +156,16 @@ export async function uploadBookFile(
 
     const supabase = createClient();
 
-    // Create a ReadableStream from the file
-    const fileStream = new ReadableStream({
-      start(controller) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          controller.enqueue(new Uint8Array(reader.result as ArrayBuffer));
-          controller.close();
-        };
-        reader.readAsArrayBuffer(compressedFile);
-      }
-    });
-
-    // Upload the file in chunks
+    // Upload the file with progress tracking
     const { data, error } = await supabase.storage
       .from("books")
       .upload(`${userId}/${fileName}`, compressedFile, {
         cacheControl: "3600",
-        upsert: false
+        upsert: false,
+        onUploadProgress: ({ loaded, total }) => {
+          const progress = (loaded / total) * 100;
+          onProgress?.({ progress });
+        },
       });
 
     if (error) throw error;
@@ -138,6 +179,10 @@ export async function uploadBookFile(
       file: compressedFile,
       format: fileExtension,
       file_url: publicUrl.publicUrl,
+      metadata: {
+        ...metadata,
+        size: compressedFile.size,
+      },
     };
   } catch (error) {
     if (error instanceof FileValidationError) {

@@ -4,13 +4,12 @@ import { useEffect, useState } from "react";
 import { BookGrid } from "./components/book-grid";
 import { BookList } from "./components/book-list";
 import { BookFilters } from "./components/book-filters";
-import { UploadBookDialog } from "./components/upload-book-dialog";
-import { BulkUploadDialog } from "./components/bulk-upload-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LayoutGrid, List, Search } from "lucide-react";
 import { useDebounce } from "@/lib/hooks/use-debounce";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { BookDialog } from "./components/book-dialog";
 
 type ViewMode = "grid" | "list";
 
@@ -95,10 +94,7 @@ export default function LibraryPage() {
                   <List className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="flex items-center gap-2">
-                <UploadBookDialog />
-                <BulkUploadDialog />
-              </div>
+              <BookDialog mode="upload" />
             </div>
           </div>
         </div>
