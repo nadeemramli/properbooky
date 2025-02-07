@@ -7,6 +7,7 @@ import pdfjs from "pdfjs-dist";
 import * as epubjs from "epubjs";
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+const STORAGE_BUCKET = 'books' as const;
 const ALLOWED_TYPES: Record<string, BookFormat> = {
   "application/pdf": "pdf",
   "application/epub+zip": "epub",
@@ -79,11 +80,11 @@ async function extractEPUBMetadata(file: File): Promise<Partial<BookMetadata>> {
 export async function testStorageConnection(): Promise<boolean> {
   try {
     const supabase = createClient();
-    const { data, error } = await supabase.storage.from("books").list();
+    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).list();
     if (error) {
       console.error("Storage connection test error:", error);
       if (error.message.includes("Bucket not found")) {
-        throw new Error("Storage bucket 'books' not found. Please ensure the storage bucket is properly configured.");
+        throw new Error(`Storage bucket '${STORAGE_BUCKET}' not found. Please ensure the storage bucket is properly configured.`);
       }
       throw error;
     }
@@ -252,7 +253,7 @@ export async function uploadBookFile(
     while (uploadAttempts < maxAttempts) {
       try {
         const { data, error } = await supabase.storage
-          .from("books")
+          .from(STORAGE_BUCKET)
           .upload(filePath, compressedFile, {
             cacheControl: "3600",
             contentType: file.type,
@@ -306,7 +307,7 @@ export async function uploadBookFile(
 
     // Get the public URL
     const { data: { publicUrl } } = supabase.storage
-      .from("books")
+      .from(STORAGE_BUCKET)
       .getPublicUrl(filePath);
 
     if (!publicUrl) {
@@ -315,7 +316,7 @@ export async function uploadBookFile(
 
     // Verify the file exists
     const { data: fileExists, error: verifyError } = await supabase.storage
-      .from("books")
+      .from(STORAGE_BUCKET)
       .createSignedUrl(filePath, 60); // 60 seconds validity
 
     if (verifyError || !fileExists) {
@@ -361,8 +362,14 @@ export async function deleteBookFile(fileUrl: string): Promise<void> {
   try {
     const supabase = createClient();
     const path = fileUrl.split("/").slice(-2).join("/"); // Get userId/fileName
-    const { error } = await supabase.storage.from("books").remove([path]);
-    if (error) throw error;
+    const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([path]);
+    if (error) {
+      console.error("Error deleting file:", error);
+      if (error.message.includes("Bucket not found")) {
+        throw new Error(`Storage bucket '${STORAGE_BUCKET}' not found. Please ensure the storage bucket is properly configured.`);
+      }
+      throw error;
+    }
   } catch (error) {
     console.error("Error deleting file:", error);
     throw new Error("Failed to delete file");
