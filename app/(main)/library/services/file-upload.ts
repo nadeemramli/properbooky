@@ -173,14 +173,38 @@ export async function uploadBookFile(
   onProgress?: (progress: UploadProgress) => void
 ): Promise<BookUpload & { metadata: Partial<BookMetadata> }> {
   try {
+    // Validate file first
     await validateFile(file);
+    
+    // Update progress
+    onProgress?.({
+      bytesTransferred: 0,
+      totalBytes: file.size,
+      progress: 0
+    });
+
+    // Compress file if needed
     const compressedFile = await compressFile(file);
+    
+    // Update progress after compression
+    onProgress?.({
+      bytesTransferred: Math.floor(file.size * 0.2),
+      totalBytes: file.size,
+      progress: 20
+    });
 
     // Extract metadata based on file type
     const metadata =
       file.type === "application/pdf"
         ? await extractPDFMetadata(file)
         : await extractEPUBMetadata(file);
+
+    // Update progress after metadata extraction
+    onProgress?.({
+      bytesTransferred: Math.floor(file.size * 0.4),
+      totalBytes: file.size,
+      progress: 40
+    });
 
     const timestamp = Date.now();
     const fileType = file.type as keyof typeof ALLOWED_TYPES;
@@ -190,31 +214,107 @@ export async function uploadBookFile(
       throw new FileValidationError("Invalid file type");
     }
 
-    const fileName = `${timestamp}-${file.name
+    // Sanitize filename to ensure it's URL-safe
+    const sanitizedFileName = file.name
       .toLowerCase()
-      .replace(/[^a-z0-9]/g, "-")}.${fileExtension}`;
+      .replace(/[^a-z0-9]/g, "-")
+      .replace(/-+/g, "-");
+
+    const fileName = `${timestamp}-${sanitizedFileName}.${fileExtension}`;
+    const filePath = `${userId}/${fileName}`;
 
     const supabase = createClient();
 
-    // Upload the file
-    const { data, error } = await supabase.storage
-      .from("books")
-      .upload(`${userId}/${fileName}`, compressedFile, {
-        cacheControl: "3600",
-        upsert: false,
-      });
+    // Test storage connection before upload
+    const isConnected = await testStorageConnection();
+    if (!isConnected) {
+      throw new Error("Cannot connect to storage. Please try again later.");
+    }
 
-    if (error) throw error;
+    // Update progress before upload
+    onProgress?.({
+      bytesTransferred: Math.floor(file.size * 0.6),
+      totalBytes: file.size,
+      progress: 60
+    });
+
+    // Upload the file with retries
+    let uploadAttempts = 0;
+    const maxAttempts = 3;
+    let uploadError: Error | null = null;
+
+    while (uploadAttempts < maxAttempts) {
+      try {
+        const { data, error } = await supabase.storage
+          .from("books")
+          .upload(filePath, compressedFile, {
+            cacheControl: "3600",
+            contentType: file.type, // Explicitly set content type
+            duplex: "half",
+            upsert: false,
+          });
+
+        if (error) {
+          console.error("Upload error:", error);
+          throw error;
+        }
+
+        if (!data?.path) {
+          throw new Error("Upload failed: No path returned");
+        }
+
+        uploadError = null;
+        break;
+      } catch (error) {
+        console.error(`Upload attempt ${uploadAttempts + 1} failed:`, error);
+        uploadError = error as Error;
+        uploadAttempts++;
+        if (uploadAttempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * uploadAttempts));
+        }
+      }
+    }
+
+    if (uploadError) {
+      throw new Error(`Upload failed after ${maxAttempts} attempts: ${uploadError.message}`);
+    }
+
+    // Update progress after upload
+    onProgress?.({
+      bytesTransferred: Math.floor(file.size * 0.8),
+      totalBytes: file.size,
+      progress: 80
+    });
 
     // Get the public URL
-    const { data: publicUrl } = supabase.storage
+    const { data: { publicUrl } } = supabase.storage
       .from("books")
-      .getPublicUrl(`${userId}/${fileName}`);
+      .getPublicUrl(filePath);
+
+    if (!publicUrl) {
+      throw new Error("Failed to get public URL for uploaded file");
+    }
+
+    // Verify the file exists
+    const { data: fileExists, error: verifyError } = await supabase.storage
+      .from("books")
+      .createSignedUrl(filePath, 60); // 60 seconds validity
+
+    if (verifyError || !fileExists) {
+      throw new Error("File upload verification failed");
+    }
+
+    // Update progress to complete
+    onProgress?.({
+      bytesTransferred: file.size,
+      totalBytes: file.size,
+      progress: 100
+    });
 
     return {
       file: compressedFile,
       format: fileExtension,
-      file_url: publicUrl.publicUrl,
+      file_url: publicUrl,
       metadata: {
         ...metadata,
         size: compressedFile.size,
@@ -225,7 +325,7 @@ export async function uploadBookFile(
       throw error;
     }
     console.error("Error uploading file:", error);
-    throw new Error("Failed to upload file");
+    throw new Error(error instanceof Error ? error.message : "Failed to upload file");
   }
 }
 

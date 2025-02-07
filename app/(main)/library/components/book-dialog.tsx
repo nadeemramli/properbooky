@@ -43,6 +43,7 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUploadQueue } from "@/lib/hooks/use-upload-queue";
 import { useAuth } from "@/lib/hooks/use-auth";
+import { useRouter } from "next/navigation";
 
 const bookFormSchema = z.object({
   // Essential fields
@@ -87,9 +88,11 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showOptionalFields, setShowOptionalFields] = useState(false);
   const { toast } = useToast();
   const { addBook, uploadBookFile } = useBooks();
   const { user } = useAuth();
+  const router = useRouter();
   const {
     queue,
     isUploading,
@@ -128,13 +131,32 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
     setIsSubmitting(true);
     setSubmitError(null);
 
+    // Show initial upload toast
+    toast({
+      title: "Upload Started",
+      description: "Processing your book upload...",
+      duration: 5000,
+    });
+
     try {
       let fileUrl = null;
 
       // If we have a file, upload it first
       if (values.file) {
         try {
+          toast({
+            title: "Uploading File",
+            description: "Uploading your book file...",
+            duration: 5000,
+          });
+
           fileUrl = await uploadBookFile(values.file);
+
+          toast({
+            title: "File Uploaded",
+            description: "Book file uploaded successfully!",
+            duration: 5000,
+          });
         } catch (error) {
           throw new Error(
             `Failed to upload file: ${
@@ -176,14 +198,20 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
         throw new Error("Failed to add book to database");
       }
 
-      setOpen(false);
-      form.reset();
       toast({
-        title: "Success",
+        title: "Success!",
         description: fileUrl
           ? "Book uploaded and added to your library"
           : "Book added to wishlist",
+        duration: 5000,
       });
+
+      // Wait a bit before closing and redirecting
+      setTimeout(() => {
+        setOpen(false);
+        form.reset();
+        router.push("/library");
+      }, 2000);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to add book";
@@ -192,6 +220,7 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
         variant: "destructive",
         title: "Error",
         description: errorMessage,
+        duration: 7000,
       });
     } finally {
       setIsSubmitting(false);
@@ -545,31 +574,26 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
 
                   {/* Optional Information - Collapsible */}
                   <div className="space-y-4">
-                    <div className="flex items-center">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="h-auto p-0 text-muted-foreground hover:text-foreground"
-                        onClick={() => {
-                          const details =
-                            document.getElementById("optional-details");
-                          if (details) {
-                            details.style.display =
-                              details.style.display === "none"
-                                ? "block"
-                                : "none";
-                          }
-                        }}
-                      >
-                        <ChevronRight className="h-4 w-4 mr-1" />
-                        Additional Details
-                      </Button>
-                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-auto p-0 text-muted-foreground hover:text-foreground"
+                      onClick={() => setShowOptionalFields(!showOptionalFields)}
+                    >
+                      <ChevronRight
+                        className={cn(
+                          "h-4 w-4 mr-1 transition-transform",
+                          showOptionalFields && "rotate-90"
+                        )}
+                      />
+                      Additional Details
+                    </Button>
 
                     <div
-                      id="optional-details"
-                      className="space-y-4"
-                      style={{ display: "none" }}
+                      className={cn(
+                        "space-y-4 overflow-hidden transition-all",
+                        showOptionalFields ? "block" : "hidden"
+                      )}
                     >
                       <FormField
                         control={form.control}
@@ -673,8 +697,12 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
                     </div>
                   </div>
 
-                  <div className="flex justify-end">
-                    <Button type="submit" disabled={isSubmitting}>
+                  <div className="sticky bottom-0 pt-4 bg-background">
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full"
+                    >
                       {isSubmitting && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}
