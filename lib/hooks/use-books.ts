@@ -28,16 +28,41 @@ const transformBook = (book: DbBook): AppBook => {
 
 // Transform metadata for database operations
 const transformMetadata = (metadata: BookMetadata | undefined): Json => {
-  if (!metadata) return {};
-  return {
-    publisher: metadata.publisher ?? "",
-    published_date: metadata.published_date ?? "",
-    language: metadata.language ?? "en",
-    pages: metadata.pages ?? 0,
-    isbn: metadata.isbn ?? "",
-    description: metadata.description ?? "",
-    ...metadata
+  if (!metadata) return {} as Json;
+  
+  const transformedMetadata: Record<string, Json | undefined> = {
+    publisher: metadata.publisher || null,
+    published_date: metadata.published_date || null,
+    language: metadata.language || "en",
+    pages: metadata.pages || null,
+    isbn: metadata.isbn || null,
+    description: metadata.description || null,
+    wishlist_reason: metadata.wishlist_reason || null,
+    wishlist_source: metadata.wishlist_source || null,
+    wishlist_priority: metadata.wishlist_priority || null,
+    wishlist_added_date: metadata.wishlist_added_date || null,
+    notes: metadata.notes || null,
+    goodreads_url: metadata.goodreads_url || null,
+    amazon_url: metadata.amazon_url || null,
+    recommendation: metadata.recommendation || null,
+    categories: metadata.categories || null,
+    tags: metadata.tags || null,
+    cover_url: metadata.cover_url || null,
+    size: metadata.size || null,
+    title: metadata.title || null,
+    author: metadata.author || null,
+    recommendations: metadata.recommendations?.map(rec => ({
+      id: rec.id,
+      book_id: rec.book_id,
+      user_id: rec.user_id,
+      recommender_name: rec.recommender_name,
+      recommendation_text: rec.recommendation_text,
+      created_at: rec.created_at,
+      updated_at: rec.updated_at,
+    })) || null,
   };
+
+  return transformedMetadata as Json;
 }
 
 export function useBooks(searchQuery?: string) {
@@ -171,7 +196,7 @@ export function useBooks(searchQuery?: string) {
           status: bookData.status || "unread",
           progress: bookData.progress || 0,
           priority_score: bookData.priority_score || 0,
-          metadata: bookData.metadata || {},
+          metadata: transformMetadata(bookData.metadata as BookMetadata),
           last_read: null,
           user_id: user.id,
         } as Database["public"]["Tables"]["books"]["Insert"])
@@ -206,7 +231,12 @@ export function useBooks(searchQuery?: string) {
 
       const { data, error } = await supabase
         .from("books")
-        .update(updates as Database["public"]["Tables"]["books"]["Update"])
+        .update({
+          ...updates,
+          metadata:
+            updates.metadata &&
+            transformMetadata(updates.metadata as BookMetadata),
+        })
         .eq("id", id)
         .eq("user_id", user.id)
         .select()

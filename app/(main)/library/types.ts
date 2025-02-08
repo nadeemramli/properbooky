@@ -53,6 +53,13 @@ export type BookUpload = {
   file: File;
   format: BookFormat;
   file_url: string;
+  cover_url: string | null;
+  metadata: Partial<BookMetadata>;
+};
+
+// Upload result type
+export type BookUploadResult = BookUpload & {
+  metadata: Partial<BookMetadata>;
 };
 
 // CSV import type for wishlist

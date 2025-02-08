@@ -12,6 +12,15 @@ export type BookStatus = 'unread' | 'reading' | 'completed' | 'wishlist';
 export type BookFormat = 'epub' | 'pdf';
 export type WishlistStatus = 'pending' | 'acquired' | 'removed';
 
+export interface Tag {
+  id: string;
+  name: string;
+  user_id: string;
+  color: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface BookMetadata {
   publisher?: string;
   published_date?: string;
@@ -26,34 +35,41 @@ export interface BookMetadata {
   notes?: string;
   goodreads_url?: string;
   amazon_url?: string;
+  recommendation?: string;
+  categories?: string[];
+  tags?: string[];
+  cover_url?: string;
+  size?: number;
+  title?: string;
+  author?: string;
+  recommendations?: BookRecommendation[];
   [key: string]: unknown;
 }
 
-// Ensure this matches the database schema exactly
 export interface Book {
   id: string;
   title: string;
   author: string | null;
   cover_url: string | null;
-  file_url: string;
+  file_url: string | null;
   format: BookFormat;
   status: BookStatus;
-  progress: number;
+  progress: number | null;
   created_at: string;
   updated_at: string;
   last_read: string | null;
   user_id: string;
   metadata: BookMetadata;
-  priority_score: number;
+  priority_score?: number;
   highlights?: Highlight[];
-  
-  // New fields
   publication_year?: number;
-  knowledge_spectrum?: number; // 0.00 to 1.00
-  manual_rating?: number;     // 0.00 to 5.00
+  knowledge_spectrum?: number;
+  manual_rating?: number;
   wishlist_status?: WishlistStatus;
   wishlist_priority?: number;
   wishlist_notes?: string;
+  size?: number;
+  pages?: number;
 }
 
 export interface BookRecommendation {
@@ -77,7 +93,13 @@ export interface UserPriorityWeights {
   updated_at: string;
 }
 
-// Type for creating a new book - accepts both BookMetadata and Json
+export interface BookTag {
+  book_id: string;
+  tag_id: string;
+  user_id: string;
+  created_at: string;
+}
+
 export interface BookCreate {
   title: string;
   author?: string | null;
@@ -97,7 +119,6 @@ export interface BookCreate {
   wishlist_notes?: string;
 }
 
-// Type for updating a book - accepts both BookMetadata and Json
 export interface BookUpdate {
   title?: string;
   author?: string | null;
@@ -106,7 +127,7 @@ export interface BookUpdate {
   format?: BookFormat;
   status?: BookStatus;
   progress?: number;
-  metadata?: BookMetadata | Json;
+  metadata?: Partial<BookMetadata>;
   priority_score?: number;
   last_read?: string | null;
   publication_year?: number;
@@ -115,4 +136,28 @@ export interface BookUpdate {
   wishlist_status?: WishlistStatus;
   wishlist_priority?: number;
   wishlist_notes?: string;
+}
+
+export interface BookUpload {
+  file: File;
+  format: BookFormat;
+  file_url: string;
+  cover_url: string | null;
+  metadata: Partial<BookMetadata>;
+}
+
+export type BookUploadResult = BookUpload & {
+  metadata: Partial<BookMetadata>;
+};
+
+export interface WishlistCSVRow {
+  title: string;
+  author?: string;
+  isbn?: string;
+  reason?: string;
+  source?: string;
+  priority?: number;
+  notes?: string;
+  goodreads_url?: string;
+  amazon_url?: string;
 } 

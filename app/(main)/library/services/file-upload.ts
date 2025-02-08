@@ -75,6 +75,116 @@ async function extractEPUBMetadata(file: File): Promise<Partial<BookMetadata>> {
 }
 
 /**
+ * Extract cover image from PDF
+ */
+async function extractPDFCover(file: File): Promise<string | null> {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 1.0 });
+    
+    // Create canvas
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+
+    // Set canvas dimensions to match page
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+
+    // Render PDF page to canvas
+    await page.render({
+      canvasContext: context,
+      viewport: viewport
+    }).promise;
+
+    // Convert canvas to blob
+    const blob = await new Promise<Blob | null>(resolve => {
+      canvas.toBlob(resolve, 'image/jpeg', 0.75);
+    });
+
+    if (!blob) return null;
+
+    // Upload cover image to storage
+    const supabase = createClient();
+    const coverFileName = `covers/${Date.now()}-cover.jpg`;
+    
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(coverFileName, blob, {
+        contentType: 'image/jpeg',
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('Error uploading cover:', uploadError);
+      return null;
+    }
+
+    // Get public URL for cover
+    const { data: { publicUrl } } = supabase.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(coverFileName);
+
+    return publicUrl;
+  } catch (error) {
+    console.error('Error extracting PDF cover:', error);
+    return null;
+  }
+}
+
+/**
+ * Extract cover image from EPUB
+ */
+async function extractEPUBCover(file: File): Promise<string | null> {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const book = epubjs.default();
+    await book.open(arrayBuffer);
+
+    // Try to get cover from metadata
+    const coverUrl = await book.coverUrl();
+    
+    if (!coverUrl) {
+      await book.destroy();
+      return null;
+    }
+
+    // Fetch cover image
+    const response = await fetch(coverUrl);
+    const blob = await response.blob();
+
+    // Upload cover image to storage
+    const supabase = createClient();
+    const coverFileName = `covers/${Date.now()}-cover.jpg`;
+    
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(coverFileName, blob, {
+        contentType: 'image/jpeg',
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('Error uploading cover:', uploadError);
+      return null;
+    }
+
+    // Get public URL for cover
+    const { data: { publicUrl } } = supabase.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(coverFileName);
+
+    await book.destroy();
+    return publicUrl;
+  } catch (error) {
+    console.error('Error extracting EPUB cover:', error);
+    return null;
+  }
+}
+
+/**
  * Test the connection to Supabase Storage
  */
 export async function testStorageConnection(): Promise<boolean> {
@@ -178,7 +288,7 @@ export async function uploadBookFile(
   file: File,
   userId: string,
   onProgress?: (progress: UploadProgress) => void
-): Promise<BookUpload & { metadata: Partial<BookMetadata> }> {
+): Promise<BookUpload> {
   try {
     // Validate file first
     await validateFile(file);
@@ -206,11 +316,22 @@ export async function uploadBookFile(
       progress: 20
     });
 
+    // Extract cover image based on file type
+    const coverUrl = file.type === "application/pdf"
+      ? await extractPDFCover(file)
+      : await extractEPUBCover(file);
+
+    // Update progress after cover extraction
+    onProgress?.({
+      bytesTransferred: Math.floor(file.size * 0.3),
+      totalBytes: file.size,
+      progress: 30
+    });
+
     // Extract metadata based on file type
-    const metadata =
-      file.type === "application/pdf"
-        ? await extractPDFMetadata(file)
-        : await extractEPUBMetadata(file);
+    const metadata = file.type === "application/pdf"
+      ? await extractPDFMetadata(file)
+      : await extractEPUBMetadata(file);
 
     // Update progress after metadata extraction
     onProgress?.({
@@ -330,15 +451,19 @@ export async function uploadBookFile(
       progress: 100
     });
 
-    return {
+    // Return the upload result with the correct type
+    const result: BookUpload = {
       file: compressedFile,
       format: fileExtension,
       file_url: publicUrl,
+      cover_url: coverUrl,
       metadata: {
         ...metadata,
         size: compressedFile.size,
       },
     };
+
+    return result;
   } catch (error) {
     if (error instanceof FileValidationError) {
       throw error;
