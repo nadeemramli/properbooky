@@ -50,6 +50,7 @@ const bookFormSchema = z.object({
   title: z.string().min(1, "Title is required"),
   author: z.string().optional(),
   file: z.instanceof(File).optional(),
+  format: z.enum(["pdf", "epub"]).default("pdf"),
 
   // Optional metadata
   isbn: z.string().optional(),
@@ -107,6 +108,7 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
     defaultValues: {
       title: "",
       author: "",
+      format: "pdf",
       isbn: "",
       description: "",
       reason: "",
@@ -175,7 +177,7 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
       const book = await addBook({
         title: values.title,
         author: values.author || null,
-        format: values.file ? getFileFormat(values.file.name) || "pdf" : "pdf",
+        format: values.format,
         file_url: fileUrl || "",
         status: (fileUrl ? "unread" : "wishlist") as BookStatus,
         progress: 0,
@@ -548,27 +550,47 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
 
                         <FormField
                           control={form.control}
-                          name="priority"
+                          name="format"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Priority</FormLabel>
+                              <FormLabel>Format</FormLabel>
                               <FormControl>
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  max={10}
-                                  placeholder="5"
+                                <select
                                   {...field}
-                                  onChange={(e) =>
-                                    field.onChange(parseInt(e.target.value))
-                                  }
-                                />
+                                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <option value="pdf">PDF</option>
+                                  <option value="epub">EPUB</option>
+                                </select>
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
                       </div>
+
+                      <FormField
+                        control={form.control}
+                        name="priority"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Priority</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min={0}
+                                max={10}
+                                placeholder="5"
+                                {...field}
+                                onChange={(e) =>
+                                  field.onChange(parseInt(e.target.value))
+                                }
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
                   </div>
 
