@@ -27,6 +27,18 @@ export type BookMetadata = {
   author?: string;
 };
 
+// Book creation type
+export type BookCreate = {
+  title: string;
+  author: string | null;
+  format: "pdf" | "epub";
+  file_url: string;
+  status: BookStatus;
+  progress: number;
+  user_id: string;
+  metadata?: Partial<BookMetadata>;
+};
+
 // Main book type
 export type Book = {
   id: string;

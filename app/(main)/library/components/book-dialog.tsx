@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/form";
 import Papa from "papaparse";
 import { cn } from "@/lib/utils";
-import type { WishlistCSVRow } from "../types";
+import type { WishlistCSVRow, BookCreate } from "../types";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUploadQueue } from "@/lib/hooks/use-upload-queue";
@@ -46,17 +46,13 @@ import { useAuth } from "@/lib/hooks/use-auth";
 import { useRouter } from "next/navigation";
 
 const bookFormSchema = z.object({
-  // Essential fields
   title: z.string().min(1, "Title is required"),
-  author: z.string().optional(),
+  author: z.string().nullable(),
+  format: z.enum(["pdf", "epub"] as const),
   file: z.instanceof(File).optional(),
-  format: z.enum(["pdf", "epub"]).default("pdf"),
-
-  // Optional metadata
   isbn: z.string().optional(),
-  priority: z.number().min(0).max(10).default(5),
   description: z.string().optional(),
-  reason: z.string().optional(),
+  cover_url: z.string().optional(),
   source: z.string().optional(),
   notes: z.string().optional(),
   goodreads_url: z.string().url().optional(),
@@ -111,9 +107,7 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
       format: "pdf",
       isbn: "",
       description: "",
-      reason: "",
       source: "",
-      priority: 5,
       notes: "",
       goodreads_url: "",
       amazon_url: "",
@@ -130,15 +124,23 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
       return;
     }
 
+    // Validate file format matches selected format
+    if (values.file) {
+      const fileFormat = getFileFormat(values.file.name);
+      if (fileFormat !== values.format) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: `File format (${
+            fileFormat || "unknown"
+          }) does not match selected format (${values.format})`,
+        });
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     setSubmitError(null);
-
-    // Show initial upload toast
-    toast({
-      title: "Upload Started",
-      description: "Processing your book upload...",
-      duration: 5000,
-    });
 
     try {
       let fileUrl = null;
@@ -168,61 +170,44 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
         }
       }
 
-      // Verify file URL if file was uploaded
-      if (values.file && !fileUrl) {
-        throw new Error("File upload failed: No URL returned");
-      }
-
-      // Add book to database
-      const book = await addBook({
+      // Create the book
+      const bookData: BookCreate = {
         title: values.title,
-        author: values.author || null,
+        author: values.author,
         format: values.format,
         file_url: fileUrl || "",
-        status: (fileUrl ? "unread" : "wishlist") as BookStatus,
+        status: fileUrl ? "unread" : "wishlist",
         progress: 0,
         user_id: user.id,
         metadata: {
           isbn: values.isbn,
           description: values.description,
-          wishlist_reason: values.reason,
-          wishlist_source: values.source,
-          wishlist_priority: values.priority,
+          source: values.source,
           notes: values.notes,
           goodreads_url: values.goodreads_url,
           amazon_url: values.amazon_url,
-          wishlist_added_date: new Date().toISOString(),
         },
-      });
+      };
 
-      // Verify book was added successfully
-      if (!book || !book.id) {
-        throw new Error("Failed to add book to database");
-      }
+      await addBook(bookData);
 
       toast({
-        title: "Success!",
-        description: fileUrl
-          ? "Book uploaded and added to your library"
-          : "Book added to wishlist",
+        title: "Success",
+        description: "Book added successfully!",
         duration: 5000,
       });
 
-      // Wait a bit before closing and redirecting
-      setTimeout(() => {
-        setOpen(false);
-        form.reset();
-        router.push("/library");
-      }, 2000);
+      setOpen(false);
+      router.refresh();
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to add book";
-      setSubmitError(errorMessage);
+      console.error("Error adding book:", error);
+      setSubmitError(
+        error instanceof Error ? error.message : "Failed to add book"
+      );
       toast({
         variant: "destructive",
         title: "Error",
-        description: errorMessage,
-        duration: 7000,
+        description: "Failed to add book. Please try again.",
       });
     } finally {
       setIsSubmitting(false);
@@ -541,7 +526,11 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
                             <FormItem>
                               <FormLabel>Author</FormLabel>
                               <FormControl>
-                                <Input {...field} placeholder="Author name" />
+                                <Input
+                                  {...field}
+                                  value={field.value || ""}
+                                  placeholder="Author name"
+                                />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -568,29 +557,6 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
                           )}
                         />
                       </div>
-
-                      <FormField
-                        control={form.control}
-                        name="priority"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Priority</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                min={0}
-                                max={10}
-                                placeholder="5"
-                                {...field}
-                                onChange={(e) =>
-                                  field.onChange(parseInt(e.target.value))
-                                }
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
                     </div>
                   </div>
 
@@ -650,20 +616,6 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
 
                       <FormField
                         control={form.control}
-                        name="reason"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Why read this book?</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="Your motivation" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
                         name="source"
                         render={({ field }) => (
                           <FormItem>
@@ -672,6 +624,23 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
                               <Input
                                 {...field}
                                 placeholder="Where did you hear about it?"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="notes"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Notes</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                {...field}
+                                placeholder="Any additional notes"
                               />
                             </FormControl>
                             <FormMessage />
