@@ -223,7 +223,9 @@ export function BookGrid({ searchQuery, view, status }: BookGridProps) {
                 <Badge variant={BOOK_STATUS_VARIANTS[book.status]}>
                   {book.status}
                 </Badge>
-                <Badge variant="secondary">{book.format.toUpperCase()}</Badge>
+                {book.format && (
+                  <Badge variant="secondary">{book.format.toUpperCase()}</Badge>
+                )}
               </div>
             </div>
           </CardContent>

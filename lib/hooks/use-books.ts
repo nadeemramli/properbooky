@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { isPostgrestError, getErrorMessage } from '@/lib/utils/error'
-import type { Book as AppBook, BookCreate, BookUpdate, BookMetadata } from '@/types/book'
+import type { Book as AppBook, BookCreate, BookUpdate, BookMetadata, BookRecommendation, Bookmark, TOCItem, Highlight } from '@/types/book'
 import type { Database } from '@/types/database'
 import type { Json } from '@/types/database'
 import { useAuth } from './use-auth'
@@ -12,8 +12,33 @@ type BookStatus = "unread" | "reading" | "completed" | "wishlist";
 // Transform database book to application book
 const transformBook = (book: DbBook): AppBook => {
   const metadata = book.metadata as BookMetadata;
+  
+  // Helper function to convert complex objects to JSON-safe format
+  const toJsonSafe = <T extends object>(obj: T): T => {
+    return JSON.parse(JSON.stringify(obj)) as T;
+  };
+
   return {
-    ...book,
+    id: book.id,
+    title: book.title,
+    author: book.author ?? undefined,
+    format: book.format,  // Already matches the type
+    file_url: book.file_url,  // Already matches the type
+    cover_url: book.cover_url ?? undefined,
+    status: book.status,
+    progress: book.progress ?? null,
+    last_read: book.last_read ?? null,
+    created_at: book.created_at,
+    updated_at: book.updated_at,
+    publication_year: null,  // Set default values for optional fields
+    knowledge_spectrum: null,
+    manual_rating: null,
+    wishlist_priority: null,
+    wishlist_notes: null,
+    priority_score: book.priority_score ?? null,
+    size: null,
+    pages: null,
+    user_id: book.user_id,
     metadata: {
       publisher: metadata?.publisher ?? "",
       published_date: metadata?.published_date ?? "",
@@ -21,7 +46,12 @@ const transformBook = (book: DbBook): AppBook => {
       pages: metadata?.pages ?? 0,
       isbn: metadata?.isbn ?? "",
       description: metadata?.description ?? "",
-      ...metadata
+      ...metadata,
+      // Convert complex objects to JSON-safe format
+      recommendations: metadata?.recommendations ? toJsonSafe<BookRecommendation[]>(metadata.recommendations) : undefined,
+      bookmarks: metadata?.bookmarks ? toJsonSafe<Bookmark[]>(metadata.bookmarks) : undefined,
+      toc: metadata?.toc ? toJsonSafe<TOCItem[]>(metadata.toc) : undefined,
+      highlights: metadata?.highlights ? toJsonSafe<Highlight[]>(metadata.highlights) : undefined,
     }
   }
 }
@@ -30,36 +60,48 @@ const transformBook = (book: DbBook): AppBook => {
 const transformMetadata = (metadata: BookMetadata | undefined): Json => {
   if (!metadata) return {} as Json;
   
+  // Helper function to convert complex objects to JSON-safe format
+  const toJsonSafe = (obj: any): Json => {
+    return JSON.parse(JSON.stringify(obj));
+  };
+
   const transformedMetadata: Record<string, Json | undefined> = {
-    publisher: metadata.publisher || null,
-    published_date: metadata.published_date || null,
-    language: metadata.language || "en",
-    pages: metadata.pages || null,
-    isbn: metadata.isbn || null,
-    description: metadata.description || null,
-    wishlist_reason: metadata.wishlist_reason || null,
-    wishlist_source: metadata.wishlist_source || null,
-    wishlist_priority: metadata.wishlist_priority || null,
-    wishlist_added_date: metadata.wishlist_added_date || null,
-    notes: metadata.notes || null,
-    goodreads_url: metadata.goodreads_url || null,
-    amazon_url: metadata.amazon_url || null,
-    recommendation: metadata.recommendation || null,
-    categories: metadata.categories || null,
-    tags: metadata.tags || null,
-    cover_url: metadata.cover_url || null,
-    size: metadata.size || null,
+    // Basic metadata
     title: metadata.title || null,
     author: metadata.author || null,
-    recommendations: metadata.recommendations?.map(rec => ({
-      id: rec.id,
-      book_id: rec.book_id,
-      user_id: rec.user_id,
-      recommender_name: rec.recommender_name,
-      recommendation_text: rec.recommendation_text,
-      created_at: rec.created_at,
-      updated_at: rec.updated_at,
-    })) || null,
+    description: metadata.description || null,
+    isbn: metadata.isbn || null,
+    publisher: metadata.publisher || null,
+    published_date: metadata.published_date || null,
+    publication_year: metadata.publication_year || null,
+    language: metadata.language || "en",
+    pages: metadata.pages || null,
+    size: metadata.size || null,
+    
+    // Categories and tags
+    categories: metadata.categories || null,
+    tags: metadata.tags || null,
+    
+    // File metadata
+    cover_url: metadata.cover_url || null,
+    
+    // Wishlist metadata
+    wishlist_reason: metadata.wishlist_reason || null,
+    wishlist_source: metadata.wishlist_source || null,
+    wishlist_added_date: metadata.wishlist_added_date || null,
+    wishlist_priority: metadata.wishlist_priority || null,
+    
+    // External links
+    goodreads_url: metadata.goodreads_url || null,
+    amazon_url: metadata.amazon_url || null,
+    
+    // Additional metadata
+    notes: metadata.notes || null,
+    // Convert complex objects to JSON-safe format
+    recommendations: metadata.recommendations ? toJsonSafe(metadata.recommendations) : undefined,
+    bookmarks: metadata.bookmarks ? toJsonSafe(metadata.bookmarks) : undefined,
+    toc: metadata.toc ? toJsonSafe(metadata.toc) : undefined,
+    highlights: metadata.highlights ? toJsonSafe(metadata.highlights) : undefined,
   };
 
   return transformedMetadata as Json;
@@ -346,6 +388,19 @@ export function useBooks(searchQuery?: string) {
     fetchBooks()
   }, [fetchBooks])
 
+  async function getBook(id: string): Promise<AppBook> {
+    const { data, error } = await supabase
+      .from("books")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error) throw error;
+    if (!data) throw new Error("Book not found");
+
+    return transformBook(data as DbBook);
+  }
+
   return {
     books,
     loading,
@@ -354,6 +409,7 @@ export function useBooks(searchQuery?: string) {
     updateBook,
     deleteBook,
     uploadBookFile,
+    getBook,
     refreshBooks: fetchBooks
   }
 } 

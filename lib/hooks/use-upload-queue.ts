@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { useBooks } from './use-books';
+import { useAuth } from './use-auth';
 
 interface QueueItem {
   id: string;
@@ -14,6 +15,7 @@ export function useUploadQueue() {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const { uploadBookFile, addBook } = useBooks();
+  const { user } = useAuth();
 
   const addToQueue = useCallback((files: File[]) => {
     const newItems = files.map((file) => ({
@@ -55,58 +57,80 @@ export function useUploadQueue() {
 
   const processQueue = useCallback(async () => {
     if (isUploading || queue.length === 0) return;
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to upload files",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsUploading(true);
 
     try {
-      for (const item of queue) {
-        if (item.status === 'completed') continue;
-
-        try {
-          updateItemStatus(item.id, 'uploading');
-          
-          // Show upload started toast
-          toast({
-            title: 'Upload Started',
-            description: `Uploading ${item.file.name}...`,
-            duration: 3000,
-          });
-
-          // Start the actual upload
-          const filePath = await uploadBookFile(item.file);
-
-          // Create book entry
-          await addBook({
-            title: item.file.name.replace(/\.[^/.]+$/, ""), // Remove extension
-            format: item.file.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'epub',
-            file_url: filePath,
-            status: 'unread',
-            user_id: 'auto', // This will be replaced with the actual user ID by the useBooks hook
-          });
-
-          // Update status and show success toast
-          updateItemStatus(item.id, 'completed');
-          toast({
-            title: 'Upload Complete',
-            description: `Successfully uploaded ${item.file.name}`,
-            duration: 3000,
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Upload failed';
-          updateItemStatus(item.id, 'error', errorMessage);
-          
-          toast({
-            title: 'Upload Failed',
-            description: `Failed to upload ${item.file.name}: ${errorMessage}`,
-            variant: 'destructive',
-            duration: 5000,
-          });
-        }
+      // Get the first item in the queue, return if queue is empty
+      const currentItem = queue[0];
+      if (!currentItem) {
+        setIsUploading(false);
+        return;
       }
+
+      updateItemStatus(currentItem.id, "uploading");
+
+      // Upload file
+      const formData = new FormData();
+      formData.append("file", currentItem.file);
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to upload file");
+      }
+
+      const { filePath } = await response.json();
+
+      // Create book entry
+      await addBook({
+        title: currentItem.file.name.replace(/\.[^/.]+$/, ""), // Remove extension
+        format: currentItem.file.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'epub',
+        file_url: filePath,
+        status: 'unread',
+        user_id: user.id,
+        author: null,
+        cover_url: null,
+        publication_year: null,
+        progress: 0,
+        metadata: {},
+      });
+
+      // Update status and show success toast
+      updateItemStatus(currentItem.id, "completed");
+      toast({
+        title: "Success",
+        description: `${currentItem.file.name} has been uploaded`,
+      });
+
+      // Remove from queue
+      setQueue((prev) => prev.slice(1));
+    } catch (error) {
+      console.error("Upload error:", error);
+      const failedItem = queue[0];
+      if (failedItem) {
+        updateItemStatus(failedItem.id, "error", error instanceof Error ? error.message : "Failed to upload file");
+      }
+      toast({
+        title: "Error",
+        description: "Failed to upload file",
+        variant: "destructive",
+      });
     } finally {
       setIsUploading(false);
     }
-  }, [queue, isUploading, uploadBookFile, addBook, updateItemStatus]);
+  }, [queue, isUploading, uploadBookFile, addBook, updateItemStatus, user]);
 
   return {
     queue,

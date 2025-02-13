@@ -2,10 +2,27 @@ import type { Json } from '@/types/database';
 
 export interface Highlight {
   id: string;
+  book_id: string;
+  user_id: string;
   content: string;
+  note?: string;
+  color: string;
   page: number;
+  position?: {
+    boundingRect: DOMRect;
+    rects: DOMRect[];
+    pageIndex: number;
+  };
+  tags: string[];
   created_at: string;
-  tags?: string[];
+  updated_at: string;
+}
+
+export interface HighlightTag {
+  id: string;
+  name: string;
+  color: string;
+  created_at: string;
 }
 
 export type BookStatus = 'unread' | 'reading' | 'completed' | 'wishlist';
@@ -22,12 +39,16 @@ export interface Tag {
 }
 
 export interface BookMetadata {
-  publisher?: string;
-  published_date?: string;
-  language?: string;
-  pages?: number;
   isbn?: string;
   description?: string;
+  publisher?: string;
+  language?: string;
+  pageCount?: number;
+  categories?: string[];
+  averageRating?: number;
+  ratingCount?: number;
+  thumbnail?: string;
+  // Wishlist fields
   wishlist_reason?: string;
   wishlist_source?: string;
   wishlist_priority?: number;
@@ -35,41 +56,46 @@ export interface BookMetadata {
   notes?: string;
   goodreads_url?: string;
   amazon_url?: string;
-  recommendation?: string;
-  categories?: string[];
-  tags?: string[];
-  cover_url?: string;
+  // Additional metadata
+  recommendations?: BookRecommendation[];
+  bookmarks?: Bookmark[];
+  toc?: TOCItem[];
+  highlights?: Highlight[];
+  // File metadata
   size?: number;
+  pages?: number;
+  publication_year?: number;
+  // Content metadata
   title?: string;
   author?: string;
-  recommendations?: BookRecommendation[];
-  [key: string]: unknown;
+  tags?: string[];
+  cover_url?: string;
+  published_date?: string;
 }
 
 export interface Book {
   id: string;
   title: string;
-  author: string | null;
-  cover_url: string | null;
+  author?: string;
+  format: "pdf" | "epub" | null;
   file_url: string | null;
-  format: BookFormat;
-  status: BookStatus;
-  progress: number | null;
+  cover_url?: string | null;
+  status: "unread" | "reading" | "completed" | "wishlist";
+  progress?: number | null;
+  last_read?: string | null;
   created_at: string;
   updated_at: string;
-  last_read: string | null;
-  user_id: string;
+  publication_year?: number | null;
+  knowledge_spectrum?: number | null;
+  manual_rating?: number | null;
+  wishlist_priority?: number | null;
+  wishlist_notes?: string | null;
   metadata: BookMetadata;
-  priority_score?: number;
+  priority_score?: number | null;
+  size?: number | null;
+  pages?: number | null;
   highlights?: Highlight[];
-  publication_year?: number;
-  knowledge_spectrum?: number;
-  manual_rating?: number;
-  wishlist_status?: WishlistStatus;
-  wishlist_priority?: number;
-  wishlist_notes?: string;
-  size?: number;
-  pages?: number;
+  user_id: string;
 }
 
 export interface BookRecommendation {
@@ -102,40 +128,33 @@ export interface BookTag {
 
 export interface BookCreate {
   title: string;
-  author?: string | null;
-  cover_url?: string | null;
+  author: string | null;
+  format: "pdf" | "epub";
   file_url: string;
-  format: BookFormat;
-  status?: BookStatus;
-  progress?: number;
-  user_id: string;
-  metadata?: BookMetadata | Json;
+  cover_url: string | null;
+  status: "unread" | "reading" | "completed" | "wishlist";
+  publication_year: number | null;
+  progress: number | null;
   priority_score?: number;
-  publication_year?: number;
-  knowledge_spectrum?: number;
-  manual_rating?: number;
-  wishlist_status?: WishlistStatus;
-  wishlist_priority?: number;
-  wishlist_notes?: string;
+  user_id: string;
+  metadata: Partial<BookMetadata>;
 }
 
 export interface BookUpdate {
   title?: string;
   author?: string | null;
-  cover_url?: string | null;
+  format?: "pdf" | "epub";
   file_url?: string;
-  format?: BookFormat;
-  status?: BookStatus;
-  progress?: number;
-  metadata?: Partial<BookMetadata>;
-  priority_score?: number;
+  cover_url?: string | null;
+  status?: "unread" | "reading" | "completed" | "wishlist";
+  progress?: number | null;
   last_read?: string | null;
-  publication_year?: number;
-  knowledge_spectrum?: number;
-  manual_rating?: number;
-  wishlist_status?: WishlistStatus;
-  wishlist_priority?: number;
-  wishlist_notes?: string;
+  publication_year?: number | null;
+  knowledge_spectrum?: number | null;
+  manual_rating?: number | null;
+  wishlist_priority?: number | null;
+  wishlist_notes?: string | null;
+  metadata?: Partial<BookMetadata>;
 }
 
 export interface BookUpload {
@@ -144,6 +163,7 @@ export interface BookUpload {
   file_url: string;
   cover_url: string | null;
   metadata: Partial<BookMetadata>;
+  publication_year?: number;
 }
 
 export type BookUploadResult = BookUpload & {
@@ -160,4 +180,22 @@ export interface WishlistCSVRow {
   notes?: string;
   goodreads_url?: string;
   amazon_url?: string;
+}
+
+export interface TOCItem {
+  id: string;
+  title: string;
+  page: number;
+  level: number;
+  children?: TOCItem[];
+}
+
+export interface Bookmark {
+  id: string;
+  book_id: string;
+  user_id: string;
+  page: number;
+  content?: string;
+  title: string;
+  created_at: string;
 } 

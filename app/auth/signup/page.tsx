@@ -44,7 +44,7 @@ export default function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -59,7 +59,7 @@ export default function SignUpPage() {
   const handleGoogleSignUp = async () => {
     try {
       setIsLoading(true);
-      await signIn();
+      await signInWithGoogle();
     } catch (error) {
       toast.error("Failed to sign up with Google");
     } finally {

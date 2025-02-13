@@ -41,7 +41,7 @@ export default function SignUpForm() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
-  const { signIn } = useAuth();
+  const { signUp, signInWithGoogle } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -56,7 +56,7 @@ export default function SignUpForm() {
   const handleGoogleSignUp = async () => {
     try {
       setIsLoading(true);
-      await signIn(); // Using the same signIn function as it handles both sign-in and sign-up
+      await signInWithGoogle(); // Using Google OAuth for sign-up
     } catch (error) {
       toast.error("Failed to sign up with Google");
     } finally {
@@ -67,68 +67,11 @@ export default function SignUpForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       setIsLoading(true);
-
-      // Log the signup attempt
-      console.log("Attempting signup with email:", values.email);
-
-      const { data, error } = await supabase.auth.signUp({
-        email: values.email,
-        password: values.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          data: {
-            email: values.email,
-          },
-        },
-      });
-
-      if (error) {
-        // Handle specific error cases
-        switch (error.message) {
-          case "User already registered":
-            toast.error(
-              "An account with this email already exists. Please log in instead."
-            );
-            break;
-          case "Password should be at least 6 characters":
-            toast.error("Password should be at least 6 characters long.");
-            break;
-          case "Unable to validate email address":
-            toast.error("Please enter a valid email address.");
-            break;
-          case "Rate limit exceeded":
-            toast.error("Too many signup attempts. Please try again later.");
-            break;
-          default:
-            console.error("Signup error:", error);
-            toast.error(
-              error.message || "Failed to create account. Please try again."
-            );
-        }
-        return;
-      }
-
-      console.log("Signup response:", data);
-
-      if (data.user && !data.user.confirmed_at) {
-        toast.success(
-          "Please check your email to confirm your account. Check your spam folder if you don't see it."
-        );
-        form.reset();
-      } else if (data.user && data.user.confirmed_at) {
-        toast.success("Account created successfully!");
-        router.push("/library");
-        router.refresh();
-      } else {
-        toast.error("Something went wrong. Please try again.");
-      }
+      await signUp(values.email, values.password);
+      toast.success("Check your email to confirm your account");
+      router.push("/auth/verify");
     } catch (error) {
-      console.error("Caught error:", error);
-      toast.error(
-        error instanceof Error
-          ? `Failed to sign up: ${error.message}`
-          : "Failed to sign up. Please try again."
-      );
+      toast.error("Failed to create account");
     } finally {
       setIsLoading(false);
     }

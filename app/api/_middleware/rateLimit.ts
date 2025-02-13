@@ -1,7 +1,24 @@
-import rateLimit from 'express-rate-limit';
 import type { NextApiRequest, NextApiResponse } from 'next';
+import type { Options } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 
-export const authRateLimiter = rateLimit({
+// Custom type for Next.js API middleware
+type NextApiMiddleware = (
+  req: NextApiRequest,
+  res: NextApiResponse,
+  next: (error?: Error) => void
+) => void;
+
+// Create a rate limiter instance with Next.js types
+const createRateLimiter = (options: Partial<Options>): NextApiMiddleware => {
+  const rateLimiter = rateLimit(options);
+  return (req, res, next) => {
+    // @ts-ignore - express-rate-limit types don't match Next.js but the implementation works
+    return rateLimiter(req, res, next);
+  };
+};
+
+export const authRateLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // Limit each IP to 5 requests per windowMs
   message: {
@@ -17,10 +34,10 @@ export function withRateLimit(
 ) {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     try {
-      await new Promise((resolve, reject) => {
-        authRateLimiter(req, res, (result: Error | undefined) => {
-          if (result) reject(result);
-          resolve(result);
+      await new Promise<void>((resolve, reject) => {
+        authRateLimiter(req, res, (error?: Error) => {
+          if (error) reject(error);
+          resolve();
         });
       });
       await handler(req, res);
@@ -33,7 +50,7 @@ export function withRateLimit(
       } else {
         res.status(429).json({
           error: 'Too Many Requests',
-          message: 'Please try again later',
+          message: 'Rate limit exceeded',
         });
       }
     }

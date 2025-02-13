@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,6 +67,7 @@ export function BookProfileDialog({
   const { updateBook } = useBooks();
   const { toast } = useToast();
   const { user } = useAuth();
+  const router = useRouter();
 
   if (!book || !user?.id) return null;
 
@@ -185,7 +187,17 @@ export function BookProfileDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Book Details</span>
-            {activeTab === "details" && (
+            <div className="flex items-center gap-2">
+              {book.file_url && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => router.push(`/library/read/${book.id}`)}
+                >
+                  <BookOpen className="h-4 w-4 mr-2" />
+                  Read Now
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -205,7 +217,7 @@ export function BookProfileDialog({
                   </>
                 )}
               </Button>
-            )}
+            </div>
           </DialogTitle>
         </DialogHeader>
         <div className="grid gap-6 py-4">
@@ -255,7 +267,9 @@ export function BookProfileDialog({
                 )}
               </div>
               <div className="flex gap-2">
-                <Badge variant="secondary">{book.format.toUpperCase()}</Badge>
+                {book.format && (
+                  <Badge variant="secondary">{book.format.toUpperCase()}</Badge>
+                )}
                 <Badge variant={BOOK_STATUS_VARIANTS[book.status]}>
                   {book.status}
                 </Badge>
@@ -336,13 +350,13 @@ export function BookProfileDialog({
                       <Input
                         type="number"
                         value={
-                          editedBook.metadata?.pages ??
-                          book.metadata?.pages ??
+                          editedBook.metadata?.pageCount ??
+                          book.metadata?.pageCount ??
                           ""
                         }
                         onChange={(e) =>
                           handleMetadataChange(
-                            "pages",
+                            "pageCount",
                             parseInt(e.target.value)
                           )
                         }
@@ -420,13 +434,15 @@ export function BookProfileDialog({
                         </span>
                       </div>
                     )}
-                    {book.metadata?.pages && (
+                    {book.metadata?.pageCount && (
                       <div className="flex items-center gap-2">
                         <BookOpen className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm text-muted-foreground">
                           Pages:
                         </span>
-                        <span className="text-sm">{book.metadata.pages}</span>
+                        <span className="text-sm">
+                          {book.metadata.pageCount}
+                        </span>
                       </div>
                     )}
                     {book.metadata?.isbn && (

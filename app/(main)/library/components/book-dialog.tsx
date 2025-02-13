@@ -38,25 +38,32 @@ import {
 } from "@/components/ui/form";
 import Papa from "papaparse";
 import { cn } from "@/lib/utils";
-import type { WishlistCSVRow, BookCreate } from "../types";
+import type { BookCreate, BookMetadata, WishlistCSVRow } from "@/types/book";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUploadQueue } from "@/lib/hooks/use-upload-queue";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { useRouter } from "next/navigation";
+import type { ParseError } from "papaparse";
 
 const bookFormSchema = z.object({
   title: z.string().min(1, "Title is required"),
   author: z.string().nullable(),
-  format: z.enum(["pdf", "epub"] as const),
-  file: z.instanceof(File).optional(),
-  isbn: z.string().optional(),
-  description: z.string().optional(),
-  cover_url: z.string().optional(),
-  source: z.string().optional(),
-  notes: z.string().optional(),
-  goodreads_url: z.string().url().optional(),
-  amazon_url: z.string().url().optional(),
+  format: z.enum(["pdf", "epub"]),
+  file_url: z.string().optional(),
+  cover_url: z.string().nullable(),
+  status: z
+    .enum(["unread", "reading", "completed", "wishlist"])
+    .default("unread"),
+  progress: z.number().min(0).max(100).default(0),
+  publication_year: z.number().nullable().optional(),
+  description: z.string().nullable().optional(),
+  isbn: z.string().nullable().optional(),
+  publisher: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
+  pageCount: z.number().nullable().optional(),
+  categories: z.array(z.string()).optional().default([]),
+  metadata: z.record(z.any()).default({}),
 });
 
 type BookFormValues = z.infer<typeof bookFormSchema>;
@@ -76,6 +83,11 @@ interface QueueItem {
 
 type BookStatus = "completed" | "unread" | "reading" | "wishlist";
 
+interface UploadedFile {
+  file_url: string;
+  metadata?: Partial<BookMetadata>;
+}
+
 export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"manual" | "csv" | "bulk">(
@@ -86,6 +98,9 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showOptionalFields, setShowOptionalFields] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const { toast } = useToast();
   const { addBook, uploadBookFile } = useBooks();
   const { user } = useAuth();
@@ -103,111 +118,84 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
     resolver: zodResolver(bookFormSchema),
     defaultValues: {
       title: "",
-      author: "",
+      author: null,
       format: "pdf",
-      isbn: "",
-      description: "",
-      source: "",
-      notes: "",
-      goodreads_url: "",
-      amazon_url: "",
+      file_url: "",
+      cover_url: null,
+      status: "unread",
+      progress: 0,
+      publication_year: null,
+      description: null,
+      isbn: null,
+      publisher: null,
+      language: null,
+      pageCount: null,
+      categories: [],
+      metadata: {},
     },
   });
 
   const onSubmit = async (values: BookFormValues) => {
-    if (!user?.id) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "You must be logged in to add books",
-      });
-      return;
-    }
-
-    // Validate file format matches selected format
-    if (values.file) {
-      const fileFormat = getFileFormat(values.file.name);
-      if (fileFormat !== values.format) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: `File format (${
-            fileFormat || "unknown"
-          }) does not match selected format (${values.format})`,
-        });
-        return;
-      }
-    }
-
-    setIsSubmitting(true);
-    setSubmitError(null);
-
     try {
-      let fileUrl = null;
+      setIsSubmitting(true);
 
-      // If we have a file, upload it first
-      if (values.file) {
-        try {
-          toast({
-            title: "Uploading File",
-            description: "Uploading your book file...",
-            duration: 5000,
-          });
-
-          fileUrl = await uploadBookFile(values.file);
-
-          toast({
-            title: "File Uploaded",
-            description: "Book file uploaded successfully!",
-            duration: 5000,
-          });
-        } catch (error) {
-          throw new Error(
-            `Failed to upload file: ${
-              error instanceof Error ? error.message : "Unknown error"
-            }`
-          );
-        }
+      if (!user) {
+        throw new Error("User not authenticated");
       }
 
-      // Create the book
+      let fileUrl = values.file_url;
+      let fileMetadata = {};
+
+      // Handle file upload if a file is selected
+      if (selectedFile) {
+        fileUrl = await uploadBookFile(selectedFile);
+        // After successful upload, update uploadedFile state
+        setUploadedFile({
+          file_url: fileUrl,
+          metadata: {}, // Add any extracted metadata here
+        });
+      }
+
+      // Get metadata from uploadedFile state if available
+      if (uploadedFile?.metadata) {
+        fileMetadata = uploadedFile.metadata;
+      }
+
       const bookData: BookCreate = {
         title: values.title,
-        author: values.author,
-        format: values.format,
+        author: values.author || null,
+        format: values.format as "pdf" | "epub",
         file_url: fileUrl || "",
-        status: fileUrl ? "unread" : "wishlist",
-        progress: 0,
+        cover_url: values.cover_url || null,
+        status: values.status || "unread",
+        publication_year: values.publication_year || null,
+        progress: values.progress || null,
         user_id: user.id,
         metadata: {
-          isbn: values.isbn,
-          description: values.description,
-          source: values.source,
-          notes: values.notes,
-          goodreads_url: values.goodreads_url,
-          amazon_url: values.amazon_url,
+          ...values.metadata,
+          ...fileMetadata,
         },
       };
 
-      await addBook(bookData);
+      console.log("Creating book with data:", bookData);
+      const result = await addBook(bookData);
+      console.log("Book created successfully:", result);
 
       toast({
         title: "Success",
-        description: "Book added successfully!",
-        duration: 5000,
+        description: "Book added successfully",
       });
 
       setOpen(false);
-      router.refresh();
+      form.reset();
+      setSelectedFile(null);
     } catch (error) {
-      console.error("Error adding book:", error);
-      setSubmitError(
-        error instanceof Error ? error.message : "Failed to add book"
-      );
+      console.error("Error creating book:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to add book. Please try again.",
+        description:
+          error instanceof Error ? error.message : "Failed to create book",
       });
     } finally {
       setIsSubmitting(false);
@@ -218,103 +206,96 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
       const file = acceptedFiles[0];
-      if (file && file.type === "text/csv") {
-        setCsvFile(file);
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Please upload a valid CSV file",
-        });
+      if (file) {
+        setSelectedFile(file);
+        const format = getFileFormat(file.name);
+        if (format) {
+          form.setValue("format", format);
+        }
       }
     },
-    [toast]
+    [form]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      "text/csv": [".csv"],
+      "application/pdf": [".pdf"],
+      "application/epub+zip": [".epub"],
     },
     maxFiles: 1,
   });
 
-  const processCSV = async () => {
-    if (!csvFile || !user?.id) return;
-
-    setIsProcessing(true);
-    try {
-      const text = await csvFile.text();
-      Papa.parse<WishlistCSVRow>(text, {
-        header: true,
-        skipEmptyLines: true,
-        complete: async (results) => {
-          const { data, errors } = results;
-          if (errors.length > 0) {
-            throw new Error("Invalid CSV format");
-          }
-
-          let successCount = 0;
-          let errorCount = 0;
-
-          for (const row of data) {
-            try {
-              await addBook({
-                title: row.title,
-                author: row.author || null,
-                format: "pdf",
-                file_url: "",
-                status: "wishlist" as BookStatus,
-                progress: 0,
-                user_id: user.id,
-                metadata: {
-                  isbn: row.isbn,
-                  wishlist_reason: row.reason,
-                  wishlist_source: row.source,
-                  wishlist_priority: row.priority,
-                  notes: row.notes,
-                  goodreads_url: row.goodreads_url,
-                  amazon_url: row.amazon_url,
-                  wishlist_added_date: new Date().toISOString(),
-                },
-              });
-              successCount++;
-            } catch (error) {
-              console.error(`Error adding book: ${row.title}`, error);
-              errorCount++;
-            }
-          }
-
-          toast({
-            title: "Import Complete",
-            description: `Successfully added ${successCount} books to wishlist${
-              errorCount > 0 ? `, ${errorCount} failed` : ""
-            }`,
-            variant: errorCount > 0 ? "destructive" : "default",
-          });
-
-          setCsvFile(null);
-          setOpen(false);
-        },
-        error: (error: Error) => {
-          console.error("CSV parsing error:", error);
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Failed to parse CSV file",
-          });
-        },
-      });
-    } catch (error) {
+  const handleCSVImport = () => {
+    if (!user) {
       toast({
-        variant: "destructive",
         title: "Error",
-        description:
-          error instanceof Error ? error.message : "Failed to process CSV file",
+        description: "You must be logged in to import books",
+        variant: "destructive",
       });
-    } finally {
-      setIsProcessing(false);
+      return;
     }
+
+    Papa.parse<WishlistCSVRow>(csvFile!, {
+      header: true,
+      complete: async (results) => {
+        const books: BookCreate[] = results.data.map((row: any) => ({
+          title: row.title,
+          author: row.author || null,
+          format: "pdf", // Default format
+          file_url: "", // Empty for wishlist items
+          cover_url: null,
+          status: "wishlist",
+          publication_year: null,
+          progress: null,
+          user_id: user.id,
+          metadata: {
+            isbn: row.isbn,
+            wishlist_reason: row.reason,
+            wishlist_source: row.source,
+            wishlist_priority: row.priority
+              ? parseInt(row.priority)
+              : undefined,
+            notes: row.notes,
+            goodreads_url: row.goodreads_url,
+            amazon_url: row.amazon_url,
+            wishlist_added_date: new Date().toISOString(),
+          },
+        }));
+
+        setUploadProgress(0);
+
+        for (const bookData of books) {
+          try {
+            await addBook(bookData);
+            setUploadProgress((prev) => prev + 100 / books.length);
+          } catch (error: unknown) {
+            console.error("Error adding book:", error);
+            toast({
+              variant: "destructive",
+              title: "Error",
+              description:
+                error instanceof Error ? error.message : "Failed to add book",
+            });
+          }
+        }
+
+        toast({
+          title: "Success",
+          description: `Imported ${books.length} books`,
+        });
+
+        setOpen(false);
+      },
+      error: (error: Error) => {
+        console.error("CSV parsing error:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to parse CSV file",
+        });
+      },
+    });
   };
 
   // Bulk upload functionality
@@ -440,226 +421,80 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
           <div className="flex-1 overflow-y-auto scrollbar-none">
             <TabsContent
               value="manual"
-              className="p-6 pt-4 data-[state=active]:flex flex-col"
+              className="p-6 pt-4 data-[state=active]:flex flex-col h-full overflow-hidden"
             >
               <Form {...form}>
                 <form
                   onSubmit={form.handleSubmit(onSubmit)}
-                  className="space-y-6"
+                  className="flex flex-col h-full"
                 >
-                  {submitError && (
-                    <div className="rounded-md bg-destructive/15 p-3">
-                      <div className="flex">
-                        <div className="flex-shrink-0">
-                          <AlertCircle className="h-5 w-5 text-destructive" />
-                        </div>
-                        <div className="ml-3">
-                          <h3 className="text-sm font-medium text-destructive">
-                            Error
-                          </h3>
-                          <div className="mt-1 text-sm text-destructive/90">
-                            {submitError}
+                  <div className="flex-1 overflow-y-auto pr-2">
+                    {submitError && (
+                      <div className="rounded-md bg-destructive/15 p-3 mb-6">
+                        <div className="flex">
+                          <div className="flex-shrink-0">
+                            <AlertCircle className="h-5 w-5 text-destructive" />
+                          </div>
+                          <div className="ml-3">
+                            <h3 className="text-sm font-medium text-destructive">
+                              Error
+                            </h3>
+                            <div className="mt-1 text-sm text-destructive/90">
+                              {submitError}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Essential Information */}
-                  <div className="space-y-4">
-                    {mode === "upload" && (
-                      <FormField
-                        control={form.control}
-                        name="file"
-                        render={({ field: { value, onChange, ...field } }) => (
-                          <FormItem>
-                            <FormLabel>Book File</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="file"
-                                accept=".epub,.pdf"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  onChange(file);
-
-                                  // Auto-fill title from filename if empty
-                                  if (file && !form.getValues("title")) {
-                                    const title = file.name
-                                      .replace(/\.(epub|pdf)$/i, "")
-                                      .replace(/[-_]/g, " ")
-                                      .trim();
-                                    form.setValue("title", title);
-                                  }
-                                }}
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
                     )}
 
-                    <div className="grid gap-4">
-                      <FormField
-                        control={form.control}
-                        name="title"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Title</FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                placeholder="Enter book title"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <div className="grid grid-cols-2 gap-4">
+                    {/* Essential Information */}
+                    <div className="space-y-4">
+                      {mode === "upload" && (
                         <FormField
                           control={form.control}
-                          name="author"
-                          render={({ field }) => (
+                          name="file_url"
+                          render={({
+                            field: { value, onChange, ...field },
+                          }) => (
                             <FormItem>
-                              <FormLabel>Author</FormLabel>
+                              <FormLabel>Book File</FormLabel>
                               <FormControl>
                                 <Input
+                                  type="file"
+                                  accept=".epub,.pdf"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    onChange(file);
+
+                                    // Auto-fill title from filename if empty
+                                    if (file && !form.getValues("title")) {
+                                      const title = file.name
+                                        .replace(/\.(epub|pdf)$/i, "")
+                                        .replace(/[-_]/g, " ")
+                                        .trim();
+                                      form.setValue("title", title);
+                                    }
+                                  }}
                                   {...field}
-                                  value={field.value || ""}
-                                  placeholder="Author name"
                                 />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
-
-                        <FormField
-                          control={form.control}
-                          name="format"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Format</FormLabel>
-                              <FormControl>
-                                <select
-                                  {...field}
-                                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  <option value="pdf">PDF</option>
-                                  <option value="epub">EPUB</option>
-                                </select>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Optional Information - Collapsible */}
-                  <div className="space-y-4">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-auto p-0 text-muted-foreground hover:text-foreground"
-                      onClick={() => setShowOptionalFields(!showOptionalFields)}
-                    >
-                      <ChevronRight
-                        className={cn(
-                          "h-4 w-4 mr-1 transition-transform",
-                          showOptionalFields && "rotate-90"
-                        )}
-                      />
-                      Additional Details
-                    </Button>
-
-                    <div
-                      className={cn(
-                        "space-y-4 overflow-hidden transition-all",
-                        showOptionalFields ? "block" : "hidden"
                       )}
-                    >
-                      <FormField
-                        control={form.control}
-                        name="isbn"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>ISBN</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="Optional" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
 
-                      <FormField
-                        control={form.control}
-                        name="description"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Description</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                {...field}
-                                placeholder="Brief description of the book"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="source"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Source</FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                placeholder="Where did you hear about it?"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="notes"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Notes</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                {...field}
-                                placeholder="Any additional notes"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-4">
                         <FormField
                           control={form.control}
-                          name="goodreads_url"
+                          name="title"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Goodreads URL</FormLabel>
+                              <FormLabel>Title</FormLabel>
                               <FormControl>
                                 <Input
                                   {...field}
-                                  type="url"
-                                  placeholder="Optional"
+                                  placeholder="Enter book title"
                                 />
                               </FormControl>
                               <FormMessage />
@@ -667,28 +502,50 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
                           )}
                         />
 
-                        <FormField
-                          control={form.control}
-                          name="amazon_url"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Amazon URL</FormLabel>
-                              <FormControl>
-                                <Input
-                                  {...field}
-                                  type="url"
-                                  placeholder="Optional"
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="author"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Author</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    value={field.value || ""}
+                                    placeholder="Author name"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="format"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Format</FormLabel>
+                                <FormControl>
+                                  <select
+                                    {...field}
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <option value="pdf">PDF</option>
+                                    <option value="epub">EPUB</option>
+                                  </select>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="sticky bottom-0 pt-4 bg-background">
+                  <div className="sticky bottom-0 pt-4 mt-4 bg-background border-t">
                     <Button
                       type="submit"
                       disabled={isSubmitting}
@@ -744,16 +601,18 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
                   </div>
                 </div>
 
-                {csvFile && (
+                {selectedFile && (
                   <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/50 p-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                      <span className="text-sm truncate">{csvFile.name}</span>
+                      <span className="text-sm truncate">
+                        {selectedFile.name}
+                      </span>
                     </div>
                     {isProcessing ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Button size="sm" onClick={processCSV}>
+                      <Button size="sm" onClick={handleCSVImport}>
                         Import
                       </Button>
                     )}

@@ -53,7 +53,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const [isBookshelvesOpen, setIsBookshelvesOpen] = useState(true);
   const [isStatusOpen, setIsStatusOpen] = useState(true);
   const [isTagsOpen, setIsTagsOpen] = useState(true);
-  const { user, session } = useAuth();
+  const { user } = useAuth();
   const [userTags, setUserTags] = useState<{ id: string; name: string }[]>([]);
   const supabase = createClientComponentClient<Database>();
 

@@ -20,35 +20,109 @@ export class FileValidationError extends Error {
   }
 }
 
+// Title cleanup helper function
+function cleanupTitle(title: string): string {
+  return title
+    // Remove file extensions
+    .replace(/\.(epub|pdf)$/i, '')
+    // Replace underscores and hyphens with spaces
+    .replace(/[_-]/g, ' ')
+    // Remove common prefixes/suffixes
+    .replace(/^(book|ebook|audiobook)[\s-]*/i, '')
+    // Remove common brackets and their contents
+    .replace(/\[(.*?)\]|\((.*?)\)/g, '')
+    // Remove multiple spaces
+    .replace(/\s+/g, ' ')
+    // Capitalize first letter of each word, handling apostrophes correctly
+    .split(' ')
+    .map(word => {
+      if (word.length === 0) return word;
+      // Don't capitalize articles, conjunctions, and prepositions unless they're the first word
+      const lowercaseWords = ['a', 'an', 'the', 'and', 'but', 'or', 'for', 'nor', 'on', 'at', 'to', 'by', 'in', 'of'];
+      if (lowercaseWords.includes(word.toLowerCase())) return word.toLowerCase();
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ')
+    .trim();
+}
+
+// Author cleanup helper function
+function cleanupAuthor(author: string): string {
+  return author
+    // Remove parentheses and their contents
+    .replace(/\([^)]*\)/g, '')
+    // Remove brackets and their contents
+    .replace(/\[[^\]]*\]/g, '')
+    // Replace multiple spaces
+    .replace(/\s+/g, ' ')
+    // Capitalize each word
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+    .trim();
+}
+
 /**
  * Extract metadata from a PDF file
  */
-async function extractPDFMetadata(file: File): Promise<Partial<BookMetadata>> {
+async function extractPDFMetadata(file: File): Promise<{
+  metadata: Partial<BookMetadata>;
+  publication_year?: number;
+}> {
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const pdf: PDFDocumentProxy = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
     const metadata = await pdf.getMetadata() as PDFMetadata;
 
+    let title = metadata.info?.Title || file.name;
+    let author = metadata.info?.Author || undefined;
+    const pages = pdf.numPages;
+
+    // Clean up title and author
+    title = cleanupTitle(title);
+    author = author ? cleanupAuthor(author) : undefined;
+
+    // Try to extract publication year from metadata
+    let publication_year: number | undefined;
+    if (metadata.info?.CreationDate) {
+      const match = metadata.info.CreationDate.match(/D:(\d{4})/);
+      if (match?.[1]) {
+        publication_year = parseInt(match[1], 10);
+      }
+    }
+
+    const extractedMetadata: Partial<BookMetadata> = {
+      title,
+      author,
+      publisher: metadata.info?.Publisher || undefined,
+      language: metadata.info?.Language || undefined,
+      pages,
+      isbn: metadata.info?.ISBN || undefined,
+      description: metadata.info?.Subject || undefined,
+    };
+
     return {
-      title: metadata.info?.Title,
-      author: metadata.info?.Author,
-      publisher: metadata.info?.Publisher,
-      published_date: metadata.info?.CreationDate,
-      language: metadata.info?.Language,
-      pages: pdf.numPages,
-      isbn: metadata.info?.ISBN,
-      description: metadata.info?.Subject,
+      metadata: extractedMetadata,
+      publication_year,
     };
   } catch (error) {
     console.error("Error extracting PDF metadata:", error);
-    return {};
+    return {
+      metadata: {
+        title: cleanupTitle(file.name),
+      },
+      publication_year: undefined,
+    };
   }
 }
 
 /**
  * Extract metadata from an EPUB file
  */
-async function extractEPUBMetadata(file: File): Promise<Partial<BookMetadata>> {
+async function extractEPUBMetadata(file: File): Promise<{
+  metadata: Partial<BookMetadata>;
+  publication_year?: number;
+}> {
   try {
     const arrayBuffer = await file.arrayBuffer();
     const book = epubjs.default();
@@ -59,18 +133,47 @@ async function extractEPUBMetadata(file: File): Promise<Partial<BookMetadata>> {
     // Clean up resources
     await book.destroy();
 
+    let title = metadata.title || file.name;
+    let author = metadata.creator || undefined;
+
+    // Clean up title and author
+    title = cleanupTitle(title);
+    author = author ? cleanupAuthor(author) : undefined;
+
+    // Get page count (estimated from navigation)
+    const pages = book.navigation?.toc?.length;
+
+    // Try to extract publication year
+    let publication_year: number | undefined;
+    if (metadata.pubdate) {
+      const match = metadata.pubdate.match(/(\d{4})/);
+      if (match?.[1]) {
+        publication_year = parseInt(match[1], 10);
+      }
+    }
+
+    const extractedMetadata: Partial<BookMetadata> = {
+      title,
+      author,
+      publisher: metadata.publisher || undefined,
+      language: metadata.language || undefined,
+      pages: pages || undefined,
+      description: metadata.description || undefined,
+      isbn: metadata.identifier || undefined,
+    };
+
     return {
-      title: metadata.title,
-      author: metadata.creator,
-      publisher: metadata.publisher,
-      published_date: metadata.pubdate,
-      language: metadata.language,
-      description: metadata.description,
-      isbn: metadata.identifier,
+      metadata: extractedMetadata,
+      publication_year,
     };
   } catch (error) {
     console.error("Error extracting EPUB metadata:", error);
-    return {};
+    return {
+      metadata: {
+        title: cleanupTitle(file.name),
+      },
+      publication_year: undefined,
+    };
   }
 }
 
@@ -329,7 +432,7 @@ export async function uploadBookFile(
     });
 
     // Extract metadata based on file type
-    const metadata = file.type === "application/pdf"
+    const { metadata, publication_year } = file.type === "application/pdf"
       ? await extractPDFMetadata(file)
       : await extractEPUBMetadata(file);
 
@@ -460,6 +563,10 @@ export async function uploadBookFile(
       metadata: {
         ...metadata,
         size: compressedFile.size,
+        pages: metadata.pages || undefined,
+        title: metadata.title || cleanupTitle(file.name),
+        author: metadata.author || undefined,
+        publication_year: publication_year
       },
     };
 

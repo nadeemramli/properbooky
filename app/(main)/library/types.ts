@@ -1,31 +1,50 @@
+import type { BookRecommendation, Bookmark, TOCItem, Highlight } from '@/types/book';
+
 // Book status type
 export type BookStatus = "unread" | "reading" | "completed" | "wishlist";
 
 // Book metadata type
 export type BookMetadata = {
+  // Basic metadata
+  title?: string;
+  author?: string;
   description?: string;
   isbn?: string;
-  recommendation?: string;
-  notes?: string;
-  source?: string;
-  priority?: number;
   publisher?: string;
   published_date?: string;
+  publication_year?: number;
   language?: string;
   pages?: number;
+  size?: number;
+  
+  // Categories and tags
   categories?: string[];
   tags?: string[];
+  
+  // File metadata
   cover_url?: string;
+  
+  // Wishlist metadata
   wishlist_reason?: string;
   wishlist_source?: string;
   wishlist_added_date?: string;
   wishlist_priority?: number;
+  
+  // External links
   goodreads_url?: string;
   amazon_url?: string;
-  size?: number;
-  title?: string;
-  author?: string;
+  
+  // Additional metadata
+  notes?: string;
+  recommendation?: string;
+  recommendations?: BookRecommendation[];
+  bookmarks?: Bookmark[];
+  toc?: TOCItem[];
+  highlights?: Highlight[];
 };
+
+// Re-export types from the main types file
+export * from "@/types/book";
 
 // Book creation type
 export type BookCreate = {

@@ -35,7 +35,7 @@ export default function LoginForm({ onResetClick }: LoginFormProps) {
   const [rememberMe, setRememberMe] = useState(false);
   const router = useRouter();
   const supabase = createClient();
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -48,7 +48,7 @@ export default function LoginForm({ onResetClick }: LoginFormProps) {
   const handleGoogleSignIn = async () => {
     try {
       setIsLoading(true);
-      await signIn();
+      await signInWithGoogle();
     } catch (error) {
       toast.error("Failed to sign in with Google. Please try again later.");
     } finally {
@@ -59,76 +59,10 @@ export default function LoginForm({ onResetClick }: LoginFormProps) {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       setIsLoading(true);
-
-      const { error, data } = await supabase.auth.signInWithPassword({
-        email: values.email,
-        password: values.password,
-      });
-
-      if (error) {
-        if (error.message.includes("OAuth")) {
-          toast.error("Account exists with different provider", {
-            description:
-              "This email is registered using a social login. Please use the appropriate sign-in option.",
-          });
-          return;
-        }
-        // Handle specific error cases
-        switch (error.message) {
-          case "Invalid login credentials":
-            toast.error("Invalid email or password", {
-              description: "Please check your credentials and try again.",
-            });
-            break;
-          case "Email not confirmed":
-            toast.error("Email not verified", {
-              description:
-                "Please check your inbox and verify your email address.",
-            });
-            break;
-          case "Too many requests":
-            toast.error("Too many attempts", {
-              description: "Please wait a few minutes before trying again.",
-            });
-            break;
-          case "User not found":
-            toast.error("Account not found", {
-              description:
-                "No account found with this email address. Would you like to create one?",
-              action: {
-                label: "Sign Up",
-                onClick: () => router.push("/auth/signup"),
-              },
-            });
-            break;
-          default:
-            toast.error("Login failed", {
-              description: error.message || "An error occurred during login.",
-            });
-        }
-        return;
-      }
-
-      // Handle successful login
-      toast.success("Welcome back!", {
-        description: "Successfully signed in to your account.",
-      });
-
-      // Set session persistence based on remember me option
-      if (rememberMe && data.session) {
-        await supabase.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        });
-      }
-
+      await signIn(values.email, values.password);
       router.push("/library");
-      router.refresh();
     } catch (error) {
-      console.error("Login error:", error);
-      toast.error("Login failed", {
-        description: "An unexpected error occurred. Please try again later.",
-      });
+      toast.error("Invalid email or password");
     } finally {
       setIsLoading(false);
     }

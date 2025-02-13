@@ -20,9 +20,13 @@ export async function generateStaticParams() {
 interface DatabaseHighlight {
   id: string;
   content: string;
-  page_number: number;
-  tags: string[] | null;
+  page: number;
   created_at: string;
+  tags?: string[];
+  book_id: string;
+  user_id: string;
+  color: string;
+  updated_at: string;
 }
 
 interface DatabaseBook extends Omit<Book, "highlights"> {
@@ -63,10 +67,14 @@ export default async function BookProfilePage({
     const transformedHighlights: Highlight[] =
       book.highlights?.map((highlight: DatabaseHighlight) => ({
         id: highlight.id,
+        book_id: highlight.book_id,
+        user_id: highlight.user_id,
         content: highlight.content,
-        page: highlight.page_number,
+        page: highlight.page,
+        color: highlight.color || "#FFD700", // Default to gold if no color
+        tags: highlight.tags || [],
         created_at: highlight.created_at,
-        tags: highlight.tags || undefined,
+        updated_at: highlight.updated_at,
       })) || [];
 
     const transformedBook: Book = {

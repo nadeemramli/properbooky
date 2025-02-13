@@ -1,140 +1,129 @@
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import type { User, Session, AuthChangeEvent } from '@supabase/supabase-js'
+import { useEffect, useState } from "react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import type { User } from "@supabase/auth-helpers-nextjs";
+import type { Database } from "@/types/database";
+import { setupDefaultBooks, ensureDevUserHasBooks } from "@/lib/utils/default-books";
 
-// Mock user for development
-const MOCK_USER: User = {
-  id: 'dev-user',
-  email: 'dev@example.com',
-  created_at: new Date().toISOString(),
-  app_metadata: {},
-  user_metadata: {},
-  aud: 'authenticated',
-  role: 'authenticated'
+interface AuthUser extends User {
+  role?: string;
 }
 
-// Mock session for development
-const MOCK_SESSION: Session = {
-  access_token: 'mock-token',
-  token_type: 'bearer',
-  expires_in: 3600,
-  refresh_token: 'mock-refresh-token',
-  user: MOCK_USER,
-  expires_at: Math.floor(Date.now() / 1000) + 3600
+interface AuthResponse {
+  user: AuthUser | null;
+  isAuthenticated: boolean;
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
 }
 
-export function useAuth() {
-  const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const router = useRouter()
-  const supabase = createClient()
-
-  const updateAuthState = (session: Session | null) => {
-    setSession(session)
-    setUser(session?.user ?? null)
-    setIsAuthenticated(!!session?.user)
-  }
+export function useAuth(): AuthResponse {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClientComponentClient<Database>();
 
   useEffect(() => {
-    // Check for development bypass
-    if (process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true') {
-      setUser(MOCK_USER)
-      setSession(MOCK_SESSION)
-      setIsAuthenticated(true)
-      setLoading(false)
-      return
-    }
+    const initAuth = async () => {
+      try {
+        // Get session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (process.env.NODE_ENV === "development") {
+          // In development, use bypass user if configured
+          const devUserId = process.env.NEXT_PUBLIC_DEV_USER_ID;
+          if (devUserId) {
+            setUser({ id: devUserId, role: "user" } as AuthUser);
+            setIsAuthenticated(true);
+            // Ensure dev user has default books
+            await ensureDevUserHasBooks();
+            setLoading(false);
+            return;
+          }
+        }
 
-    let mounted = true
-
-    // Get session from storage
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Auth Session Debug:', {
-        hasSession: !!session,
-        user: session?.user ? {
-          id: session.user.id,
-          email: session.user.email,
-          role: session.user.role
-        } : null
-      });
-      
-      if (mounted) {
-        updateAuthState(session)
-        setLoading(false)
+        if (session?.user) {
+          setUser(session.user as AuthUser);
+          setIsAuthenticated(true);
+          // Set up default books for new users
+          await setupDefaultBooks(session.user.id);
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+      } catch (error) {
+        console.error("Auth error:", error);
+        setUser(null);
+        setIsAuthenticated(false);
+      } finally {
+        setLoading(false);
       }
-    })
+    };
+
+    // Initialize auth
+    initAuth();
 
     // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
-      console.log('Auth State Change:', {
-        event,
-        hasSession: !!session,
-        user: session?.user ? {
-          id: session.user.id,
-          email: session.user.email,
-          role: session.user.role
-        } : null
-      });
-
-      if (mounted) {
-        updateAuthState(session)
-        setLoading(false)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          setUser(session.user as AuthUser);
+          setIsAuthenticated(true);
+          // Set up default books for new users on sign up
+          if (event === "SIGNED_IN") {
+            await setupDefaultBooks(session.user.id);
+          }
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
+        }
       }
-    })
+    );
 
     return () => {
-      mounted = false
-      subscription.unsubscribe()
-    }
-  }, [])
+      subscription.unsubscribe();
+    };
+  }, [supabase.auth]);
 
-  const signIn = async () => {
-    // If in development bypass mode, simulate successful sign in
-    if (process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true') {
-      setUser(MOCK_USER)
-      setSession(MOCK_SESSION)
-      return
-    }
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
+  };
 
+  const signUp = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+    if (error) throw error;
+  };
+
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  };
+
+  const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
-    })
-
-    if (error) {
-      throw error
-    }
-  }
-
-  const signOut = async () => {
-    // If in development bypass mode, simulate sign out
-    if (process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true') {
-      setUser(null)
-      setSession(null)
-      router.push('/auth')
-      return
-    }
-
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      throw error
-    }
-    router.push('/auth')
-  }
+    });
+    if (error) throw error;
+  };
 
   return {
     user,
-    session,
+    isAuthenticated,
     loading,
     signIn,
+    signInWithGoogle,
+    signUp,
     signOut,
-    isAuthenticated,
-  }
+  };
 } 

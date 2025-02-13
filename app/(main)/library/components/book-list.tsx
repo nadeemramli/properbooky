@@ -142,7 +142,11 @@ export function BookList({ searchQuery, view, status }: BookListProps) {
                   {book.author}
                 </TableCell>
                 <TableCell>
-                  <Badge variant="secondary">{book.format.toUpperCase()}</Badge>
+                  {book.format && (
+                    <Badge variant="secondary">
+                      {book.format.toUpperCase()}
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Badge
