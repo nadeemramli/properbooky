@@ -2,6 +2,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import type { Database } from "@/types/database";
 import type { BookCreate, BookStatus, BookMetadata } from "@/types/book";
 import type { Json } from "@/types/database";
+import { isDev } from "@/lib/config/development";
 
 // Helper function to convert BookMetadata to Json type
 function convertMetadataToJson(metadata: Partial<BookMetadata>): Json {
@@ -13,8 +14,8 @@ const createDefaultBook = (userId: string): Database["public"]["Tables"]["books"
   title: "Sample PDF Book",
   author: "ProperBooky Team",
   format: "pdf",
-  file_url: "/default-books/sample.pdf", // This will be replaced with actual URL
-  cover_url: "/default-books/sample-cover.jpg", // This will be replaced with actual URL
+  file_url: null, // Will be set after upload
+  cover_url: null, // Will be set after upload
   status: "unread",
   progress: 0,
   user_id: userId,
@@ -53,48 +54,51 @@ export async function setupDefaultBooks(userId: string) {
     }
 
     if (existingBooks && existingBooks.length > 0) {
-      // User already has books, skip default setup
       return;
     }
 
     // Create default book with user ID
     const defaultBook = createDefaultBook(userId);
 
-    // Get the source file URL
-    const { data: fileData } = await supabase.storage
-      .from("default-books")
-      .getPublicUrl("sample.pdf");
+    // In development mode, use local files
+    if (isDev()) {
+      defaultBook.file_url = "/defaults/sample.pdf";
+      defaultBook.cover_url = "/defaults/book-cover.jpg";
+    } else {
+      // Get the source file URL
+      const { data: fileData } = await supabase.storage
+        .from("default-books")
+        .getPublicUrl("sample.pdf");
 
-    if (!fileData?.publicUrl) {
-      console.error("Failed to get public URL for default book");
-      return;
+      if (!fileData?.publicUrl) {
+        console.error("Failed to get public URL for default book");
+        return;
+      }
+
+      // Get the cover URL
+      const { data: coverData } = await supabase.storage
+        .from("default-covers")
+        .getPublicUrl("sample-cover.jpg");
+
+      if (!coverData?.publicUrl) {
+        console.error("Failed to get cover URL");
+        return;
+      }
+
+      defaultBook.file_url = fileData.publicUrl;
+      defaultBook.cover_url = coverData.publicUrl;
     }
 
-    // Get the cover URL
-    const { data: coverData } = await supabase.storage
-      .from("default-books")
-      .getPublicUrl("sample-cover.jpg");
-
-    if (!coverData?.publicUrl) {
-      console.error("Failed to get cover URL");
-      return;
-    }
-
-    // Update URLs in the book data
-    const bookData: Database["public"]["Tables"]["books"]["Insert"] = {
-      ...defaultBook,
-      file_url: fileData.publicUrl,
-      cover_url: coverData.publicUrl,
-    };
 
     const { error: insertError } = await supabase
       .from("books")
-      .insert(bookData);
+      .insert(defaultBook);
 
     if (insertError) {
       console.error("Error inserting default book:", insertError);
       return;
     }
+
   } catch (error) {
     console.error("Error setting up default books:", error);
   }
