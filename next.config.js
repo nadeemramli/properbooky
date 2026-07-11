@@ -15,7 +15,7 @@ const nextConfig = {
   },
   // Environment configuration
   env: {
-    NEXT_PHASE: process.env["NEXT_PHASE"] || "development",
+    NEXT_PHASE: process.env.NEXT_PHASE || "development",
   },
 };
 
