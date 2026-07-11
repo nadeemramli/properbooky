@@ -116,23 +116,16 @@ export function useBooks(searchQuery?: string) {
 
   const fetchBooks = useCallback(async () => {
     try {
+      // Clear any previous errors
+      setError(null);
+      
       // Don't fetch if auth is still loading
       if (authLoading) {
         return;
       }
 
-      console.log('Auth Debug:', { 
-        isAuthenticated, 
-        user: user ? { 
-          id: user.id, 
-          email: user.email,
-          role: user.role 
-        } : null,
-        env: process.env.NODE_ENV,
-        authLoading
-      });
-
-      if (!isAuthenticated || !user?.id) {
+      // Only set error if auth is done loading and user is not authenticated
+      if (!authLoading && (!isAuthenticated || !user?.id)) {
         setBooks([]);
         setError(new Error("User not authenticated"));
         return;
@@ -142,25 +135,14 @@ export function useBooks(searchQuery?: string) {
       let query = supabase
         .from('books')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', user!.id)
         .order('created_at', { ascending: false })
-
-      console.log('Query Debug:', {
-        userId: user.id,
-        authState: { isAuthenticated, authLoading }
-      });
 
       if (searchQuery) {
         query = query.ilike('title', `%${searchQuery}%`)
       }
 
       const { data, error: queryError } = await query;
-
-      console.log('Query Result:', {
-        success: !queryError,
-        error: queryError,
-        dataLength: data?.length ?? 0
-      });
 
       if (queryError) throw queryError;
       
@@ -178,7 +160,12 @@ export function useBooks(searchQuery?: string) {
     } finally {
       setLoading(false)
     }
-  }, [searchQuery, user, supabase, authLoading])
+  }, [searchQuery, user, supabase, authLoading, isAuthenticated])
+
+  // Fetch books when dependencies change
+  useEffect(() => {
+    fetchBooks();
+  }, [fetchBooks]);
 
   // Add book
   const addBook = async (bookData: BookCreate) => {
@@ -382,11 +369,6 @@ export function useBooks(searchQuery?: string) {
       throw err;
     }
   }
-
-  // Fetch books on mount and when search query changes
-  useEffect(() => {
-    fetchBooks()
-  }, [fetchBooks])
 
   async function getBook(id: string): Promise<AppBook> {
     const { data, error } = await supabase
