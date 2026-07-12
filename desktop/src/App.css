@@ -1,0 +1,153 @@
+:root {
+  color-scheme: light dark;
+  font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  --bg: #faf7f2;
+  --fg: #1f2421;
+  --muted: #6b7268;
+  --card: #ffffff;
+  --border: #e3ded4;
+  --accent: #3f6b4f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171a18;
+    --fg: #e8e6df;
+    --muted: #9aa096;
+    --card: #212522;
+    --border: #33382f;
+    --accent: #7fb08f;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.toolbar h1 {
+  font-size: 1.25rem;
+  margin: 0;
+  margin-right: auto;
+}
+
+.toolbar input[type="search"] {
+  flex: 1 1 240px;
+  max-width: 420px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--fg);
+  font-size: 0.9rem;
+}
+
+.toolbar button {
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.toolbar button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.library-path {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0.75rem 0 0;
+  word-break: break-all;
+}
+
+.status {
+  color: var(--accent);
+  font-size: 0.85rem;
+  margin: 0.5rem 0 0;
+}
+
+.empty {
+  color: var(--muted);
+  margin-top: 3rem;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.9rem;
+  margin-top: 1.5rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.card h2 {
+  font-size: 0.95rem;
+  line-height: 1.35;
+  margin: 0;
+  font-weight: 600;
+}
+
+.card .author {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.card .meta {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin: auto 0 0;
+}
+
+.badge {
+  align-self: flex-start;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 5px;
+  background: var(--border);
+  color: var(--muted);
+}
+
+.badge-epub {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+
+.badge-pdf {
+  background: color-mix(in srgb, #b05b3f 18%, transparent);
+  color: #b05b3f;
+}
