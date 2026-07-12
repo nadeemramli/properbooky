@@ -9,6 +9,7 @@ interface Book {
   filename: string;
   title: string;
   author: string | null;
+  category: string | null;
   format: string;
   size_bytes: number;
 }
@@ -126,7 +127,10 @@ export default function App() {
               </span>
               <h2>{book.title}</h2>
               {book.author && <p className="author">{book.author}</p>}
-              <p className="meta">{formatSize(book.size_bytes)}</p>
+              <p className="meta">
+                {book.category ? `${book.category} · ` : ""}
+                {formatSize(book.size_bytes)}
+              </p>
             </article>
           ))}
           {books.length === 0 && (

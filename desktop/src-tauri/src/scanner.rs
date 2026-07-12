@@ -49,6 +49,13 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         let (title, author) = extract_metadata(path, &ext, &filename);
+        // Top-level subfolder of the library acts as the book's category.
+        let category = path
+            .strip_prefix(root)
+            .ok()
+            .and_then(|rel| rel.parent())
+            .and_then(|parent| parent.components().next())
+            .map(|c| c.as_os_str().to_string_lossy().into_owned());
         let modified_at = meta
             .modified()
             .ok()
@@ -58,13 +65,14 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
 
         conn.execute(
             "INSERT OR REPLACE INTO books
-             (path, filename, title, author, format, size_bytes, modified_at, indexed_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+             (path, filename, title, author, category, format, size_bytes, modified_at, indexed_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             (
                 path.to_string_lossy(),
                 &filename,
                 &title,
                 &author,
+                &category,
                 &ext,
                 meta.len() as i64,
                 modified_at,
@@ -80,9 +88,13 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
 fn extract_metadata(path: &Path, ext: &str, filename: &str) -> (String, Option<String>) {
     if ext == "epub" {
         if let Ok(doc) = epub::doc::EpubDoc::new(path) {
-            let title = doc.mdata("title").filter(|t| !t.trim().is_empty());
-            let author = doc.mdata("creator").filter(|a| !a.trim().is_empty());
-            if let Some(title) = title {
+            let mdata_value = |property: &str| {
+                doc.mdata(property)
+                    .map(|item| item.value.trim().to_owned())
+                    .filter(|value| !value.is_empty())
+            };
+            let author = mdata_value("creator");
+            if let Some(title) = mdata_value("title") {
                 return (title, author);
             }
             return (title_from_filename(filename), author);

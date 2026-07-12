@@ -2,11 +2,24 @@ use anyhow::Result;
 use rusqlite::Connection;
 use std::path::Path;
 
+/// Bump when the schema changes. The index is disposable (files are the
+/// source of truth), so a mismatch drops and recreates everything.
+const SCHEMA_VERSION: i64 = 2;
+
 pub fn open(db_path: &Path) -> Result<Connection> {
     if let Some(parent) = db_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
     let conn = Connection::open(db_path)?;
+    let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+    if version != 0 && version != SCHEMA_VERSION {
+        conn.execute_batch(
+            "DROP TABLE IF EXISTS books_fts;
+             DROP TABLE IF EXISTS books;
+             DROP TABLE IF EXISTS settings;",
+        )?;
+    }
+    conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     conn.execute_batch(
         r#"
         PRAGMA journal_mode = WAL;
@@ -22,6 +35,7 @@ pub fn open(db_path: &Path) -> Result<Connection> {
             filename    TEXT NOT NULL,
             title       TEXT NOT NULL,
             author      TEXT,
+            category    TEXT,
             format      TEXT NOT NULL,
             size_bytes  INTEGER NOT NULL,
             modified_at INTEGER NOT NULL,
@@ -29,25 +43,25 @@ pub fn open(db_path: &Path) -> Result<Connection> {
         );
 
         CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(
-            title, author, filename,
+            title, author, filename, category,
             content='books', content_rowid='id'
         );
 
         CREATE TRIGGER IF NOT EXISTS books_ai AFTER INSERT ON books BEGIN
-            INSERT INTO books_fts(rowid, title, author, filename)
-            VALUES (new.id, new.title, new.author, new.filename);
+            INSERT INTO books_fts(rowid, title, author, filename, category)
+            VALUES (new.id, new.title, new.author, new.filename, new.category);
         END;
 
         CREATE TRIGGER IF NOT EXISTS books_ad AFTER DELETE ON books BEGIN
-            INSERT INTO books_fts(books_fts, rowid, title, author, filename)
-            VALUES ('delete', old.id, old.title, old.author, old.filename);
+            INSERT INTO books_fts(books_fts, rowid, title, author, filename, category)
+            VALUES ('delete', old.id, old.title, old.author, old.filename, old.category);
         END;
 
         CREATE TRIGGER IF NOT EXISTS books_au AFTER UPDATE ON books BEGIN
-            INSERT INTO books_fts(books_fts, rowid, title, author, filename)
-            VALUES ('delete', old.id, old.title, old.author, old.filename);
-            INSERT INTO books_fts(rowid, title, author, filename)
-            VALUES (new.id, new.title, new.author, new.filename);
+            INSERT INTO books_fts(books_fts, rowid, title, author, filename, category)
+            VALUES ('delete', old.id, old.title, old.author, old.filename, old.category);
+            INSERT INTO books_fts(rowid, title, author, filename, category)
+            VALUES (new.id, new.title, new.author, new.filename, new.category);
         END;
         "#,
     )?;
