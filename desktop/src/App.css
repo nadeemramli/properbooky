@@ -351,6 +351,7 @@ body {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .reader-page {
@@ -368,11 +369,90 @@ body {
   overflow: hidden;
 }
 
-.reader-page-pdf canvas {
+.reader-page-pdf.fit-width {
+  align-items: flex-start;
+  overflow-y: auto;
+}
+
+.pdf-stage {
+  position: relative;
+  flex: none;
+}
+
+.pdf-stage canvas {
+  display: block;
   border: 1px solid var(--border);
   border-radius: 4px;
-  max-width: 100%;
-  max-height: 100%;
+}
+
+.pdf-stage .textLayer {
+  position: absolute;
+  inset: 0;
+}
+
+.pdf-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pdf-highlight {
+  position: absolute;
+  background: rgba(200, 162, 63, 0.35);
+  mix-blend-mode: multiply;
+  border-radius: 2px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* ---- Highlight pill ---- */
+
+.highlight-pill {
+  position: absolute;
+  bottom: 4.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: min(90%, 560px);
+  padding: 0.45rem 0.5rem 0.45rem 0.9rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+  z-index: 10;
+}
+
+.highlight-pill-text {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 0.82rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.highlight-pill button {
+  flex: none;
+  padding: 0.35rem 0.8rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.highlight-pill .pill-dismiss {
+  background: none;
+  color: var(--muted);
+  padding: 0.35rem 0.5rem;
+}
+
+.highlight-count {
+  color: #a3821f;
 }
 
 .reader-loading {
