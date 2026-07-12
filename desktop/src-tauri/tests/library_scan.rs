@@ -17,13 +17,32 @@ fn scan_indexes_categories_and_rebuilds_identically() {
     fs::write(root.join("root-level.pdf"), b"%PDF-1.4 dummy").unwrap();
     fs::write(root.join("notes.md"), b"# notes").unwrap();
     fs::write(root.join("ignored.txt"), b"nope").unwrap();
+    fs::create_dir_all(root.join("Catalog")).unwrap();
+    fs::write(
+        root.join("Catalog/Erin Meyer - The Culture Map.md"),
+        "---\ntitle: The Culture Map\nauthor: Erin Meyer\nstatus: wishlist\nrating: 5\ntopics:\n- Business and Economics\n---\n\nLeadership impact is culture.\n",
+    )
+    .unwrap();
 
     let db_file = temp_path("library.db");
     let _ = fs::remove_file(&db_file);
     let conn = db::open(&db_file).unwrap();
 
     let result = scanner::scan_library(&conn, &root).unwrap();
-    assert_eq!(result.indexed, 3, "epub/pdf/md indexed, txt ignored");
+    assert_eq!(result.indexed, 4, "pdf/md/catalog indexed, txt ignored");
+
+    // Catalog frontmatter becomes a catalog entry with status/rating facets.
+    let (kind, status, rating, title): (String, String, i64, String) = conn
+        .query_row(
+            "SELECT kind, status, rating, title FROM books WHERE author = 'Erin Meyer'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
+        .unwrap();
+    assert_eq!(
+        (kind.as_str(), status.as_str(), rating, title.as_str()),
+        ("catalog", "wishlist", 5, "The Culture Map")
+    );
 
     // Filename-derived title and folder-derived category.
     let (title, category): (String, Option<String>) = conn
@@ -60,7 +79,7 @@ fn scan_indexes_categories_and_rebuilds_identically() {
     fs::remove_file(&db_file).unwrap();
     let conn = db::open(&db_file).unwrap();
     let rescan = scanner::scan_library(&conn, &root).unwrap();
-    assert_eq!(rescan.indexed, 3);
+    assert_eq!(rescan.indexed, 4);
 }
 
 /// Gated scan of a real library folder. Run with:
