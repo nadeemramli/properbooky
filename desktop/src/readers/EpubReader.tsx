@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import ePub, { Rendition } from "epubjs";
-import type { ReadingProgress } from "../types";
+import type { Highlight, Sidecar } from "../types";
+
+const HIGHLIGHT_FILL = "rgba(200, 162, 63, 0.35)";
 
 const COZY_LIGHT = {
   body: {
@@ -25,6 +27,11 @@ const COZY_DARK = {
   a: { color: "#7fb08f" },
 };
 
+interface PendingSelection {
+  cfiRange: string;
+  text: string;
+}
+
 export default function EpubReader({
   path,
   onProgress,
@@ -34,9 +41,12 @@ export default function EpubReader({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
+  const highlightsRef = useRef<Map<string, Highlight>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [percent, setPercent] = useState<number | null>(null);
+  const [pending, setPending] = useState<PendingSelection | null>(null);
+  const [highlightCount, setHighlightCount] = useState(0);
 
   // Keep the latest callback out of the load effect's dependencies —
   // a changing identity there re-loads the whole book (reload loop).
@@ -45,17 +55,55 @@ export default function EpubReader({
     onProgressRef.current = onProgress;
   }, [onProgress]);
 
+  const removeHighlight = useCallback(
+    async (id: string) => {
+      const rendition = renditionRef.current;
+      const highlight = highlightsRef.current.get(id);
+      if (!rendition || !highlight?.anchor.cfi) return;
+      const ok = window.confirm(
+        `Remove this highlight?\n\n“${highlight.text.slice(0, 120)}”`
+      );
+      if (!ok) return;
+      await invoke("remove_highlight", { path, id }).catch(() => {});
+      (rendition.annotations as any).remove(highlight.anchor.cfi, "highlight");
+      highlightsRef.current.delete(id);
+      setHighlightCount(highlightsRef.current.size);
+    },
+    [path]
+  );
+
+  const paintHighlight = useCallback(
+    (highlight: Highlight) => {
+      const rendition = renditionRef.current;
+      if (!rendition || !highlight.anchor.cfi) return;
+      highlightsRef.current.set(highlight.id, highlight);
+      (rendition.annotations as any).add(
+        "highlight",
+        highlight.anchor.cfi,
+        {},
+        () => removeHighlight(highlight.id),
+        "pb-highlight",
+        { fill: HIGHLIGHT_FILL, "fill-opacity": "1", "mix-blend-mode": "multiply" }
+      );
+      setHighlightCount(highlightsRef.current.size);
+    },
+    [removeHighlight]
+  );
+  const paintHighlightRef = useRef(paintHighlight);
+  useEffect(() => {
+    paintHighlightRef.current = paintHighlight;
+  }, [paintHighlight]);
+
   useEffect(() => {
     let disposed = false;
     let book: ReturnType<typeof ePub> | null = null;
 
     (async () => {
       try {
-        const saved = await invoke<ReadingProgress | null>("get_progress", {
-          path,
-        });
+        const sidecar = await invoke<Sidecar>("get_sidecar", { path });
         const response = await fetch(convertFileSrc(path));
-        if (!response.ok) throw new Error(`could not read file (${response.status})`);
+        if (!response.ok)
+          throw new Error(`could not read file (${response.status})`);
         const buffer = await response.arrayBuffer();
         if (disposed || !containerRef.current) return;
 
@@ -87,15 +135,22 @@ export default function EpubReader({
             }).catch(() => {});
           }
         });
+        rendition.on("selected", (cfiRange: string, contents: any) => {
+          const text = contents?.window?.getSelection()?.toString() ?? "";
+          if (text.trim()) setPending({ cfiRange, text: text.trim() });
+        });
         rendition.on("keydown", (e: KeyboardEvent) => {
           if (e.key === "ArrowRight") rendition.next();
           if (e.key === "ArrowLeft") rendition.prev();
         });
 
-        await rendition.display(saved?.position || undefined);
+        await rendition.display(sidecar.position || undefined);
         if (disposed) return;
         renditionRef.current = rendition;
         setReady(true);
+        for (const highlight of sidecar.highlights) {
+          paintHighlightRef.current(highlight);
+        }
         // Percentages need generated locations; do it in the background.
         book.locations.generate(600).catch(() => {});
       } catch (e) {
@@ -106,11 +161,31 @@ export default function EpubReader({
     return () => {
       disposed = true;
       renditionRef.current = null;
+      highlightsRef.current = new Map();
       book?.destroy();
     };
   }, [path]);
 
+  const saveHighlight = useCallback(async () => {
+    if (!pending) return;
+    try {
+      const highlight = await invoke<Highlight>("add_highlight", {
+        path,
+        text: pending.text,
+        note: null,
+        color: null,
+        anchor: { type: "epub-cfi", cfi: pending.cfiRange },
+      });
+      paintHighlight(highlight);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setPending(null);
+    }
+  }, [pending, path, paintHighlight]);
+
   const turn = useCallback((direction: "prev" | "next") => {
+    setPending(null);
     const rendition = renditionRef.current;
     if (!rendition) return;
     if (direction === "prev") rendition.prev();
@@ -139,11 +214,26 @@ export default function EpubReader({
       <div className="reader-page" ref={containerRef}>
         {!ready && <p className="reader-loading">Opening…</p>}
       </div>
+      {pending && (
+        <div className="highlight-pill">
+          <span className="highlight-pill-text">
+            “{pending.text.slice(0, 60)}
+            {pending.text.length > 60 ? "…" : ""}”
+          </span>
+          <button onClick={saveHighlight}>Highlight</button>
+          <button className="pill-dismiss" onClick={() => setPending(null)}>
+            ×
+          </button>
+        </div>
+      )}
       <footer className="reader-bar">
         <button onClick={() => turn("prev")} aria-label="Previous page">
           ← Previous
         </button>
         <span className="reader-progress">
+          {highlightCount > 0 && (
+            <span className="highlight-count">✎ {highlightCount} · </span>
+          )}
           {percent !== null ? `${Math.round(percent * 100)}%` : "—"}
         </span>
         <button onClick={() => turn("next")} aria-label="Next page">

@@ -23,10 +23,28 @@ export interface ScanResult {
   skipped: number;
 }
 
-export interface ReadingProgress {
-  position: string;
+export interface Highlight {
+  id: string;
+  text: string;
+  note: string | null;
+  color: string | null;
+  anchor: {
+    type: "epub-cfi" | "pdf";
+    cfi?: string;
+    page?: number;
+    quote?: { exact: string; prefix: string; suffix: string };
+    position?: { start: number; end: number };
+  };
+  created_at: number;
+  updated_at: number;
+  deleted: boolean;
+}
+
+export interface Sidecar {
+  position: string | null;
   percent: number | null;
   updated_at: number;
+  highlights: Highlight[];
 }
 
 export interface OpenTab {
