@@ -12,7 +12,7 @@ export default function PdfReader({
   onProgress,
 }: {
   path: string;
-  onProgress: (percent: number | null) => void;
+  onProgress: (path: string, percent: number | null) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pageWrapRef = useRef<HTMLDivElement>(null);
@@ -22,6 +22,13 @@ export default function PdfReader({
   const [page, setPage] = useState(1);
   const [numPages, setNumPages] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  // Latest callback via ref so render/save effects depend only on paging
+  // state — a changing identity would re-render and re-save in a loop.
+  const onProgressRef = useRef(onProgress);
+  useEffect(() => {
+    onProgressRef.current = onProgress;
+  }, [onProgress]);
 
   useEffect(() => {
     let disposed = false;
@@ -89,7 +96,7 @@ export default function PdfReader({
     })();
 
     const percent = numPages > 0 ? page / numPages : null;
-    onProgress(percent);
+    onProgressRef.current(path, percent);
     invoke("save_progress", {
       path,
       position: String(page),
@@ -99,7 +106,7 @@ export default function PdfReader({
     return () => {
       cancelled = true;
     };
-  }, [page, numPages, path, onProgress]);
+  }, [page, numPages, path]);
 
   const go = useCallback(
     (delta: number) => {

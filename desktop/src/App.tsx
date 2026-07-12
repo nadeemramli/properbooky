@@ -32,9 +32,11 @@ export default function App() {
   );
 
   const reportProgress = useCallback((path: string, percent: number | null) => {
-    setTabs((current) =>
-      current.map((t) => (t.path === path ? { ...t, percent } : t))
-    );
+    setTabs((current) => {
+      const tab = current.find((t) => t.path === path);
+      if (!tab || tab.percent === percent) return current;
+      return current.map((t) => (t.path === path ? { ...t, percent } : t));
+    });
   }, []);
 
   const activeTab = tabs.find((t) => t.path === active) ?? null;
@@ -87,13 +89,13 @@ export default function App() {
           <EpubReader
             key={activeTab.path}
             path={activeTab.path}
-            onProgress={(p) => reportProgress(activeTab.path, p)}
+            onProgress={reportProgress}
           />
         ) : (
           <PdfReader
             key={activeTab.path}
             path={activeTab.path}
-            onProgress={(p) => reportProgress(activeTab.path, p)}
+            onProgress={reportProgress}
           />
         )}
       </section>

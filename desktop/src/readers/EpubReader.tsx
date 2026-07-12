@@ -30,13 +30,20 @@ export default function EpubReader({
   onProgress,
 }: {
   path: string;
-  onProgress: (percent: number | null) => void;
+  onProgress: (path: string, percent: number | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [percent, setPercent] = useState<number | null>(null);
+
+  // Keep the latest callback out of the load effect's dependencies —
+  // a changing identity there re-loads the whole book (reload loop).
+  const onProgressRef = useRef(onProgress);
+  useEffect(() => {
+    onProgressRef.current = onProgress;
+  }, [onProgress]);
 
   useEffect(() => {
     let disposed = false;
@@ -71,7 +78,7 @@ export default function EpubReader({
           const percentValue =
             typeof pct === "number" && pct > 0 ? Math.min(pct, 1) : null;
           setPercent(percentValue);
-          onProgress(percentValue);
+          onProgressRef.current(path, percentValue);
           if (cfi) {
             invoke("save_progress", {
               path,
@@ -101,7 +108,7 @@ export default function EpubReader({
       renditionRef.current = null;
       book?.destroy();
     };
-  }, [path, onProgress]);
+  }, [path]);
 
   const turn = useCallback((direction: "prev" | "next") => {
     const rendition = renditionRef.current;
