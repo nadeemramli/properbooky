@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import AcquirePanel from "./AcquirePanel";
 import type { Book, LibraryState, ScanResult } from "./types";
 
 function formatSize(bytes: number): string {
@@ -50,6 +51,7 @@ export default function LibraryView({
   const [pathInput, setPathInput] = useState("");
   const [scanning, setScanning] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [showAcquire, setShowAcquire] = useState(false);
 
   const refreshBooks = useCallback(async (search: string) => {
     const result = await invoke<Book[]>("list_books", {
@@ -116,9 +118,17 @@ export default function LibraryView({
           {libraryPath ? "Change folder" : "Choose library folder"}
         </button>
         {libraryPath && (
-          <button onClick={() => scan(libraryPath)} disabled={scanning}>
-            {scanning ? "Scanning…" : "Rescan"}
-          </button>
+          <>
+            <button onClick={() => scan(libraryPath)} disabled={scanning}>
+              {scanning ? "Scanning…" : "Rescan"}
+            </button>
+            <button
+              className="acquire-open"
+              onClick={() => setShowAcquire(true)}
+            >
+              Acquire
+            </button>
+          </>
         )}
       </header>
 
@@ -209,6 +219,13 @@ export default function LibraryView({
             <p className="empty">Nothing here{query ? ` for “${query}”` : ""}.</p>
           )}
         </section>
+      )}
+      {showAcquire && libraryPath && (
+        <AcquirePanel
+          libraryPath={libraryPath}
+          onClose={() => setShowAcquire(false)}
+          onLibraryChanged={() => refreshBooks(query).catch(() => {})}
+        />
       )}
     </div>
   );

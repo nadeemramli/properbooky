@@ -11,6 +11,7 @@ export interface Book {
   file_link: string | null;
   format: string;
   size_bytes: number;
+  recommended: boolean;
 }
 
 export interface LibraryState {
