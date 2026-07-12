@@ -34,6 +34,7 @@ export default function App() {
   const [libraryPath, setLibraryPath] = useState<string | null>(null);
   const [books, setBooks] = useState<Book[]>([]);
   const [query, setQuery] = useState("");
+  const [pathInput, setPathInput] = useState("");
   const [scanning, setScanning] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -117,6 +118,24 @@ export default function App() {
             folder stays the source of truth — the index is rebuilt from it on
             every scan.
           </p>
+          <form
+            className="path-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const path = pathInput.trim();
+              if (path) scan(path);
+            }}
+          >
+            <input
+              type="text"
+              placeholder="…or paste a folder path (e.g. /mnt/c/Users/Nadeem/Desktop/All Books Inside Here)"
+              value={pathInput}
+              onChange={(e) => setPathInput(e.currentTarget.value)}
+            />
+            <button type="submit" disabled={scanning || !pathInput.trim()}>
+              Index this path
+            </button>
+          </form>
         </div>
       ) : (
         <section className="grid">
