@@ -1,3 +1,4 @@
+pub mod annotations;
 pub mod catalog;
 pub mod db;
 pub mod matcher;
@@ -26,12 +27,6 @@ struct Book {
     size_bytes: i64,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-struct ReadingProgress {
-    position: String,
-    percent: Option<f64>,
-    updated_at: i64,
-}
 
 #[derive(Serialize)]
 struct LibraryState {
@@ -150,13 +145,13 @@ fn progress_file(app: &tauri::AppHandle, book_path: &str) -> Result<PathBuf, Str
     Ok(dir.join(format!("{slug}.json")))
 }
 
+/// Sidecar with only live highlights — what the readers need at open.
 #[tauri::command]
-fn get_progress(app: tauri::AppHandle, path: String) -> Result<Option<ReadingProgress>, String> {
+fn get_sidecar(app: tauri::AppHandle, path: String) -> Result<annotations::Sidecar, String> {
     let file = progress_file(&app, &path)?;
-    match std::fs::read_to_string(file) {
-        Ok(content) => Ok(serde_json::from_str(&content).ok()),
-        Err(_) => Ok(None),
-    }
+    let mut sidecar = annotations::load(&file);
+    sidecar.highlights = annotations::live_highlights(&file);
+    Ok(sidecar)
 }
 
 #[tauri::command]
@@ -167,16 +162,26 @@ fn save_progress(
     percent: Option<f64>,
 ) -> Result<(), String> {
     let file = progress_file(&app, &path)?;
-    let progress = ReadingProgress {
-        position,
-        percent,
-        updated_at: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0),
-    };
-    let json = serde_json::to_string_pretty(&progress).map_err(|e| e.to_string())?;
-    std::fs::write(file, json).map_err(|e| e.to_string())
+    annotations::set_position(&file, position, percent).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn add_highlight(
+    app: tauri::AppHandle,
+    path: String,
+    text: String,
+    note: Option<String>,
+    color: Option<String>,
+    anchor: serde_json::Value,
+) -> Result<annotations::Highlight, String> {
+    let file = progress_file(&app, &path)?;
+    annotations::add_highlight(&file, text, note, color, anchor).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn remove_highlight(app: tauri::AppHandle, path: String, id: String) -> Result<bool, String> {
+    let file = progress_file(&app, &path)?;
+    annotations::remove_highlight(&file, &id).map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -188,8 +193,10 @@ pub fn run() {
             get_library_state,
             scan_library,
             list_books,
-            get_progress,
-            save_progress
+            get_sidecar,
+            save_progress,
+            add_highlight,
+            remove_highlight
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
