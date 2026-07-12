@@ -110,7 +110,7 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
     Ok(ScanResult { indexed, skipped })
 }
 
-fn extract_metadata(path: &Path, ext: &str, filename: &str) -> (String, Option<String>) {
+pub fn extract_metadata(path: &Path, ext: &str, filename: &str) -> (String, Option<String>) {
     if ext == "epub" {
         if let Ok(doc) = epub::doc::EpubDoc::new(path) {
             let mdata_value = |property: &str| {
