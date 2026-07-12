@@ -1,5 +1,6 @@
 pub mod catalog;
 pub mod db;
+pub mod matcher;
 pub mod scanner;
 
 use rusqlite::Connection;

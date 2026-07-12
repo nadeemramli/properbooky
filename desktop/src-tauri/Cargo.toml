@@ -29,4 +29,5 @@ epub = "2.1.5"
 tauri-plugin-dialog = "2.7.1"
 csv = "1.4.0"
 serde_yaml = "0.9.34"
+sha2 = "0.10"
 

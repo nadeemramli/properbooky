@@ -29,6 +29,9 @@ pub struct CatalogEntry {
     pub file: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hash: Option<String>,
+    /// Pre-rename filename, kept so any rename is reversible.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub original_filename: Option<String>,
 }
 
 fn default_status() -> String {
