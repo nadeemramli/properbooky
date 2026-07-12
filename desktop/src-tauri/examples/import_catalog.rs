@@ -71,8 +71,7 @@ fn main() -> anyhow::Result<()> {
             published: field(&record, c_released),
             added: field(&record, c_input),
             source: Some("library-of-books-sheet/ai-enriching-3.0".to_owned()),
-            file: None,
-            hash: None,
+            ..Default::default()
         };
         let body = field(&record, c_lattice).unwrap_or_default();
 
