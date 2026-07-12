@@ -1,3 +1,4 @@
+use crate::catalog;
 use anyhow::Result;
 use rusqlite::Connection;
 use serde::Serialize;
@@ -48,14 +49,35 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let (title, author) = extract_metadata(path, &ext, &filename);
-        // Top-level subfolder of the library acts as the book's category.
-        let category = path
-            .strip_prefix(root)
-            .ok()
-            .and_then(|rel| rel.parent())
-            .and_then(|parent| parent.components().next())
-            .map(|c| c.as_os_str().to_string_lossy().into_owned());
+
+        // Markdown with catalog frontmatter is a catalog entry (a book that
+        // may not exist on disk yet); everything else is a library file.
+        let catalog_entry = (ext == "md")
+            .then(|| std::fs::read_to_string(path).ok())
+            .flatten()
+            .and_then(|content| catalog::parse(&content).map(|(entry, _)| entry));
+
+        let (title, author, category, kind, status, rating) = match &catalog_entry {
+            Some(entry) => (
+                entry.title.clone(),
+                entry.author.clone(),
+                (!entry.topics.is_empty()).then(|| entry.topics.join(", ")),
+                "catalog",
+                Some(entry.status.clone()),
+                entry.rating,
+            ),
+            None => {
+                let (title, author) = extract_metadata(path, &ext, &filename);
+                // Top-level subfolder of the library acts as the book's category.
+                let category = path
+                    .strip_prefix(root)
+                    .ok()
+                    .and_then(|rel| rel.parent())
+                    .and_then(|parent| parent.components().next())
+                    .map(|c| c.as_os_str().to_string_lossy().into_owned());
+                (title, author, category, "file", None, None)
+            }
+        };
         let modified_at = meta
             .modified()
             .ok()
@@ -65,14 +87,17 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
 
         conn.execute(
             "INSERT OR REPLACE INTO books
-             (path, filename, title, author, category, format, size_bytes, modified_at, indexed_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+             (path, filename, title, author, category, kind, status, rating, format, size_bytes, modified_at, indexed_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             (
                 path.to_string_lossy(),
                 &filename,
                 &title,
                 &author,
                 &category,
+                kind,
+                &status,
+                rating,
                 &ext,
                 meta.len() as i64,
                 modified_at,

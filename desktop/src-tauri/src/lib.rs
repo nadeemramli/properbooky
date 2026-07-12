@@ -1,3 +1,4 @@
+pub mod catalog;
 pub mod db;
 pub mod scanner;
 
@@ -16,6 +17,9 @@ struct Book {
     title: String,
     author: Option<String>,
     category: Option<String>,
+    kind: String,
+    status: Option<String>,
+    rating: Option<i64>,
     format: String,
     size_bytes: i64,
 }
@@ -69,8 +73,11 @@ fn list_books(app: tauri::AppHandle, query: Option<String>) -> Result<Vec<Book>,
             title: row.get(3)?,
             author: row.get(4)?,
             category: row.get(5)?,
-            format: row.get(6)?,
-            size_bytes: row.get(7)?,
+            kind: row.get(6)?,
+            status: row.get(7)?,
+            rating: row.get(8)?,
+            format: row.get(9)?,
+            size_bytes: row.get(10)?,
         })
     };
 
@@ -83,7 +90,7 @@ fn list_books(app: tauri::AppHandle, query: Option<String>) -> Result<Vec<Book>,
                 .join(" ");
             let mut stmt = conn
                 .prepare(
-                    "SELECT b.id, b.path, b.filename, b.title, b.author, b.category, b.format, b.size_bytes
+                    "SELECT b.id, b.path, b.filename, b.title, b.author, b.category, b.kind, b.status, b.rating, b.format, b.size_bytes
                      FROM books b JOIN books_fts f ON f.rowid = b.id
                      WHERE books_fts MATCH ?1 ORDER BY rank",
                 )
@@ -96,7 +103,7 @@ fn list_books(app: tauri::AppHandle, query: Option<String>) -> Result<Vec<Book>,
         None => {
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, path, filename, title, author, category, format, size_bytes
+                    "SELECT id, path, filename, title, author, category, kind, status, rating, format, size_bytes
                      FROM books ORDER BY title COLLATE NOCASE",
                 )
                 .map_err(|e| e.to_string())?;
