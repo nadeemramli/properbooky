@@ -1,175 +1,102 @@
-import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { useCallback, useState } from "react";
+import LibraryView, { openablePath } from "./LibraryView";
+import EpubReader from "./readers/EpubReader";
+import PdfReader from "./readers/PdfReader";
+import type { Book, OpenTab } from "./types";
 import "./App.css";
 
-interface Book {
-  id: number;
-  path: string;
-  filename: string;
-  title: string;
-  author: string | null;
-  category: string | null;
-  kind: string;
-  status: string | null;
-  rating: number | null;
-  format: string;
-  size_bytes: number;
-}
-
-interface LibraryState {
-  library_path: string | null;
-  book_count: number;
-}
-
-interface ScanResult {
-  indexed: number;
-  skipped: number;
-}
-
-function formatSize(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${bytes} B`;
-}
+const LIBRARY_TAB = "__library__";
 
 export default function App() {
-  const [libraryPath, setLibraryPath] = useState<string | null>(null);
-  const [books, setBooks] = useState<Book[]>([]);
-  const [query, setQuery] = useState("");
-  const [pathInput, setPathInput] = useState("");
-  const [scanning, setScanning] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const [tabs, setTabs] = useState<OpenTab[]>([]);
+  const [active, setActive] = useState<string>(LIBRARY_TAB);
 
-  const refreshBooks = useCallback(async (search: string) => {
-    const result = await invoke<Book[]>("list_books", {
-      query: search || null,
-    });
-    setBooks(result);
+  const openBook = useCallback((book: Book) => {
+    const path = openablePath(book);
+    if (!path) return;
+    const format = path.toLowerCase().endsWith(".epub") ? "epub" : "pdf";
+    setTabs((current) =>
+      current.some((t) => t.path === path)
+        ? current
+        : [...current, { path, title: book.title, format, percent: null }]
+    );
+    setActive(path);
   }, []);
 
-  useEffect(() => {
-    invoke<LibraryState>("get_library_state")
-      .then((state) => {
-        setLibraryPath(state.library_path);
-        if (state.book_count > 0) refreshBooks("");
-      })
-      .catch((e) => setStatus(String(e)));
-  }, [refreshBooks]);
-
-  useEffect(() => {
-    const handle = setTimeout(() => {
-      refreshBooks(query).catch((e) => setStatus(String(e)));
-    }, 150);
-    return () => clearTimeout(handle);
-  }, [query, refreshBooks]);
-
-  const scan = useCallback(
-    async (path: string) => {
-      setScanning(true);
-      setStatus(null);
-      try {
-        const result = await invoke<ScanResult>("scan_library", { path });
-        setLibraryPath(path);
-        setStatus(
-          `Indexed ${result.indexed} books` +
-            (result.skipped ? ` (${result.skipped} skipped)` : "")
-        );
-        await refreshBooks(query);
-      } catch (e) {
-        setStatus(String(e));
-      } finally {
-        setScanning(false);
-      }
+  const closeTab = useCallback(
+    (path: string) => {
+      setTabs((current) => current.filter((t) => t.path !== path));
+      setActive((current) => (current === path ? LIBRARY_TAB : current));
     },
-    [query, refreshBooks]
+    []
   );
 
-  const chooseFolder = useCallback(async () => {
-    const selected = await open({ directory: true, multiple: false });
-    if (typeof selected === "string") await scan(selected);
-  }, [scan]);
+  const reportProgress = useCallback((path: string, percent: number | null) => {
+    setTabs((current) =>
+      current.map((t) => (t.path === path ? { ...t, percent } : t))
+    );
+  }, []);
+
+  const activeTab = tabs.find((t) => t.path === active) ?? null;
 
   return (
     <main className="app">
-      <header className="toolbar">
-        <h1>ProperBooky</h1>
-        <input
-          type="search"
-          placeholder="Search title, author, filename…"
-          value={query}
-          onChange={(e) => setQuery(e.currentTarget.value)}
-          disabled={!libraryPath}
-        />
-        <button onClick={chooseFolder} disabled={scanning}>
-          {libraryPath ? "Change folder" : "Choose library folder"}
+      <nav className="tab-rail" role="tablist" aria-label="Open books">
+        <span className="brand">ProperBooky</span>
+        <button
+          role="tab"
+          aria-selected={active === LIBRARY_TAB}
+          className={`tab tab-library ${active === LIBRARY_TAB ? "tab-active" : ""}`}
+          onClick={() => setActive(LIBRARY_TAB)}
+        >
+          Library
         </button>
-        {libraryPath && (
-          <button onClick={() => scan(libraryPath)} disabled={scanning}>
-            {scanning ? "Scanning…" : "Rescan"}
-          </button>
-        )}
-      </header>
-
-      {libraryPath && <p className="library-path">{libraryPath}</p>}
-      {status && <p className="status">{status}</p>}
-
-      {!libraryPath ? (
-        <div className="empty">
-          <p>
-            Point ProperBooky at your book folder (EPUB, PDF, Markdown). The
-            folder stays the source of truth — the index is rebuilt from it on
-            every scan.
-          </p>
-          <form
-            className="path-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const path = pathInput.trim();
-              if (path) scan(path);
-            }}
+        {tabs.map((tab) => (
+          <span
+            key={tab.path}
+            role="tab"
+            aria-selected={active === tab.path}
+            className={`tab tab-book ${active === tab.path ? "tab-active" : ""}`}
           >
-            <input
-              type="text"
-              placeholder="…or paste a folder path (e.g. /mnt/c/Users/Nadeem/Desktop/All Books Inside Here)"
-              value={pathInput}
-              onChange={(e) => setPathInput(e.currentTarget.value)}
-            />
-            <button type="submit" disabled={scanning || !pathInput.trim()}>
-              Index this path
+            <button
+              className="tab-title"
+              title={tab.title}
+              onClick={() => setActive(tab.path)}
+            >
+              {tab.title}
             </button>
-          </form>
-        </div>
-      ) : (
-        <section className="grid">
-          {books.map((book) => (
-            <article key={book.id} className="card" title={book.path}>
-              {book.kind === "catalog" ? (
-                <span className={`badge badge-${book.status ?? "wishlist"}`}>
-                  {(book.status ?? "wishlist").toUpperCase()}
-                </span>
-              ) : (
-                <span className={`badge badge-${book.format}`}>
-                  {book.format.toUpperCase()}
-                </span>
-              )}
-              <h2>{book.title}</h2>
-              {book.author && <p className="author">{book.author}</p>}
-              <p className="meta">
-                {book.category ? `${book.category} · ` : ""}
-                {book.kind === "catalog"
-                  ? book.rating
-                    ? `★${book.rating}`
-                    : "unrated"
-                  : formatSize(book.size_bytes)}
-              </p>
-            </article>
-          ))}
-          {books.length === 0 && (
-            <p className="empty">No books match “{query}”.</p>
-          )}
-        </section>
-      )}
+            <button
+              className="tab-close"
+              aria-label={`Close ${tab.title}`}
+              onClick={() => closeTab(tab.path)}
+            >
+              ×
+            </button>
+            <span
+              className="tab-ribbon"
+              style={{ width: `${Math.round((tab.percent ?? 0) * 100)}%` }}
+            />
+          </span>
+        ))}
+      </nav>
+
+      <section className="tab-panel">
+        {active === LIBRARY_TAB || !activeTab ? (
+          <LibraryView onOpen={openBook} />
+        ) : activeTab.format === "epub" ? (
+          <EpubReader
+            key={activeTab.path}
+            path={activeTab.path}
+            onProgress={(p) => reportProgress(activeTab.path, p)}
+          />
+        ) : (
+          <PdfReader
+            key={activeTab.path}
+            path={activeTab.path}
+            onProgress={(p) => reportProgress(activeTab.path, p)}
+          />
+        )}
+      </section>
     </main>
   );
 }
