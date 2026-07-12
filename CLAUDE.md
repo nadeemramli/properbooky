@@ -57,13 +57,13 @@ This repo uses an external Obsidian product vault for product memory and learnin
 - Write durable learning (decisions, build logs, QA learnings, postmortems, insights) to the vault, not the repo
 - Repo `docs/` is for infrastructure/structural technical docs only (ADRs, setup, DB/RLS, migrations)
 
-Product vault:
+Product vault ("Bookie" is the product's vault name; `properbooky` is the repo):
 
-- Windows: `C:\Users\Nadeem\Desktop\Obsidian\build-blog\build-vault\5. Idea Vault\Application\B2C\Active\Properbooky`
-- WSL: `/mnt/c/Users/Nadeem/Desktop/Obsidian/build-blog/build-vault/5. Idea Vault/Application/B2C/Active/Properbooky`
+- Windows: `C:\Users\Nadeem\Desktop\Obsidian\build-blog\build-vault\5. Idea Vault\Application\B2C\Active\Bookie - Unified Reading Experience`
+- WSL: `/mnt/c/Users/Nadeem/Desktop/Obsidian/build-blog/build-vault/5. Idea Vault/Application/B2C/Active/Bookie - Unified Reading Experience`
 
-Launch with vault access from WSL:
+Start with the vault's `CLAUDE.md` (consolidated agent instructions, current state, decision log), then `1. PD/` (product) and `2. TD/` (technical). Launch with vault access from WSL:
 
 ```bash
-CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 claude --add-dir "/mnt/c/Users/Nadeem/Desktop/Obsidian/build-blog/build-vault/5. Idea Vault/Application/B2C/Active/Properbooky"
+CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 claude --add-dir "/mnt/c/Users/Nadeem/Desktop/Obsidian/build-blog/build-vault/5. Idea Vault/Application/B2C/Active/Bookie - Unified Reading Experience"
 ```
