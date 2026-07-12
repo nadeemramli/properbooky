@@ -185,3 +185,20 @@ body {
   background: color-mix(in srgb, #b05b3f 18%, transparent);
   color: #b05b3f;
 }
+
+.badge-wishlist {
+  background: color-mix(in srgb, #8a7ec8 18%, transparent);
+  color: #8a7ec8;
+}
+
+.badge-queued {
+  background: color-mix(in srgb, #c8a23f 22%, transparent);
+  color: #a3821f;
+}
+
+.badge-available,
+.badge-reading,
+.badge-done {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}

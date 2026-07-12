@@ -10,6 +10,9 @@ interface Book {
   title: string;
   author: string | null;
   category: string | null;
+  kind: string;
+  status: string | null;
+  rating: number | null;
   format: string;
   size_bytes: number;
 }
@@ -141,14 +144,24 @@ export default function App() {
         <section className="grid">
           {books.map((book) => (
             <article key={book.id} className="card" title={book.path}>
-              <span className={`badge badge-${book.format}`}>
-                {book.format.toUpperCase()}
-              </span>
+              {book.kind === "catalog" ? (
+                <span className={`badge badge-${book.status ?? "wishlist"}`}>
+                  {(book.status ?? "wishlist").toUpperCase()}
+                </span>
+              ) : (
+                <span className={`badge badge-${book.format}`}>
+                  {book.format.toUpperCase()}
+                </span>
+              )}
               <h2>{book.title}</h2>
               {book.author && <p className="author">{book.author}</p>}
               <p className="meta">
                 {book.category ? `${book.category} · ` : ""}
-                {formatSize(book.size_bytes)}
+                {book.kind === "catalog"
+                  ? book.rating
+                    ? `★${book.rating}`
+                    : "unrated"
+                  : formatSize(book.size_bytes)}
               </p>
             </article>
           ))}
