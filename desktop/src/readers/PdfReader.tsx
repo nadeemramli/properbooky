@@ -22,6 +22,7 @@ export default function PdfReader({
   const [page, setPage] = useState(1);
   const [numPages, setNumPages] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [fitTick, setFitTick] = useState(0);
 
   // Latest callback via ref so render/save effects depend only on paging
   // state — a changing identity would re-render and re-save in a loop.
@@ -77,9 +78,13 @@ export default function PdfReader({
         const pdfPage = await doc.getPage(page);
         if (cancelled) return;
         const base = pdfPage.getViewport({ scale: 1 });
-        const fit = (wrap.clientWidth - 32) / base.width;
+        // Fit the whole page in the viewport — no scrolling to read a page.
+        const fit = Math.min(
+          (wrap.clientWidth - 32) / base.width,
+          (wrap.clientHeight - 16) / base.height
+        );
         const dpr = window.devicePixelRatio || 1;
-        const viewport = pdfPage.getViewport({ scale: fit });
+        const viewport = pdfPage.getViewport({ scale: Math.max(fit, 0.1) });
         canvas.width = Math.floor(viewport.width * dpr);
         canvas.height = Math.floor(viewport.height * dpr);
         canvas.style.width = `${viewport.width}px`;
@@ -106,7 +111,23 @@ export default function PdfReader({
     return () => {
       cancelled = true;
     };
-  }, [page, numPages, path]);
+  }, [page, numPages, path, fitTick]);
+
+  // Re-fit when the window/panel resizes.
+  useEffect(() => {
+    const wrap = pageWrapRef.current;
+    if (!wrap) return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => setFitTick((t) => t + 1));
+    });
+    observer.observe(wrap);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, []);
 
   const go = useCallback(
     (delta: number) => {
