@@ -455,6 +455,120 @@ body {
   color: #a3821f;
 }
 
+.highlight-toggle {
+  border: none;
+  background: none;
+  color: #a3821f;
+  font: inherit;
+  cursor: pointer;
+  padding: 0.15rem 0.3rem;
+  border-radius: 6px;
+}
+
+.highlight-toggle:hover {
+  background: color-mix(in srgb, #c8a23f 15%, transparent);
+}
+
+/* ---- Highlights panel ---- */
+
+.highlights-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 2.9rem;
+  width: min(320px, 85%);
+  background: var(--card);
+  border-left: 1px solid var(--border);
+  box-shadow: -6px 0 24px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  z-index: 9;
+}
+
+.highlights-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.highlights-panel-head h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.panel-close {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.highlights-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0;
+  overflow-y: auto;
+}
+
+.highlights-panel li {
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.highlights-panel blockquote {
+  font-family: var(--serif);
+  font-size: 0.85rem;
+  font-style: italic;
+  line-height: 1.5;
+  margin: 0;
+  padding-left: 0.7rem;
+  border-left: 3px solid #c8a23f;
+  cursor: pointer;
+}
+
+.highlights-panel blockquote:hover {
+  border-left-color: var(--accent);
+}
+
+.highlight-row-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.highlight-delete {
+  border: none;
+  background: none;
+  color: #b05b3f;
+  font-size: 0.72rem;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+}
+
+.highlight-delete:hover {
+  background: color-mix(in srgb, #b05b3f 12%, transparent);
+}
+
+.highlight-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--fg);
+}
+
+.highlights-empty {
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 1rem;
+  line-height: 1.5;
+}
+
 .reader-loading {
   color: var(--muted);
   text-align: center;

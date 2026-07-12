@@ -5,6 +5,7 @@ import type { PDFDocumentProxy } from "pdfjs-dist";
 import { TextLayer } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import "pdfjs-dist/web/pdf_viewer.css";
+import HighlightsPanel from "./HighlightsPanel";
 import type { Highlight, Sidecar } from "../types";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -86,7 +87,8 @@ export default function PdfReader({
   const [fitTick, setFitTick] = useState(0);
   const [fitMode, setFitMode] = useState<"page" | "width">("page");
   const [pending, setPending] = useState<PendingSelection | null>(null);
-  const [highlightCount, setHighlightCount] = useState(0);
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [showPanel, setShowPanel] = useState(false);
 
   // Latest callback via ref so render/save effects depend only on paging
   // state — a changing identity would re-render and re-save in a loop.
@@ -110,23 +112,13 @@ export default function PdfReader({
         if (rect.width < 1 || rect.height < 1) continue;
         const mark = document.createElement("div");
         mark.className = "pdf-highlight";
-        mark.title = "Click to remove this highlight";
+        mark.title = "Highlighted — manage in the highlights panel (✎)";
         mark.style.left = `${rect.left - stageBox.left}px`;
         mark.style.top = `${rect.top - stageBox.top}px`;
         mark.style.width = `${rect.width}px`;
         mark.style.height = `${rect.height}px`;
-        mark.addEventListener("click", async () => {
-          const ok = window.confirm(
-            `Remove this highlight?\n\n“${highlight.text.slice(0, 120)}”`
-          );
-          if (!ok) return;
-          await invoke("remove_highlight", { path, id: highlight.id }).catch(
-            () => {}
-          );
-          highlightsRef.current.delete(highlight.id);
-          setHighlightCount(highlightsRef.current.size);
-          paintRef.current();
-        });
+        // Deletion lives in the panel only; a click here just opens it.
+        mark.addEventListener("click", () => setShowPanel(true));
         overlay.appendChild(mark);
       }
     }
@@ -152,7 +144,7 @@ export default function PdfReader({
         highlightsRef.current = new Map(
           sidecar.highlights.map((h) => [h.id, h])
         );
-        setHighlightCount(highlightsRef.current.size);
+        setHighlights(sidecar.highlights);
         setNumPages(doc.numPages);
         const savedPage = sidecar.position
           ? parseInt(sidecar.position, 10)
@@ -301,7 +293,7 @@ export default function PdfReader({
         },
       });
       highlightsRef.current.set(highlight.id, highlight);
-      setHighlightCount(highlightsRef.current.size);
+      setHighlights((current) => [...current, highlight]);
       window.getSelection()?.removeAllRanges();
       paintRef.current();
     } catch (e) {
@@ -310,6 +302,18 @@ export default function PdfReader({
       setPending(null);
     }
   }, [pending, path, page]);
+
+  const removeHighlight = useCallback(
+    async (highlight: Highlight) => {
+      await invoke("remove_highlight", { path, id: highlight.id }).catch(
+        () => {}
+      );
+      highlightsRef.current.delete(highlight.id);
+      setHighlights((current) => current.filter((h) => h.id !== highlight.id));
+      paintRef.current();
+    },
+    [path]
+  );
 
   const go = useCallback(
     (delta: number) => {
@@ -365,15 +369,29 @@ export default function PdfReader({
           </button>
         </div>
       )}
+      {showPanel && (
+        <HighlightsPanel
+          highlights={highlights}
+          onJump={(h) => {
+            if (h.anchor.page != null) setPage(h.anchor.page);
+          }}
+          onDelete={removeHighlight}
+          onClose={() => setShowPanel(false)}
+        />
+      )}
       <footer className="reader-bar">
         <button onClick={() => go(-1)} aria-label="Previous page">
           ← Previous
         </button>
         <span className="reader-progress">
-          {highlightCount > 0 && (
-            <span className="highlight-count">✎ {highlightCount} · </span>
-          )}
-          Page{" "}
+          <button
+            className="highlight-toggle"
+            onClick={() => setShowPanel((s) => !s)}
+            aria-label="Show highlights"
+          >
+            ✎ {highlights.length}
+          </button>{" "}
+          · Page{" "}
           <input
             type="number"
             min={1}

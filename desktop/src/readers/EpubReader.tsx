@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import ePub, { Rendition } from "epubjs";
+import HighlightsPanel from "./HighlightsPanel";
 import type { Highlight, Sidecar } from "../types";
 
 const HIGHLIGHT_FILL = "rgba(200, 162, 63, 0.35)";
@@ -41,12 +42,12 @@ export default function EpubReader({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
-  const highlightsRef = useRef<Map<string, Highlight>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [percent, setPercent] = useState<number | null>(null);
   const [pending, setPending] = useState<PendingSelection | null>(null);
-  const [highlightCount, setHighlightCount] = useState(0);
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [showPanel, setShowPanel] = useState(false);
 
   // Keep the latest callback out of the load effect's dependencies —
   // a changing identity there re-loads the whole book (reload loop).
@@ -55,40 +56,39 @@ export default function EpubReader({
     onProgressRef.current = onProgress;
   }, [onProgress]);
 
+  // Deleting only happens from the panel — clicking a painted highlight
+  // opens it (window.confirm is unreliable in the webview, and a click
+  // on the text you just highlighted must never destroy it).
   const removeHighlight = useCallback(
-    async (id: string) => {
+    async (highlight: Highlight) => {
       const rendition = renditionRef.current;
-      const highlight = highlightsRef.current.get(id);
-      if (!rendition || !highlight?.anchor.cfi) return;
-      const ok = window.confirm(
-        `Remove this highlight?\n\n“${highlight.text.slice(0, 120)}”`
+      if (!rendition || !highlight.anchor.cfi) return;
+      await invoke("remove_highlight", { path, id: highlight.id }).catch(
+        () => {}
       );
-      if (!ok) return;
-      await invoke("remove_highlight", { path, id }).catch(() => {});
       (rendition.annotations as any).remove(highlight.anchor.cfi, "highlight");
-      highlightsRef.current.delete(id);
-      setHighlightCount(highlightsRef.current.size);
+      setHighlights((current) => current.filter((h) => h.id !== highlight.id));
     },
     [path]
   );
 
-  const paintHighlight = useCallback(
-    (highlight: Highlight) => {
-      const rendition = renditionRef.current;
-      if (!rendition || !highlight.anchor.cfi) return;
-      highlightsRef.current.set(highlight.id, highlight);
-      (rendition.annotations as any).add(
-        "highlight",
-        highlight.anchor.cfi,
-        {},
-        () => removeHighlight(highlight.id),
-        "pb-highlight",
-        { fill: HIGHLIGHT_FILL, "fill-opacity": "1", "mix-blend-mode": "multiply" }
-      );
-      setHighlightCount(highlightsRef.current.size);
-    },
-    [removeHighlight]
-  );
+  const paintHighlight = useCallback((highlight: Highlight) => {
+    const rendition = renditionRef.current;
+    if (!rendition || !highlight.anchor.cfi) return;
+    (rendition.annotations as any).add(
+      "highlight",
+      highlight.anchor.cfi,
+      {},
+      () => setShowPanel(true),
+      "pb-highlight",
+      { fill: HIGHLIGHT_FILL, "fill-opacity": "1", "mix-blend-mode": "multiply" }
+    );
+    setHighlights((current) =>
+      current.some((h) => h.id === highlight.id)
+        ? current
+        : [...current, highlight]
+    );
+  }, []);
   const paintHighlightRef = useRef(paintHighlight);
   useEffect(() => {
     paintHighlightRef.current = paintHighlight;
@@ -161,7 +161,6 @@ export default function EpubReader({
     return () => {
       disposed = true;
       renditionRef.current = null;
-      highlightsRef.current = new Map();
       book?.destroy();
     };
   }, [path]);
@@ -226,15 +225,29 @@ export default function EpubReader({
           </button>
         </div>
       )}
+      {showPanel && (
+        <HighlightsPanel
+          highlights={highlights}
+          onJump={(h) => {
+            if (h.anchor.cfi) renditionRef.current?.display(h.anchor.cfi);
+          }}
+          onDelete={removeHighlight}
+          onClose={() => setShowPanel(false)}
+        />
+      )}
       <footer className="reader-bar">
         <button onClick={() => turn("prev")} aria-label="Previous page">
           ← Previous
         </button>
         <span className="reader-progress">
-          {highlightCount > 0 && (
-            <span className="highlight-count">✎ {highlightCount} · </span>
-          )}
-          {percent !== null ? `${Math.round(percent * 100)}%` : "—"}
+          <button
+            className="highlight-toggle"
+            onClick={() => setShowPanel((s) => !s)}
+            aria-label="Show highlights"
+          >
+            ✎ {highlights.length}
+          </button>{" "}
+          · {percent !== null ? `${Math.round(percent * 100)}%` : "—"}
         </span>
         <button onClick={() => turn("next")} aria-label="Next page">
           Next →
