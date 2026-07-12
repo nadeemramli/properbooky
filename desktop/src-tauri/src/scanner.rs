@@ -26,6 +26,14 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
     for entry in WalkDir::new(root)
         .follow_links(false)
         .into_iter()
+        .filter_entry(|e| {
+            // Skip dot-directories (.properbooky state, .obsidian, …).
+            e.depth() == 0
+                || !e
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with('.')
+        })
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file())
     {
@@ -57,7 +65,7 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
             .flatten()
             .and_then(|content| catalog::parse(&content).map(|(entry, _)| entry));
 
-        let (title, author, category, kind, status, rating) = match &catalog_entry {
+        let (title, author, category, kind, status, rating, file_link) = match &catalog_entry {
             Some(entry) => (
                 entry.title.clone(),
                 entry.author.clone(),
@@ -65,6 +73,10 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
                 "catalog",
                 Some(entry.status.clone()),
                 entry.rating,
+                entry
+                    .file
+                    .as_ref()
+                    .map(|rel| root.join(rel).to_string_lossy().into_owned()),
             ),
             None => {
                 let (title, author) = extract_metadata(path, &ext, &filename);
@@ -75,7 +87,7 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
                     .and_then(|rel| rel.parent())
                     .and_then(|parent| parent.components().next())
                     .map(|c| c.as_os_str().to_string_lossy().into_owned());
-                (title, author, category, "file", None, None)
+                (title, author, category, "file", None, None, None)
             }
         };
         let modified_at = meta
@@ -87,8 +99,8 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
 
         conn.execute(
             "INSERT OR REPLACE INTO books
-             (path, filename, title, author, category, kind, status, rating, format, size_bytes, modified_at, indexed_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+             (path, filename, title, author, category, kind, status, rating, file_link, format, size_bytes, modified_at, indexed_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             (
                 path.to_string_lossy(),
                 &filename,
@@ -98,6 +110,7 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
                 kind,
                 &status,
                 rating,
+                &file_link,
                 &ext,
                 meta.len() as i64,
                 modified_at,
