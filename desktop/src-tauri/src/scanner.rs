@@ -65,7 +65,7 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
             .flatten()
             .and_then(|content| catalog::parse(&content).map(|(entry, _)| entry));
 
-        let (title, author, category, kind, status, rating, recommended, file_link) =
+        let (title, author, category, kind, status, rating, recommended, file_link, cover, year) =
             match &catalog_entry {
             Some(entry) => (
                 entry.title.clone(),
@@ -79,6 +79,11 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
                     .file
                     .as_ref()
                     .map(|rel| root.join(rel).to_string_lossy().into_owned()),
+                entry
+                    .cover
+                    .as_ref()
+                    .map(|rel| root.join(rel).to_string_lossy().into_owned()),
+                entry.year,
             ),
             None => {
                 let (title, author) = extract_metadata(path, &ext, &filename);
@@ -90,7 +95,7 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
                     .and_then(|rel| rel.parent())
                     .and_then(|parent| parent.file_name())
                     .map(|c| c.to_string_lossy().into_owned());
-                (title, author, category, "file", None, None, false, None)
+                (title, author, category, "file", None, None, false, None, None, None)
             }
         };
         let modified_at = meta
@@ -102,8 +107,8 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
 
         conn.execute(
             "INSERT OR REPLACE INTO books
-             (path, filename, title, author, category, kind, status, rating, recommended, file_link, format, size_bytes, modified_at, indexed_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+             (path, filename, title, author, category, kind, status, rating, recommended, file_link, cover, year, format, size_bytes, modified_at, indexed_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
             (
                 path.to_string_lossy(),
                 &filename,
@@ -115,6 +120,8 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
                 rating,
                 recommended,
                 &file_link,
+                &cover,
+                year,
                 &ext,
                 meta.len() as i64,
                 modified_at,
