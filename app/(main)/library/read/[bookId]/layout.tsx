@@ -7,8 +7,8 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
-import { TableOfContents } from "../../components/reader/TableOfContents";
-import { BookProfile } from "../../components/reader/BookProfile";
+import { TableOfContents } from "@/app/(main)/library/components/reader/TableOfContents";
+import { BookProfile } from "@/app/(main)/library/components/reader/BookProfile";
 import { ReaderProvider } from "@/lib/contexts/reader-context";
 
 interface ReaderLayoutProps {

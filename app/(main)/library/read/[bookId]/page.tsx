@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useBooks } from "@/lib/hooks/use-books";
-import { PDFReader } from "../../components/reader/PDFReader";
-import { EPUBReader } from "../../components/reader/EPUBReader";
+import { PDFReader } from "@/app/(main)/library/components/reader/PDFReader";
+import { EPUBReader } from "@/app/(main)/library/components/reader/EPUBReader";
 import { Loader2 } from "lucide-react";
 import type { Book } from "@/types/book";
 

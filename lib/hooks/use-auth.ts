@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import type { User } from "@supabase/auth-helpers-nextjs";
 import type { Database } from "@/types/database";
-import { setupDefaultBooks, ensureDevUserHasBooks } from "@/lib/utils/default-books";
+import { setupDefaultBooks } from "@/lib/utils/default-books";
+import { isDev, getDevUser } from "@/lib/config/development";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 interface AuthUser extends User {
   role?: string;
@@ -22,35 +23,73 @@ export function useAuth(): AuthResponse {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  
   const supabase = createClientComponentClient<Database>();
 
+  // Immediate development mode initialization
+  useEffect(() => {
+    if (isDev()) {
+      const devUser = getDevUser();
+      if (devUser) {
+        // Create a development session
+        const setupDevSession = async () => {
+          try {
+            const { data, error } = await supabase.auth.signInWithPassword({
+              email: devUser.email,
+              password: process.env.NEXT_PUBLIC_DEV_PASSWORD || 'development'
+            });
+            
+            if (error) {
+              console.error("Failed to create dev session:", error);
+              // Fallback to creating user if it doesn't exist
+              const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                email: devUser.email,
+                password: process.env.NEXT_PUBLIC_DEV_PASSWORD || 'development'
+              });
+              
+              if (signUpError) {
+                console.error("Failed to create dev user:", signUpError);
+                return;
+              }
+            }
+            
+            setUser(devUser as AuthUser);
+            setIsAuthenticated(true);
+            setLoading(false);
+          } catch (error) {
+            console.error("Dev session setup error:", error);
+          }
+        };
+        
+        setupDevSession();
+      }
+    }
+  }, [supabase.auth]); // Add supabase.auth as dependency
+
+  // Main auth initialization
   useEffect(() => {
     const initAuth = async () => {
       try {
-        // Get session
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (process.env.NODE_ENV === "development") {
-          // In development, use bypass user if configured
-          const devUserId = process.env.NEXT_PUBLIC_DEV_USER_ID;
-          if (devUserId) {
-            setUser({ id: devUserId, role: "user" } as AuthUser);
-            setIsAuthenticated(true);
-            // Ensure dev user has default books
-            await ensureDevUserHasBooks();
-            setLoading(false);
+        // Skip if already initialized in dev mode
+        if (isDev()) {
+          const devUser = getDevUser();
+          if (devUser) {
+            try {
+              await setupDefaultBooks(devUser.id);
+            } catch (error) {
+              console.error("Error setting up default books:", error);
+            }
             return;
           }
         }
 
+        // Handle production mode
+        const { data: { session } } = await supabase.auth.getSession();
+        
         if (session?.user) {
           setUser(session.user as AuthUser);
           setIsAuthenticated(true);
-          // Set up default books for new users
           await setupDefaultBooks(session.user.id);
-        } else {
-          setUser(null);
-          setIsAuthenticated(false);
         }
       } catch (error) {
         console.error("Auth error:", error);
@@ -61,32 +100,39 @@ export function useAuth(): AuthResponse {
       }
     };
 
-    // Initialize auth
     initAuth();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          setUser(session.user as AuthUser);
-          setIsAuthenticated(true);
-          // Set up default books for new users on sign up
-          if (event === "SIGNED_IN") {
-            await setupDefaultBooks(session.user.id);
+    // Only set up auth listener in production
+    if (!isDev()) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          if (session?.user) {
+            setUser(session.user as AuthUser);
+            setIsAuthenticated(true);
+          } else {
+            setUser(null);
+            setIsAuthenticated(false);
           }
-        } else {
-          setUser(null);
-          setIsAuthenticated(false);
         }
-      }
-    );
+      );
 
-    return () => {
-      subscription.unsubscribe();
-    };
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
+
+    return () => {}; // Empty cleanup for dev mode
   }, [supabase.auth]);
 
+  // Simplified auth methods for development mode
   const signIn = async (email: string, password: string) => {
+    if (isDev()) {
+      const devUser = getDevUser();
+      setUser(devUser as AuthUser);
+      setIsAuthenticated(true);
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -95,6 +141,13 @@ export function useAuth(): AuthResponse {
   };
 
   const signUp = async (email: string, password: string) => {
+    if (isDev()) {
+      const devUser = getDevUser();
+      setUser(devUser as AuthUser);
+      setIsAuthenticated(true);
+      return;
+    }
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -103,11 +156,24 @@ export function useAuth(): AuthResponse {
   };
 
   const signOut = async () => {
+    if (isDev()) {
+      setUser(null);
+      setIsAuthenticated(false);
+      return;
+    }
+
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };
 
   const signInWithGoogle = async () => {
+    if (isDev()) {
+      const devUser = getDevUser();
+      setUser(devUser as AuthUser);
+      setIsAuthenticated(true);
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
