@@ -5,6 +5,7 @@ pub mod catalog;
 pub mod db;
 pub mod enrich;
 pub mod export;
+pub mod extract;
 pub mod matcher;
 pub mod scanner;
 
