@@ -27,7 +27,8 @@ jobs:
         run: npm run lint
         continue-on-error: true
       - name: Unit tests (live-DB smoke test excluded)
-        run: npx jest --testPathIgnorePatterns supabase.test.ts --passWithNoTests
+        # CLI patterns REPLACE the config's list — repeat e2e/desktop here.
+        run: npx jest --testPathIgnorePatterns supabase.test.ts /e2e/ /desktop/ /node_modules/ --passWithNoTests
       - name: Build
         run: npx next build
       - name: Edge functions typecheck
