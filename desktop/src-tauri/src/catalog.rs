@@ -42,6 +42,10 @@ pub struct CatalogEntry {
     /// Enrichment marker: "openlibrary" | "not-found" (resumability).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enriched: Option<String>,
+    /// Knowledge spectrum: "original" | "novel" | "collection" — is this a
+    /// source of original ideas, a derivative treatment, or an anthology?
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spectrum: Option<String>,
 }
 
 fn default_status() -> String {
