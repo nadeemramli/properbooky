@@ -125,9 +125,16 @@ export default function AcquirePanel({
             </div>
             <div className="highlight-row-meta">
               <span>
-                {book.status === "queued" ? "queued · " : ""}
-                {book.rating ? `★${book.rating}` : "unrated"}
-                {book.recommended ? " · recommended" : ""}
+                {book.priority != null && (
+                  <strong className="priority-score">
+                    {book.priority.toFixed(2)}
+                  </strong>
+                )}
+                {book.status === "queued" ? " · queued" : ""}
+                {book.year ? ` · ${book.year}` : ""}
+                {book.rating ? ` · ★${book.rating}` : " · unrated"}
+                {book.recommended ? " · rec" : ""}
+                {book.spectrum ? ` · ${book.spectrum}` : ""}
               </span>
               <button className="acquire-search" onClick={() => search(book)}>
                 {book.status === "queued" ? "Search again" : "Search & queue"}
