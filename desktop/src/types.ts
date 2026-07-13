@@ -32,7 +32,7 @@ export interface Highlight {
   note: string | null;
   color: string | null;
   anchor: {
-    type: "epub-cfi" | "pdf";
+    type: "epub-cfi" | "pdf" | "article";
     cfi?: string;
     page?: number;
     quote?: { exact: string; prefix: string; suffix: string };

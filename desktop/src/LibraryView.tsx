@@ -33,11 +33,16 @@ function matchesFilter(book: Book, filter: ShelfFilter): boolean {
   }
 }
 
-/** A book is openable when a real file backs it. */
+const READABLE = new Set(["epub", "pdf"]);
+
+/** A book is openable when a real, readable file backs it. Legacy formats
+ * (mobi/chm/…) are indexed for availability but have no reader yet. */
 export function openablePath(book: Book): string | null {
-  if (book.kind === "file") return book.path;
-  if (book.file_link) return book.file_link;
-  return null;
+  if (book.kind === "article") return book.file_link ?? book.path;
+  const path = book.kind === "file" ? book.path : book.file_link;
+  if (!path) return null;
+  const ext = path.toLowerCase().split(".").pop() ?? "";
+  return READABLE.has(ext) ? path : null;
 }
 
 export default function LibraryView({
