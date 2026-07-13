@@ -32,6 +32,16 @@ pub struct CatalogEntry {
     /// Pre-rename filename, kept so any rename is reversible.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub original_filename: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub isbn: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub year: Option<i64>,
+    /// Library-relative path to a cached cover image.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cover: Option<String>,
+    /// Enrichment marker: "openlibrary" | "not-found" (resumability).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enriched: Option<String>,
 }
 
 fn default_status() -> String {

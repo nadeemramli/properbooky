@@ -12,6 +12,8 @@ export interface Book {
   format: string;
   size_bytes: number;
   recommended: boolean;
+  cover: string | null;
+  year: number | null;
 }
 
 export interface LibraryState {
