@@ -41,13 +41,18 @@ try {
   await browser.$(".tab-rail").waitForExist({ timeout: 20000 });
   assert.ok(await browser.$(".tab-library").isExisting(), "Library tab missing");
 
-  // 2. Library renders: grid cards or the empty state.
-  await browser.waitUntil(
-    async () =>
-      (await browser.$$(".card")).length > 0 ||
-      (await browser.$(".empty").isExisting()),
-    { timeout: 20000, timeoutMsg: "neither grid nor empty state rendered" }
-  );
+  // 2. Library renders. Prefer waiting for cards — the empty-state text
+  // also shows transiently while books load, so it can't be the first check.
+  await browser
+    .waitUntil(async () => (await browser.$$(".card")).length > 0, {
+      timeout: 25000,
+    })
+    .catch(async () => {
+      const empty = await browser.$(".empty");
+      if (!(await empty.isExisting())) {
+        throw new Error("neither grid nor empty state rendered");
+      }
+    });
 
   const cards = await browser.$$(".card");
   console.log(`library rendered with ${cards.length} cards`);
