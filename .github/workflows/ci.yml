@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+env:
+  # The web app runs in dev mode against dummy endpoints in CI; the remote
+  # Supabase project stays paused by design (PBK-1).
+  NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-dummy-anon-key
+  SUPABASE_SERVICE_ROLE_KEY: ci-dummy-service-key
+  NEXT_PUBLIC_DEVELOPMENT: "true"
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Lint (non-blocking — legacy debt tracked in PBK-5)
+        run: npm run lint
+        continue-on-error: true
+      - name: Unit tests (live-DB smoke test excluded)
+        # CLI patterns REPLACE the config's list — repeat e2e/desktop here.
+        run: npx jest --testPathIgnorePatterns supabase.test.ts /e2e/ /desktop/ /node_modules/ --passWithNoTests
+      - name: Build
+        run: npx next build
+      - name: Edge functions typecheck
+        working-directory: supabase/functions
+        run: |
+          npm ci
+          npm run type-check
+
+  web-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Playwright smoke suite
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  desktop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev libssl-dev pkg-config
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Frontend typecheck
+        working-directory: desktop
+        run: |
+          npm ci
+          npx tsc --noEmit -p .
+      - name: Rust tests
+        working-directory: desktop/src-tauri
+        run: cargo test
