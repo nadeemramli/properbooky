@@ -791,6 +791,11 @@ body {
   font-size: 0.8rem;
 }
 
+.priority-score {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
 .acquire-search {
   border: 1px solid var(--border);
   background: var(--bg);

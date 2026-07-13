@@ -14,6 +14,8 @@ export interface Book {
   recommended: boolean;
   cover: string | null;
   year: number | null;
+  spectrum: string | null;
+  priority: number | null;
 }
 
 export interface LibraryState {

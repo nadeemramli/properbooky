@@ -109,3 +109,45 @@ fn set_status_updates_markdown_and_index() {
         .unwrap();
     assert_eq!(status, "queued");
 }
+
+#[test]
+fn queue_ranks_by_lindy_recommendation_rating_spectrum() {
+    let root = temp_library("queue");
+    let conn = db::open(&root.join("index.db")).unwrap();
+
+    // Old, recommended, well-rated original vs new unrated collection.
+    fs::write(
+        root.join("Catalog/Marcus Aurelius - Meditations.md"),
+        "---\ntitle: Meditations\nauthor: Marcus Aurelius\nstatus: wishlist\nrating: 5\nrecommendation: everyone\nyear: 180\nspectrum: original\n---\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("Catalog/Anon - Growth Hacks Compilation.md"),
+        "---\ntitle: Growth Hacks Compilation\nauthor: Anon\nstatus: wishlist\nyear: 2023\nspectrum: collection\n---\n",
+    )
+    .unwrap();
+    // Explicitly queued beats any score.
+    fs::write(
+        root.join("Catalog/New Author - Mediocre But Queued.md"),
+        "---\ntitle: Mediocre But Queued\nauthor: New Author\nstatus: queued\nyear: 2024\n---\n",
+    )
+    .unwrap();
+    scanner::scan_library(&conn, &root).unwrap();
+
+    let mut stmt = conn.prepare(acquire::QUEUE_SQL).unwrap();
+    let rows: Vec<(String, f64)> = stmt
+        .query_map([10i64], |r| Ok((r.get::<_, String>(3)?, r.get::<_, f64>(16)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    let titles: Vec<&str> = rows.iter().map(|(t, _)| t.as_str()).collect();
+    assert_eq!(
+        titles,
+        vec!["Mediocre But Queued", "Meditations", "Growth Hacks Compilation"],
+        "rows: {rows:?}"
+    );
+
+    // Meditations: lindy maxed (0.35) + rec (0.25) + 5/5 (0.25) + original (0.15) = 1.0
+    let meditations = rows.iter().find(|(t, _)| t == "Meditations").unwrap();
+    assert!((meditations.1 - 1.0).abs() < 0.01, "score: {}", meditations.1);
+}

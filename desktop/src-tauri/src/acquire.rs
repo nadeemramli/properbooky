@@ -8,6 +8,29 @@ use walkdir::WalkDir;
 
 pub const DROP_DIR: &str = "Drop";
 
+/// The acquisition-queue ranking (Prioritization Algorithm v2):
+/// `0.35·lindy + 0.25·recommendation + 0.25·rating + 0.15·spectrum`,
+/// with explicitly queued items always pinned first.
+/// - lindy: min(age, 120)/120 from first-publish year; unknown → 0.3
+/// - rating: manual 1–5 → /5; unrated → 3/5
+/// - spectrum: original 1.0 / novel 0.6 / collection 0.3 / unset 0.5
+pub const QUEUE_SQL: &str = "\
+    SELECT id, path, filename, title, author, category, kind, status, rating, \
+           file_link, format, size_bytes, recommended, cover, year, spectrum, \
+           (0.35 * COALESCE(MIN(MAX(CAST(strftime('%Y','now') AS INTEGER) - year, 0), 120) / 120.0, 0.3) \
+            + 0.25 * recommended \
+            + 0.25 * COALESCE(rating, 3) / 5.0 \
+            + 0.15 * CASE spectrum \
+                WHEN 'original' THEN 1.0 \
+                WHEN 'novel' THEN 0.6 \
+                WHEN 'collection' THEN 0.3 \
+                ELSE 0.5 END) AS priority \
+     FROM books \
+     WHERE kind = 'catalog' AND file_link IS NULL \
+       AND status IN ('wishlist', 'queued') \
+     ORDER BY (status = 'queued') DESC, priority DESC, title COLLATE NOCASE \
+     LIMIT ?1";
+
 /// Update a catalog entry's status in its markdown file (the source of
 /// truth) and mirror it into the index row.
 pub fn set_status(conn: &Connection, md_path: &Path, status: &str) -> Result<()> {

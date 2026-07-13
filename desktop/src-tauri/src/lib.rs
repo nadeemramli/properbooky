@@ -32,6 +32,9 @@ struct Book {
     recommended: bool,
     cover: Option<String>,
     year: Option<i64>,
+    spectrum: Option<String>,
+    /// Prioritization score — only computed for the acquisition queue.
+    priority: Option<f64>,
 }
 
 
@@ -93,6 +96,8 @@ fn list_books(app: tauri::AppHandle, query: Option<String>) -> Result<Vec<Book>,
             recommended: row.get(12)?,
             cover: row.get(13)?,
             year: row.get(14)?,
+            spectrum: row.get(15)?,
+            priority: None,
         })
     };
 
@@ -105,7 +110,7 @@ fn list_books(app: tauri::AppHandle, query: Option<String>) -> Result<Vec<Book>,
                 .join(" ");
             let mut stmt = conn
                 .prepare(
-                    "SELECT b.id, b.path, b.filename, b.title, b.author, b.category, b.kind, b.status, b.rating, b.file_link, b.format, b.size_bytes, b.recommended, b.cover, b.year
+                    "SELECT b.id, b.path, b.filename, b.title, b.author, b.category, b.kind, b.status, b.rating, b.file_link, b.format, b.size_bytes, b.recommended, b.cover, b.year, b.spectrum
                      FROM books b JOIN books_fts f ON f.rowid = b.id
                      WHERE books_fts MATCH ?1
                        AND NOT (b.kind = 'file' AND b.path IN
@@ -121,7 +126,7 @@ fn list_books(app: tauri::AppHandle, query: Option<String>) -> Result<Vec<Book>,
         None => {
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, path, filename, title, author, category, kind, status, rating, file_link, format, size_bytes, recommended, cover, year
+                    "SELECT id, path, filename, title, author, category, kind, status, rating, file_link, format, size_bytes, recommended, cover, year, spectrum
                      FROM books
                      WHERE NOT (kind = 'file' AND path IN
                                 (SELECT file_link FROM books WHERE file_link IS NOT NULL))
@@ -161,15 +166,7 @@ fn progress_file(app: &tauri::AppHandle, book_path: &str) -> Result<PathBuf, Str
 fn acquisition_queue(app: tauri::AppHandle, limit: i64) -> Result<Vec<Book>, String> {
     let conn = open_db(&app)?;
     let mut stmt = conn
-        .prepare(
-            "SELECT id, path, filename, title, author, category, kind, status, rating, file_link, format, size_bytes, recommended, cover, year
-             FROM books
-             WHERE kind = 'catalog' AND file_link IS NULL
-               AND status IN ('wishlist', 'queued')
-             ORDER BY (status = 'queued') DESC, recommended DESC,
-                      COALESCE(rating, 0) DESC, title COLLATE NOCASE
-             LIMIT ?1",
-        )
+        .prepare(acquire::QUEUE_SQL)
         .map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([limit], |row| {
@@ -189,6 +186,8 @@ fn acquisition_queue(app: tauri::AppHandle, limit: i64) -> Result<Vec<Book>, Str
                 recommended: row.get(12)?,
                 cover: row.get(13)?,
                 year: row.get(14)?,
+                spectrum: row.get(15)?,
+                priority: row.get(16)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -326,6 +325,8 @@ fn save_article(app: tauri::AppHandle, url: String) -> Result<Book, String> {
         recommended: false,
         cover: None,
         year: None,
+        spectrum: None,
+        priority: None,
     })
 }
 

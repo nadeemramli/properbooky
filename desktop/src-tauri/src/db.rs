@@ -4,7 +4,7 @@ use std::path::Path;
 
 /// Bump when the schema changes. The index is disposable (files are the
 /// source of truth), so a mismatch drops and recreates everything.
-const SCHEMA_VERSION: i64 = 6;
+const SCHEMA_VERSION: i64 = 7;
 
 pub fn open(db_path: &Path) -> Result<Connection> {
     if let Some(parent) = db_path.parent() {
@@ -43,6 +43,7 @@ pub fn open(db_path: &Path) -> Result<Connection> {
             file_link   TEXT,
             cover       TEXT,
             year        INTEGER,
+            spectrum    TEXT,
             format      TEXT NOT NULL,
             size_bytes  INTEGER NOT NULL,
             modified_at INTEGER NOT NULL,
