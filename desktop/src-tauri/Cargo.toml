@@ -32,4 +32,6 @@ serde_yaml = "0.9.34"
 sha2 = "0.10"
 uuid = { version = "1.23.5", features = ["v4"] }
 ureq = { version = "2", features = ["json"] }
+dom_smoothie = "0.18.0"
+htmd = "0.5.4"
 

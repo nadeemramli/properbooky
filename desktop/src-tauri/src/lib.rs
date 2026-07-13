@@ -1,5 +1,6 @@
 pub mod acquire;
 pub mod annotations;
+pub mod article;
 pub mod catalog;
 pub mod db;
 pub mod enrich;
@@ -216,6 +217,80 @@ fn process_drop(app: tauri::AppHandle) -> Result<acquire::DropReport, String> {
     acquire::process_drop(&conn, PathBuf::from(root).as_path()).map_err(|e| e.to_string())
 }
 
+/// Fetch a URL, readability-extract it, and save it into the library as a
+/// permanent markdown article; the index row is inserted immediately.
+#[tauri::command]
+fn save_article(app: tauri::AppHandle, url: String) -> Result<Book, String> {
+    let conn = open_db(&app)?;
+    let root = db::get_setting(&conn, LIBRARY_PATH_KEY)
+        .map_err(|e| e.to_string())?
+        .ok_or("no library configured")?;
+    let root = PathBuf::from(root);
+
+    let agent = ureq::AgentBuilder::new()
+        .timeout(std::time::Duration::from_secs(25))
+        .user_agent("Mozilla/5.0 (X11; Linux x86_64) ProperBooky/0.1")
+        .build();
+    let html = agent
+        .get(&url)
+        .call()
+        .map_err(|e| format!("could not fetch the page: {e}"))?
+        .into_string()
+        .map_err(|e| format!("could not read the page: {e}"))?;
+
+    let (meta, markdown) = article::extract(&html, &url).map_err(|e| e.to_string())?;
+    let path = article::save(&root, &meta, &markdown).map_err(|e| e.to_string())?;
+
+    let size = std::fs::metadata(&path).map(|m| m.len() as i64).unwrap_or(0);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let filename = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    conn.execute(
+        "INSERT OR REPLACE INTO books
+         (path, filename, title, author, category, kind, status, rating, recommended, file_link, cover, year, format, size_bytes, modified_at, indexed_at)
+         VALUES (?1, ?2, ?3, ?4, 'Articles', 'article', 'available', NULL, 0, ?1, NULL, NULL, 'article', ?5, ?6, ?6)",
+        (
+            path.to_string_lossy(),
+            &filename,
+            &meta.title,
+            &meta.author,
+            size,
+            now,
+        ),
+    )
+    .map_err(|e| e.to_string())?;
+
+    let id: i64 = conn
+        .query_row(
+            "SELECT id FROM books WHERE path = ?1",
+            [path.to_string_lossy()],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(Book {
+        id,
+        path: path.to_string_lossy().into_owned(),
+        filename,
+        title: meta.title,
+        author: meta.author,
+        category: Some("Articles".to_owned()),
+        kind: "article".to_owned(),
+        status: Some("available".to_owned()),
+        rating: None,
+        file_link: Some(path.to_string_lossy().into_owned()),
+        format: "article".to_owned(),
+        size_bytes: size,
+        recommended: false,
+        cover: None,
+        year: None,
+    })
+}
+
 /// Sidecar with only live highlights — what the readers need at open.
 #[tauri::command]
 fn get_sidecar(app: tauri::AppHandle, path: String) -> Result<annotations::Sidecar, String> {
@@ -270,7 +345,8 @@ pub fn run() {
             remove_highlight,
             acquisition_queue,
             set_catalog_status,
-            process_drop
+            process_drop,
+            save_article
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

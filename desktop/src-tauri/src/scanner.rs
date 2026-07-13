@@ -58,12 +58,41 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
 
-        // Markdown with catalog frontmatter is a catalog entry (a book that
-        // may not exist on disk yet); everything else is a library file.
-        let catalog_entry = (ext == "md")
+        // Markdown splits three ways: article frontmatter (source_url) is a
+        // captured web asset; catalog frontmatter is a book profile; plain
+        // markdown is an ordinary library file.
+        let md_content = (ext == "md")
             .then(|| std::fs::read_to_string(path).ok())
-            .flatten()
-            .and_then(|content| catalog::parse(&content).map(|(entry, _)| entry));
+            .flatten();
+        if let Some(content) = &md_content {
+            if let Some((article_meta, _)) = crate::article::parse(content) {
+                let modified_at = meta
+                    .modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                    .map(|d| d.as_secs() as i64)
+                    .unwrap_or(0);
+                conn.execute(
+                    "INSERT OR REPLACE INTO books
+                     (path, filename, title, author, category, kind, status, rating, recommended, file_link, cover, year, format, size_bytes, modified_at, indexed_at)
+                     VALUES (?1, ?2, ?3, ?4, 'Articles', 'article', 'available', NULL, 0, ?1, NULL, NULL, 'article', ?5, ?6, ?7)",
+                    (
+                        path.to_string_lossy(),
+                        &filename,
+                        &article_meta.title,
+                        &article_meta.author,
+                        meta.len() as i64,
+                        modified_at,
+                        now,
+                    ),
+                )?;
+                indexed += 1;
+                continue;
+            }
+        }
+        let catalog_entry = md_content
+            .as_deref()
+            .and_then(|content| catalog::parse(content).map(|(entry, _)| entry));
 
         let (title, author, category, kind, status, rating, recommended, file_link, cover, year) =
             match &catalog_entry {
