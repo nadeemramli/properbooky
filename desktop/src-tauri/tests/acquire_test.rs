@@ -2,8 +2,13 @@ use desktop_lib::{acquire, catalog, db, scanner};
 use std::fs;
 use std::path::PathBuf;
 
-fn temp_library() -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("properbooky-acq-{}", std::process::id()));
+/// One directory per test — tests run in parallel threads, so a shared
+/// dir would let one test delete the other's open database.
+fn temp_library(test: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "properbooky-acq-{}-{test}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(dir.join("Catalog")).unwrap();
     fs::create_dir_all(dir.join("Drop")).unwrap();
@@ -26,7 +31,7 @@ fn write_entry(root: &PathBuf, title: &str, author: &str, topics: &str, status: 
 
 #[test]
 fn drop_processing_files_matches_and_leaves_strangers() {
-    let root = temp_library();
+    let root = temp_library("drop");
     let db_path = root.join("index.db");
     let conn = db::open(&db_path).unwrap();
 
@@ -86,7 +91,7 @@ fn drop_processing_files_matches_and_leaves_strangers() {
 
 #[test]
 fn set_status_updates_markdown_and_index() {
-    let root = temp_library();
+    let root = temp_library("status");
     let conn = db::open(&root.join("index.db")).unwrap();
     let md = write_entry(&root, "Antifragile", "Nassim Taleb", "Philosophy", "wishlist");
     scanner::scan_library(&conn, &root).unwrap();
