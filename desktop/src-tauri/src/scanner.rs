@@ -6,7 +6,9 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use walkdir::WalkDir;
 
-const SUPPORTED_EXTENSIONS: [&str; 3] = ["epub", "pdf", "md"];
+// epub/pdf/md are readable in-app; the legacy ebook formats are indexed
+// for availability (they exist in real collections) but not yet openable.
+const SUPPORTED_EXTENSIONS: [&str; 7] = ["epub", "pdf", "md", "mobi", "azw3", "chm", "djvu"];
 
 #[derive(Serialize)]
 pub struct ScanResult {
