@@ -52,6 +52,9 @@ export default function LibraryView({
   const [scanning, setScanning] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [showAcquire, setShowAcquire] = useState(false);
+  const [showSaveUrl, setShowSaveUrl] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
+  const [savingUrl, setSavingUrl] = useState(false);
 
   const refreshBooks = useCallback(async (search: string) => {
     const result = await invoke<Book[]>("list_books", {
@@ -102,6 +105,25 @@ export default function LibraryView({
     if (typeof selected === "string") await scan(selected);
   }, [scan]);
 
+  const saveUrl = useCallback(
+    async (url: string) => {
+      setSavingUrl(true);
+      setStatus(null);
+      try {
+        const saved = await invoke<Book>("save_article", { url });
+        setStatus(`Saved “${saved.title}” to the library`);
+        setUrlInput("");
+        setShowSaveUrl(false);
+        await refreshBooks(query);
+      } catch (e) {
+        setStatus(String(e));
+      } finally {
+        setSavingUrl(false);
+      }
+    },
+    [query, refreshBooks]
+  );
+
   const visible = books.filter((b) => matchesFilter(b, filter));
 
   return (
@@ -128,9 +150,32 @@ export default function LibraryView({
             >
               Acquire
             </button>
+            <button onClick={() => setShowSaveUrl((s) => !s)}>Save URL</button>
           </>
         )}
       </header>
+
+      {showSaveUrl && (
+        <form
+          className="path-form url-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const url = urlInput.trim();
+            if (url) saveUrl(url);
+          }}
+        >
+          <input
+            type="url"
+            placeholder="https://… — the article is cleaned and saved as markdown, forever"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.currentTarget.value)}
+            autoFocus
+          />
+          <button type="submit" disabled={savingUrl || !urlInput.trim()}>
+            {savingUrl ? "Saving…" : "Save article"}
+          </button>
+        </form>
+      )}
 
       {libraryPath && (
         <div className="chips" role="tablist" aria-label="Shelf filter">
@@ -194,7 +239,9 @@ export default function LibraryView({
                 }}
               >
                 <div className="card-top">
-                  {book.kind === "catalog" ? (
+                  {book.kind === "article" ? (
+                    <span className="badge badge-article">ARTICLE</span>
+                  ) : book.kind === "catalog" ? (
                     <span className={`badge badge-${book.status ?? "wishlist"}`}>
                       {(book.status ?? "wishlist").toUpperCase()}
                     </span>

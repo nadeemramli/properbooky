@@ -14,7 +14,9 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-opener": "^2",
+    "dompurify": "^3.4.12",
     "epubjs": "^0.3.93",
+    "marked": "^18.0.6",
     "pdfjs-dist": "^6.1.200",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

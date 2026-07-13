@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import LibraryView, { openablePath } from "./LibraryView";
+import ArticleReader from "./readers/ArticleReader";
 import EpubReader from "./readers/EpubReader";
 import PdfReader from "./readers/PdfReader";
 import type { Book, OpenTab } from "./types";
@@ -14,7 +15,12 @@ export default function App() {
   const openBook = useCallback((book: Book) => {
     const path = openablePath(book);
     if (!path) return;
-    const format = path.toLowerCase().endsWith(".epub") ? "epub" : "pdf";
+    const format =
+      book.kind === "article"
+        ? "article"
+        : path.toLowerCase().endsWith(".epub")
+          ? "epub"
+          : "pdf";
     setTabs((current) =>
       current.some((t) => t.path === path)
         ? current
@@ -87,6 +93,12 @@ export default function App() {
           <LibraryView onOpen={openBook} />
         ) : activeTab.format === "epub" ? (
           <EpubReader
+            key={activeTab.path}
+            path={activeTab.path}
+            onProgress={reportProgress}
+          />
+        ) : activeTab.format === "article" ? (
+          <ArticleReader
             key={activeTab.path}
             path={activeTab.path}
             onProgress={reportProgress}
