@@ -4,7 +4,7 @@ use std::path::Path;
 
 /// Bump when the schema changes. The index is disposable (files are the
 /// source of truth), so a mismatch drops and recreates everything.
-const SCHEMA_VERSION: i64 = 7;
+const SCHEMA_VERSION: i64 = 8;
 
 pub fn open(db_path: &Path) -> Result<Connection> {
     if let Some(parent) = db_path.parent() {
@@ -16,7 +16,9 @@ pub fn open(db_path: &Path) -> Result<Connection> {
         conn.execute_batch(
             "DROP TABLE IF EXISTS books_fts;
              DROP TABLE IF EXISTS books;
-             DROP TABLE IF EXISTS settings;",
+             DROP TABLE IF EXISTS settings;
+             DROP TABLE IF EXISTS chunks_fts;
+             DROP TABLE IF EXISTS chunks;",
         )?;
     }
     conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
@@ -63,6 +65,27 @@ pub fn open(db_path: &Path) -> Result<Connection> {
         CREATE TRIGGER IF NOT EXISTS books_ad AFTER DELETE ON books BEGIN
             INSERT INTO books_fts(books_fts, rowid, title, author, filename, category)
             VALUES ('delete', old.id, old.title, old.author, old.filename, old.category);
+        END;
+
+        CREATE TABLE IF NOT EXISTS chunks (
+            id        INTEGER PRIMARY KEY,
+            book_path TEXT NOT NULL,
+            seq       INTEGER NOT NULL,
+            text      TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS chunks_book ON chunks(book_path);
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
+            text, content='chunks', content_rowid='id'
+        );
+
+        CREATE TRIGGER IF NOT EXISTS chunks_ai AFTER INSERT ON chunks BEGIN
+            INSERT INTO chunks_fts(rowid, text) VALUES (new.id, new.text);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN
+            INSERT INTO chunks_fts(chunks_fts, rowid, text)
+            VALUES ('delete', old.id, old.text);
         END;
 
         CREATE TRIGGER IF NOT EXISTS books_au AFTER UPDATE ON books BEGIN

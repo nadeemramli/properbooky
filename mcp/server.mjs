@@ -112,6 +112,48 @@ server.tool(
 );
 
 server.tool(
+  "search_content",
+  "Deep full-text search INSIDE books and articles (extracted text, chunk-level). Returns snippets with the source asset. Requires the content index (index_content CLI).",
+  { query: z.string(), limit: z.number().int().min(1).max(50).default(10) },
+  async ({ query, limit }) => {
+    const rows = db
+      .prepare(
+        `SELECT c.book_path, c.seq,
+                snippet(chunks_fts, 0, '»', '«', ' … ', 32) AS snippet,
+                b.title, b.author
+         FROM chunks_fts f
+         JOIN chunks c ON c.id = f.rowid
+         LEFT JOIN books b ON b.path = c.book_path
+         WHERE chunks_fts MATCH ?
+         ORDER BY rank LIMIT ?`
+      )
+      .all(ftsQuery(query), limit);
+    return text(rows);
+  }
+);
+
+server.tool(
+  "read_passage",
+  "Read the extracted text around one search hit: the chunk at `seq` for `book_path`, with `context` chunks either side.",
+  {
+    book_path: z.string(),
+    seq: z.number().int().min(0),
+    context: z.number().int().min(0).max(5).default(1),
+  },
+  async ({ book_path, seq, context }) => {
+    const rows = db
+      .prepare(
+        `SELECT seq, text FROM chunks
+         WHERE book_path = ? AND seq BETWEEN ? AND ?
+         ORDER BY seq`
+      )
+      .all(book_path, seq - context, seq + context);
+    if (rows.length === 0) return text(`No indexed content at ${book_path}#${seq}`);
+    return text(rows.map((r) => r.text).join("\n\n"));
+  }
+);
+
+server.tool(
   "get_highlights",
   "All live highlights for one book/article (by the file's absolute path — for catalog entries use their file_link).",
   { path: z.string() },
