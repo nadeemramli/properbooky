@@ -168,6 +168,23 @@ export default function ArticleReader({
     [path]
   );
 
+  const noteHighlight = useCallback(
+    async (highlight: Highlight, note: string) => {
+      await invoke("set_highlight_note", {
+        path,
+        id: highlight.id,
+        note: note || null,
+      }).catch(() => {});
+      setHighlights((current) =>
+        current.map((h) =>
+          h.id === highlight.id ? { ...h, note: note || null } : h
+        )
+      );
+    },
+    [path]
+  );
+
+
   if (error) {
     return (
       <div className="reader-error">
@@ -217,6 +234,7 @@ export default function ArticleReader({
             });
           }}
           onDelete={removeHighlight}
+          onNote={noteHighlight}
           onClose={() => setShowPanel(false)}
         />
       )}

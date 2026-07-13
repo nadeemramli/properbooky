@@ -368,6 +368,17 @@ fn remove_highlight(app: tauri::AppHandle, path: String, id: String) -> Result<b
     annotations::remove_highlight(&file, &id).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn set_highlight_note(
+    app: tauri::AppHandle,
+    path: String,
+    id: String,
+    note: Option<String>,
+) -> Result<bool, String> {
+    let file = progress_file(&app, &path)?;
+    annotations::set_note(&file, &id, note).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -381,6 +392,7 @@ pub fn run() {
             save_progress,
             add_highlight,
             remove_highlight,
+            set_highlight_note,
             acquisition_queue,
             set_catalog_status,
             process_drop,

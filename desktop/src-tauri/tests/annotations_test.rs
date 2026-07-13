@@ -60,6 +60,17 @@ fn add_list_remove_roundtrip_with_tombstones() {
     // Saving a new position never clobbers highlights.
     annotations::set_position(&sidecar, "13".to_owned(), Some(0.26)).unwrap();
     assert_eq!(annotations::live_highlights(&sidecar).len(), 1);
+
+    // Notes attach to live highlights; empty note clears.
+    assert!(annotations::set_note(&sidecar, &h2.id, Some("key idea".into())).unwrap());
+    assert_eq!(
+        annotations::live_highlights(&sidecar)[0].note.as_deref(),
+        Some("key idea")
+    );
+    assert!(annotations::set_note(&sidecar, &h2.id, Some("  ".into())).unwrap());
+    assert_eq!(annotations::live_highlights(&sidecar)[0].note, None);
+    // Tombstoned highlights reject notes.
+    assert!(!annotations::set_note(&sidecar, &h1.id, Some("x".into())).unwrap());
 }
 
 #[test]

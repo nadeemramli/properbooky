@@ -95,6 +95,24 @@ pub fn add_highlight(
     Ok(highlight)
 }
 
+/// Attach or replace the note on a live highlight (LWW timestamp).
+pub fn set_note(path: &Path, id: &str, note: Option<String>) -> Result<bool> {
+    let mut sidecar = load(path);
+    let mut found = false;
+    for highlight in &mut sidecar.highlights {
+        if highlight.id == id && !highlight.deleted {
+            highlight.note = note.clone().filter(|n| !n.trim().is_empty());
+            highlight.updated_at = now();
+            found = true;
+        }
+    }
+    if found {
+        sidecar.updated_at = now();
+        save(path, &sidecar)?;
+    }
+    Ok(found)
+}
+
 /// Tombstone rather than delete, so a later sync can converge.
 pub fn remove_highlight(path: &Path, id: &str) -> Result<bool> {
     let mut sidecar = load(path);

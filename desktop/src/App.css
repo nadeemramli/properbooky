@@ -639,6 +639,54 @@ body {
   background: color-mix(in srgb, #b05b3f 12%, transparent);
 }
 
+.highlight-note-btn {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 0.72rem;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+}
+
+.highlight-note-btn:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.note-editor textarea {
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 0.8rem;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.note-editor-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+
+.note-editor-actions button {
+  border: 1px solid var(--border);
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.note-editor-actions .pill-dismiss {
+  background: none;
+  color: var(--muted);
+}
+
 .highlight-note {
   margin: 0.35rem 0 0;
   font-size: 0.78rem;

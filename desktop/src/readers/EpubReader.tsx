@@ -72,6 +72,23 @@ export default function EpubReader({
     [path]
   );
 
+  const noteHighlight = useCallback(
+    async (highlight: Highlight, note: string) => {
+      await invoke("set_highlight_note", {
+        path,
+        id: highlight.id,
+        note: note || null,
+      }).catch(() => {});
+      setHighlights((current) =>
+        current.map((h) =>
+          h.id === highlight.id ? { ...h, note: note || null } : h
+        )
+      );
+    },
+    [path]
+  );
+
+
   const paintHighlight = useCallback((highlight: Highlight) => {
     const rendition = renditionRef.current;
     if (!rendition || !highlight.anchor.cfi) return;
@@ -232,6 +249,7 @@ export default function EpubReader({
             if (h.anchor.cfi) renditionRef.current?.display(h.anchor.cfi);
           }}
           onDelete={removeHighlight}
+          onNote={noteHighlight}
           onClose={() => setShowPanel(false)}
         />
       )}

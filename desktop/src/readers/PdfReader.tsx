@@ -254,6 +254,23 @@ export default function PdfReader({
     [path]
   );
 
+  const noteHighlight = useCallback(
+    async (highlight: Highlight, note: string) => {
+      await invoke("set_highlight_note", {
+        path,
+        id: highlight.id,
+        note: note || null,
+      }).catch(() => {});
+      setHighlights((current) =>
+        current.map((h) =>
+          h.id === highlight.id ? { ...h, note: note || null } : h
+        )
+      );
+    },
+    [path]
+  );
+
+
   const go = useCallback(
     (delta: number) => {
       setPending(null);
@@ -315,6 +332,7 @@ export default function PdfReader({
             if (h.anchor.page != null) setPage(h.anchor.page);
           }}
           onDelete={removeHighlight}
+          onNote={noteHighlight}
           onClose={() => setShowPanel(false)}
         />
       )}
