@@ -4,6 +4,7 @@ pub mod article;
 pub mod catalog;
 pub mod db;
 pub mod enrich;
+pub mod export;
 pub mod matcher;
 pub mod scanner;
 
@@ -217,6 +218,43 @@ fn process_drop(app: tauri::AppHandle) -> Result<acquire::DropReport, String> {
     acquire::process_drop(&conn, PathBuf::from(root).as_path()).map_err(|e| e.to_string())
 }
 
+const OBSIDIAN_VAULT_KEY: &str = "obsidian_vault_path";
+
+#[derive(Serialize)]
+struct AppSettings {
+    obsidian_vault_path: Option<String>,
+}
+
+#[tauri::command]
+fn get_app_settings(app: tauri::AppHandle) -> Result<AppSettings, String> {
+    let conn = open_db(&app)?;
+    Ok(AppSettings {
+        obsidian_vault_path: db::get_setting(&conn, OBSIDIAN_VAULT_KEY)
+            .map_err(|e| e.to_string())?,
+    })
+}
+
+#[tauri::command]
+fn set_obsidian_vault(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let conn = open_db(&app)?;
+    db::set_setting(&conn, OBSIDIAN_VAULT_KEY, &path).map_err(|e| e.to_string())
+}
+
+/// Export all live highlights into `<vault>/Properbooky/` — a dedicated
+/// generated folder inside the user's Obsidian vault.
+#[tauri::command]
+fn sync_obsidian(app: tauri::AppHandle) -> Result<export::ExportReport, String> {
+    let conn = open_db(&app)?;
+    let root = db::get_setting(&conn, LIBRARY_PATH_KEY)
+        .map_err(|e| e.to_string())?
+        .ok_or("no library configured")?;
+    let vault = db::get_setting(&conn, OBSIDIAN_VAULT_KEY)
+        .map_err(|e| e.to_string())?
+        .ok_or("set an Obsidian vault folder first")?;
+    let out = PathBuf::from(vault).join("Properbooky");
+    export::export_highlights(PathBuf::from(root).as_path(), &out).map_err(|e| e.to_string())
+}
+
 /// Fetch a URL, readability-extract it, and save it into the library as a
 /// permanent markdown article; the index row is inserted immediately.
 #[tauri::command]
@@ -346,7 +384,10 @@ pub fn run() {
             acquisition_queue,
             set_catalog_status,
             process_drop,
-            save_article
+            save_article,
+            get_app_settings,
+            set_obsidian_vault,
+            sync_obsidian
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
