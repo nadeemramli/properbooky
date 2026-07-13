@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import AcquirePanel from "./AcquirePanel";
+import ObsidianPanel from "./ObsidianPanel";
 import type { Book, LibraryState, ScanResult } from "./types";
 
 function formatSize(bytes: number): string {
@@ -53,6 +54,7 @@ export default function LibraryView({
   const [status, setStatus] = useState<string | null>(null);
   const [showAcquire, setShowAcquire] = useState(false);
   const [showSaveUrl, setShowSaveUrl] = useState(false);
+  const [showObsidian, setShowObsidian] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [savingUrl, setSavingUrl] = useState(false);
 
@@ -151,6 +153,7 @@ export default function LibraryView({
               Acquire
             </button>
             <button onClick={() => setShowSaveUrl((s) => !s)}>Save URL</button>
+            <button onClick={() => setShowObsidian(true)}>Obsidian</button>
           </>
         )}
       </header>
@@ -285,6 +288,7 @@ export default function LibraryView({
           onLibraryChanged={() => refreshBooks(query).catch(() => {})}
         />
       )}
+      {showObsidian && <ObsidianPanel onClose={() => setShowObsidian(false)} />}
     </div>
   );
 }
