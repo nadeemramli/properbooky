@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import AcquirePanel from "./AcquirePanel";
 import type { Book, LibraryState, ScanResult } from "./types";
@@ -193,18 +193,29 @@ export default function LibraryView({
                   }
                 }}
               >
-                {book.kind === "catalog" ? (
-                  <span className={`badge badge-${book.status ?? "wishlist"}`}>
-                    {(book.status ?? "wishlist").toUpperCase()}
-                  </span>
-                ) : (
-                  <span className={`badge badge-${book.format}`}>
-                    {book.format.toUpperCase()}
-                  </span>
-                )}
+                <div className="card-top">
+                  {book.kind === "catalog" ? (
+                    <span className={`badge badge-${book.status ?? "wishlist"}`}>
+                      {(book.status ?? "wishlist").toUpperCase()}
+                    </span>
+                  ) : (
+                    <span className={`badge badge-${book.format}`}>
+                      {book.format.toUpperCase()}
+                    </span>
+                  )}
+                  {book.cover && (
+                    <img
+                      className="card-cover"
+                      src={convertFileSrc(book.cover)}
+                      alt=""
+                      loading="lazy"
+                    />
+                  )}
+                </div>
                 <h2>{book.title}</h2>
                 {book.author && <p className="author">{book.author}</p>}
                 <p className="meta">
+                  {book.year ? `${book.year} · ` : ""}
                   {book.category ? `${book.category} · ` : ""}
                   {book.kind === "catalog"
                     ? book.rating
