@@ -6,11 +6,20 @@ import { NextResponse } from 'next/server'
 export const dynamic = 'auto'
 export const dynamicParams = true
 
+// Only allow same-origin relative redirects so `next` can't be turned into an
+// open redirect (e.g. next=https://evil.com or next=//evil.com).
+function safeNext(next: string | null): string {
+  if (next && next.startsWith('/') && !next.startsWith('//')) {
+    return next
+  }
+  return '/library'
+}
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const token_hash = requestUrl.searchParams.get('token_hash')
   const type = requestUrl.searchParams.get('type')
-  const next = requestUrl.searchParams.get('next') ?? '/library'
+  const next = safeNext(requestUrl.searchParams.get('next'))
 
   // If there's no token hash, redirect to home page
   if (!token_hash) {
