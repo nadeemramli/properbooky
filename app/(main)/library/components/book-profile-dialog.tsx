@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +68,13 @@ export function BookProfileDialog({
   const { toast } = useToast();
   const { user } = useAuth();
   const router = useRouter();
+
+  // The state initializer above runs once, often while `book` is still null
+  // (the hooks run before the `if (!book) return null` guard below), so keep
+  // the displayed list in sync as the selected book changes.
+  useEffect(() => {
+    setRecommendations(book?.metadata?.recommendations ?? []);
+  }, [book?.id, book?.metadata?.recommendations]);
 
   if (!book || !user?.id) return null;
 
@@ -151,16 +158,17 @@ export function BookProfileDialog({
         updated_at: new Date().toISOString(),
       };
 
-      // Add the recommendation to the book's metadata
+      // Append to the current (synced) list, not the possibly-stale prop —
+      // otherwise a second addition overwrites the first in storage.
+      const updatedRecommendations = [...recommendations, newRec];
       const updatedMetadata: Partial<BookMetadata> = {
-        ...book.metadata,
-        recommendations: [...(book.metadata.recommendations || []), newRec],
+        recommendations: updatedRecommendations,
       };
 
       await updateBook(book.id, { metadata: updatedMetadata });
 
       // Update local state
-      setRecommendations((prev) => [...prev, newRec]);
+      setRecommendations(updatedRecommendations);
 
       // Reset form
       setNewRecommendation({

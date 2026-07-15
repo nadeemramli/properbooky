@@ -56,81 +56,75 @@ export function useUploadQueue() {
   }, []);
 
   const processQueue = useCallback(async () => {
-    if (isUploading || queue.length === 0) return;
+    if (isUploading) return { succeeded: 0, failed: 0 };
     if (!user) {
       toast({
         title: "Error",
         description: "You must be logged in to upload files",
         variant: "destructive",
       });
-      return;
+      return { succeeded: 0, failed: 0 };
     }
 
+    const items = queue.filter(
+      (item) => item.status === "pending" || item.status === "error"
+    );
+    if (items.length === 0) return { succeeded: 0, failed: 0 };
+
     setIsUploading(true);
+    let succeeded = 0;
+    let failed = 0;
 
     try {
-      // Get the first item in the queue, return if queue is empty
-      const currentItem = queue[0];
-      if (!currentItem) {
-        setIsUploading(false);
-        return;
+      // Process every queued file, not just the first one, and keep going
+      // when an individual file fails so one bad file can't drop the rest.
+      for (const item of items) {
+        updateItemStatus(item.id, "uploading");
+        try {
+          const fileUrl = await uploadBookFile(item.file);
+
+          await addBook({
+            title: item.file.name.replace(/\.[^/.]+$/, ""), // Remove extension
+            format: item.file.name.toLowerCase().endsWith(".pdf")
+              ? "pdf"
+              : "epub",
+            file_url: fileUrl,
+            status: "unread",
+            user_id: user.id,
+            author: null,
+            cover_url: null,
+            publication_year: null,
+            progress: 0,
+            metadata: {},
+          });
+
+          updateItemProgress(item.id, 100);
+          updateItemStatus(item.id, "completed");
+          succeeded++;
+        } catch (error) {
+          console.error("Upload error:", error);
+          updateItemStatus(
+            item.id,
+            "error",
+            error instanceof Error ? error.message : "Failed to upload file"
+          );
+          failed++;
+        }
       }
-
-      updateItemStatus(currentItem.id, "uploading");
-
-      // Upload file
-      const formData = new FormData();
-      formData.append("file", currentItem.file);
-
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to upload file");
-      }
-
-      const { filePath } = await response.json();
-
-      // Create book entry
-      await addBook({
-        title: currentItem.file.name.replace(/\.[^/.]+$/, ""), // Remove extension
-        format: currentItem.file.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'epub',
-        file_url: filePath,
-        status: 'unread',
-        user_id: user.id,
-        author: null,
-        cover_url: null,
-        publication_year: null,
-        progress: 0,
-        metadata: {},
-      });
-
-      // Update status and show success toast
-      updateItemStatus(currentItem.id, "completed");
-      toast({
-        title: "Success",
-        description: `${currentItem.file.name} has been uploaded`,
-      });
-
-      // Remove from queue
-      setQueue((prev) => prev.slice(1));
-    } catch (error) {
-      console.error("Upload error:", error);
-      const failedItem = queue[0];
-      if (failedItem) {
-        updateItemStatus(failedItem.id, "error", error instanceof Error ? error.message : "Failed to upload file");
-      }
-      toast({
-        title: "Error",
-        description: "Failed to upload file",
-        variant: "destructive",
-      });
     } finally {
       setIsUploading(false);
     }
-  }, [queue, isUploading, uploadBookFile, addBook, updateItemStatus, user]);
+
+    return { succeeded, failed };
+  }, [
+    queue,
+    isUploading,
+    uploadBookFile,
+    addBook,
+    updateItemStatus,
+    updateItemProgress,
+    user,
+  ]);
 
   return {
     queue,

@@ -143,6 +143,10 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
         throw new Error("User not authenticated");
       }
 
+      if (mode === "upload" && !selectedFile && !values.file_url) {
+        throw new Error("Please select a book file to upload");
+      }
+
       let fileUrl = values.file_url;
       let fileMetadata = {};
 
@@ -203,25 +207,18 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
   };
 
   // CSV Import functionality
-  const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      const file = acceptedFiles[0];
-      if (file) {
-        setSelectedFile(file);
-        const format = getFileFormat(file.name);
-        if (format) {
-          form.setValue("format", format);
-        }
-      }
-    },
-    [form]
-  );
+  const onCSVDrop = useCallback((acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (file) {
+      setCsvFile(file);
+    }
+  }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
+    onDrop: onCSVDrop,
     accept: {
-      "application/pdf": [".pdf"],
-      "application/epub+zip": [".epub"],
+      "text/csv": [".csv"],
+      "application/vnd.ms-excel": [".csv"],
     },
     maxFiles: 1,
   });
@@ -236,7 +233,16 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
       return;
     }
 
-    Papa.parse<WishlistCSVRow>(csvFile!, {
+    if (!csvFile) {
+      toast({
+        title: "Error",
+        description: "Please select a CSV file first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    Papa.parse<WishlistCSVRow>(csvFile, {
       header: true,
       complete: async (results) => {
         const books: BookCreate[] = results.data.map((row: any) => ({
@@ -285,6 +291,7 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
           description: `Imported ${books.length} books`,
         });
 
+        setCsvFile(null);
         setOpen(false);
       },
       error: (error: Error) => {
@@ -329,10 +336,24 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
 
   const handleBulkUpload = async () => {
     try {
-      await processQueue();
+      const { succeeded, failed } = await processQueue();
+
+      if (failed > 0) {
+        toast({
+          variant: succeeded > 0 ? "default" : "destructive",
+          title:
+            succeeded > 0 ? "Upload Partially Complete" : "Upload Failed",
+          description: `${succeeded} uploaded, ${failed} failed. Failed files remain in the queue — you can retry them.`,
+        });
+        // Keep the dialog and queue so failed items can be retried.
+        return;
+      }
+
       toast({
         title: "Upload Complete",
-        description: `Successfully uploaded ${queue.length} files`,
+        description: `Successfully uploaded ${succeeded} file${
+          succeeded === 1 ? "" : "s"
+        }`,
       });
       setOpen(false);
       clearQueue();
@@ -463,16 +484,24 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
                                   type="file"
                                   accept=".epub,.pdf"
                                   onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    onChange(file);
+                                    const file = e.target.files?.[0] ?? null;
+                                    // Keep the File out of the RHF string field
+                                    // (zod would reject it and block submit);
+                                    // the actual upload reads selectedFile.
+                                    setSelectedFile(file);
 
-                                    // Auto-fill title from filename if empty
-                                    if (file && !form.getValues("title")) {
-                                      const title = file.name
-                                        .replace(/\.(epub|pdf)$/i, "")
-                                        .replace(/[-_]/g, " ")
-                                        .trim();
-                                      form.setValue("title", title);
+                                    if (file) {
+                                      const format = getFileFormat(file.name);
+                                      if (format) form.setValue("format", format);
+
+                                      // Auto-fill title from filename if empty
+                                      if (!form.getValues("title")) {
+                                        const title = file.name
+                                          .replace(/\.(epub|pdf)$/i, "")
+                                          .replace(/[-_]/g, " ")
+                                          .trim();
+                                        form.setValue("title", title);
+                                      }
                                     }
                                   }}
                                   {...field}
@@ -601,13 +630,11 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
                   </div>
                 </div>
 
-                {selectedFile && (
+                {csvFile && (
                   <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/50 p-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                      <span className="text-sm truncate">
-                        {selectedFile.name}
-                      </span>
+                      <span className="text-sm truncate">{csvFile.name}</span>
                     </div>
                     {isProcessing ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

@@ -4,11 +4,20 @@ import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+// Only allow same-origin relative redirects so `next` can't be turned into an
+// open redirect (e.g. next=https://evil.com or next=//evil.com).
+function safeNext(next: string | null): string {
+  if (next && next.startsWith('/') && !next.startsWith('//')) {
+    return next
+  }
+  return '/library'
+}
+
 export async function GET(request: Request) {
   try {
     const requestUrl = new URL(request.url)
     const code = requestUrl.searchParams.get('code')
-    const next = requestUrl.searchParams.get('next') ?? '/library'
+    const next = safeNext(requestUrl.searchParams.get('next'))
     const error = requestUrl.searchParams.get('error')
     const error_description = requestUrl.searchParams.get('error_description')
 

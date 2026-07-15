@@ -33,13 +33,13 @@ export default function LibraryPage() {
   const currentView = searchParams.get("view");
   const currentStatus = searchParams.get("status");
 
-  // Persist view mode to localStorage and URL
+  // Persist the grid/list layout preference to localStorage only. It must NOT
+  // be written to the `view` search param — that param is the sidebar's filter
+  // (overview / wishlist / tags / recent), and overwriting it with the layout
+  // mode clobbered sidebar navigation.
   useEffect(() => {
     localStorage.setItem("libraryViewMode", viewMode);
-    const params = new URLSearchParams(searchParams);
-    params.set("view", viewMode);
-    router.replace(`${pathname}?${params.toString()}`);
-  }, [viewMode, pathname, router, searchParams]);
+  }, [viewMode]);
 
   // Update search params when search changes
   useEffect(() => {
