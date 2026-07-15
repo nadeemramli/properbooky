@@ -69,7 +69,7 @@ export default function SignUpForm() {
       setIsLoading(true);
       await signUp(values.email, values.password);
       toast.success("Check your email to confirm your account");
-      router.push("/auth/verify");
+      router.push("/auth/verify-email");
     } catch (error) {
       toast.error("Failed to create account");
     } finally {
