@@ -1,18 +1,28 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/hooks/use-auth";
+
+// Routes under /auth that must still render for an authenticated session.
+// Clicking a password-reset link signs the user into a temporary recovery
+// session, so redirecting "authenticated" users away makes the reset page
+// impossible to reach.
+const ALLOW_AUTHENTICATED = ["/auth/reset-password"];
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const allowAuthenticated = ALLOW_AUTHENTICATED.some((route) =>
+    pathname?.startsWith(route)
+  );
 
   useEffect(() => {
-    if (!loading && isAuthenticated) {
+    if (!loading && isAuthenticated && !allowAuthenticated) {
       router.push("/library");
     }
-  }, [isAuthenticated, loading, router]);
+  }, [isAuthenticated, loading, router, allowAuthenticated]);
 
   // Show loading state while checking auth
   if (loading) {
@@ -26,8 +36,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Don't render children if authenticated
-  if (isAuthenticated) {
+  // Don't render children if authenticated (except on recovery-session routes)
+  if (isAuthenticated && !allowAuthenticated) {
     return null;
   }
 
