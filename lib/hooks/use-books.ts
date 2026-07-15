@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { isPostgrestError, getErrorMessage } from '@/lib/utils/error'
 import type { Book as AppBook, BookCreate, BookUpdate, BookMetadata, BookRecommendation, Bookmark, TOCItem, Highlight } from '@/types/book'
@@ -30,14 +30,15 @@ const transformBook = (book: DbBook): AppBook => {
     last_read: book.last_read ?? null,
     created_at: book.created_at,
     updated_at: book.updated_at,
-    publication_year: null,  // Set default values for optional fields
-    knowledge_spectrum: null,
-    manual_rating: null,
-    wishlist_priority: null,
-    wishlist_notes: null,
+    // These are stored inside the metadata jsonb column, not as book columns.
+    publication_year: metadata?.publication_year ?? null,
+    knowledge_spectrum: metadata?.knowledge_spectrum ?? null,
+    manual_rating: metadata?.manual_rating ?? null,
+    wishlist_priority: metadata?.wishlist_priority ?? null,
+    wishlist_notes: metadata?.wishlist_notes ?? null,
     priority_score: book.priority_score ?? null,
-    size: null,
-    pages: null,
+    size: metadata?.size ?? null,
+    pages: metadata?.pages ?? null,
     user_id: book.user_id,
     metadata: {
       publisher: metadata?.publisher ?? "",
@@ -56,62 +57,31 @@ const transformBook = (book: DbBook): AppBook => {
   }
 }
 
-// Transform metadata for database operations
+// Transform metadata for database operations.
+// Preserve every field the caller passed — the previous allow-list silently
+// dropped anything it didn't enumerate (recommendations, bookmarks, toc, ...),
+// which wiped stored metadata on any partial update. JSON round-tripping keeps
+// the value JSON-safe and naturally strips `undefined` keys.
 const transformMetadata = (metadata: BookMetadata | undefined): Json => {
   if (!metadata) return {} as Json;
-  
-  // Helper function to convert complex objects to JSON-safe format
-  const toJsonSafe = (obj: any): Json => {
-    return JSON.parse(JSON.stringify(obj));
-  };
 
-  const transformedMetadata: Record<string, Json | undefined> = {
-    // Basic metadata
-    title: metadata.title || null,
-    author: metadata.author || null,
-    description: metadata.description || null,
-    isbn: metadata.isbn || null,
-    publisher: metadata.publisher || null,
-    published_date: metadata.published_date || null,
-    publication_year: metadata.publication_year || null,
-    language: metadata.language || "en",
-    pages: metadata.pages || null,
-    size: metadata.size || null,
-    
-    // Categories and tags
-    categories: metadata.categories || null,
-    tags: metadata.tags || null,
-    
-    // File metadata
-    cover_url: metadata.cover_url || null,
-    
-    // Wishlist metadata
-    wishlist_reason: metadata.wishlist_reason || null,
-    wishlist_source: metadata.wishlist_source || null,
-    wishlist_added_date: metadata.wishlist_added_date || null,
-    wishlist_priority: metadata.wishlist_priority || null,
-    
-    // External links
-    goodreads_url: metadata.goodreads_url || null,
-    amazon_url: metadata.amazon_url || null,
-    
-    // Additional metadata
-    notes: metadata.notes || null,
-    // Convert complex objects to JSON-safe format
-    recommendations: metadata.recommendations ? toJsonSafe(metadata.recommendations) : undefined,
-    bookmarks: metadata.bookmarks ? toJsonSafe(metadata.bookmarks) : undefined,
-    toc: metadata.toc ? toJsonSafe(metadata.toc) : undefined,
-    highlights: metadata.highlights ? toJsonSafe(metadata.highlights) : undefined,
-  };
-
-  return transformedMetadata as Json;
+  return JSON.parse(
+    JSON.stringify({
+      ...metadata,
+      language: metadata.language || "en",
+    })
+  ) as Json;
 }
 
 export function useBooks(searchQuery?: string) {
   const [books, setBooks] = useState<AppBook[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-  const supabase = createClientComponentClient<Database>()
+  // Memoize the client so hook callbacks keep a stable identity across renders.
+  // A fresh client every render made getBook/updateBook change identity, which
+  // re-fired consumer effects that depend on them (e.g. the reader page's
+  // fetch-on-getBook effect looped indefinitely).
+  const supabase = useMemo(() => createClientComponentClient<Database>(), [])
   const { user, isAuthenticated, loading: authLoading } = useAuth()
 
   const fetchBooks = useCallback(async () => {
@@ -252,20 +222,67 @@ export function useBooks(searchQuery?: string) {
   }
 
   // Update book
-  const updateBook = async (id: string, updates: BookUpdate) => {
+  const updateBook = useCallback(async (id: string, updates: BookUpdate) => {
     try {
       if (!user) {
         throw new Error("User not authenticated");
       }
 
+      // Several "book" fields (publication_year, ratings, wishlist_*, size,
+      // pages) live inside the metadata jsonb column, not as real columns.
+      // Pull them out of the top-level payload and fold them into metadata so
+      // we never attempt to update a column that doesn't exist.
+      const {
+        metadata: metadataUpdate,
+        publication_year,
+        knowledge_spectrum,
+        manual_rating,
+        wishlist_priority,
+        wishlist_notes,
+        ...columnUpdates
+      } = updates;
+
+      const virtualMetadata: Partial<BookMetadata> = {};
+      if (publication_year !== undefined)
+        virtualMetadata.publication_year = publication_year ?? undefined;
+      if (knowledge_spectrum !== undefined)
+        virtualMetadata.knowledge_spectrum = knowledge_spectrum ?? undefined;
+      if (manual_rating !== undefined)
+        virtualMetadata.manual_rating = manual_rating ?? undefined;
+      if (wishlist_priority !== undefined)
+        virtualMetadata.wishlist_priority = wishlist_priority ?? undefined;
+      if (wishlist_notes !== undefined)
+        virtualMetadata.wishlist_notes = wishlist_notes ?? undefined;
+
+      const hasMetadataChange =
+        metadataUpdate !== undefined || Object.keys(virtualMetadata).length > 0;
+
+      const payload: Record<string, unknown> = { ...columnUpdates };
+
+      if (hasMetadataChange) {
+        // Merge partial metadata over the current stored value so we never
+        // clobber fields the caller didn't touch (highlights, bookmarks, toc…).
+        const { data: current, error: fetchError } = await supabase
+          .from("books")
+          .select("metadata")
+          .eq("id", id)
+          .eq("user_id", user.id)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        const currentMetadata = (current?.metadata ?? {}) as BookMetadata;
+        const mergedMetadata: BookMetadata = {
+          ...currentMetadata,
+          ...(metadataUpdate ?? {}),
+          ...virtualMetadata,
+        };
+        payload.metadata = transformMetadata(mergedMetadata);
+      }
+
       const { data, error } = await supabase
         .from("books")
-        .update({
-          ...updates,
-          metadata:
-            updates.metadata &&
-            transformMetadata(updates.metadata as BookMetadata),
-        })
+        .update(payload)
         .eq("id", id)
         .eq("user_id", user.id)
         .select()
@@ -281,7 +298,7 @@ export function useBooks(searchQuery?: string) {
       setError(new Error(errorMessage));
       throw err;
     }
-  }
+  }, [user, supabase])
 
   // Delete book
   const deleteBook = async (id: string) => {
@@ -370,7 +387,7 @@ export function useBooks(searchQuery?: string) {
     }
   }
 
-  async function getBook(id: string): Promise<AppBook> {
+  const getBook = useCallback(async (id: string): Promise<AppBook> => {
     const { data, error } = await supabase
       .from("books")
       .select("*")
@@ -381,7 +398,7 @@ export function useBooks(searchQuery?: string) {
     if (!data) throw new Error("Book not found");
 
     return transformBook(data as DbBook);
-  }
+  }, [supabase])
 
   return {
     books,

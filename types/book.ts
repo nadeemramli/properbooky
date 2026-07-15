@@ -52,10 +52,14 @@ export interface BookMetadata {
   wishlist_reason?: string;
   wishlist_source?: string;
   wishlist_priority?: number;
+  wishlist_notes?: string;
   wishlist_added_date?: string;
   notes?: string;
   goodreads_url?: string;
   amazon_url?: string;
+  // Rating fields (stored in metadata, not as book columns)
+  knowledge_spectrum?: number;
+  manual_rating?: number;
   // Additional metadata
   recommendations?: BookRecommendation[];
   bookmarks?: Bookmark[];
