@@ -109,6 +109,39 @@ for (const version of [8, 9, 10]) {
           "epub",
           "pdf",
         ]);
+        writeFileSync(
+          path.join(root, ".properbooky/curation.json"),
+          JSON.stringify({
+            version: 3,
+            organisation: {
+              authors: { "test author": "Preferred Author" },
+              topics: { psychology: "Mind" },
+              roadmaps: [
+                {
+                  id: "r1",
+                  title: "Psychology",
+                  steps: [
+                    { profile_id: "other-profile", note: "Context" },
+                    { profile_id: "profile-id", note: "Foundations" },
+                  ],
+                },
+              ],
+            },
+          }),
+        );
+        const canonical = await call("search_library", {
+          query: "Preferred Author",
+        });
+        assert.equal(canonical.length, 1);
+        assert.equal(canonical[0].author, "Preferred Author");
+        assert.equal(canonical[0].category, "Mind");
+        const roadmaps = await call("reading_roadmaps", {});
+        assert.equal(roadmaps[0].steps.length, 1);
+        assert.deepEqual(roadmaps[0].steps[0].notes, [
+          "Context",
+          "Foundations",
+        ]);
+        assert.equal(roadmaps[0].next_profile_id, "profile-id");
       }
       const highlights = await call("get_highlights", { path: assetPath });
       assert.equal(highlights.length, 1);
