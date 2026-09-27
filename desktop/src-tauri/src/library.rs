@@ -21,6 +21,9 @@ pub struct Details {
     pub duplicate_candidates: Vec<String>,
     pub assets: Vec<crate::consolidation::Asset>,
     pub source_profiles: Vec<crate::consolidation::SourceProfile>,
+    pub metadata_source: Option<crate::enrich::Accepted>,
+    pub browse_authors: Vec<String>,
+    pub browse_topics: Vec<String>,
 }
 
 #[derive(Clone, Serialize)]
@@ -46,7 +49,7 @@ pub struct Book {
     pub details: Details,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Edit {
     pub title: String,
     pub author: Option<String>,
@@ -71,14 +74,47 @@ impl From<&Book> for Edit {
     }
 }
 
+fn source_edit(book: &Book) -> Edit {
+    let mut edit = Edit::from(book);
+    if let Some(source) = book
+        .details
+        .source_profiles
+        .iter()
+        .find(|s| s.id == book.details.stable_id)
+    {
+        edit.author = source.author.clone();
+        edit.category = source.category.clone();
+    }
+    edit
+}
+
+fn preserve_unchanged_labels(book: &Book, edit: &mut Edit) {
+    let raw = source_edit(book);
+    if edit.author == book.author {
+        edit.author = raw.author;
+    }
+    if edit.category == book.category {
+        edit.category = raw.category;
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct MetadataUndo {
+    previous: Option<crate::enrich::Accepted>,
+}
+
 #[derive(Serialize, Deserialize)]
 struct Change {
     id: String,
-    before: Edit,
+    before: Option<Edit>,
     #[serde(default)]
     merges_before: Option<BTreeMap<String, String>>,
     #[serde(default)]
     aliases_before: Option<Vec<String>>,
+    #[serde(default)]
+    organisation_before: Option<crate::organisation::Organisation>,
+    #[serde(default)]
+    metadata_before: Option<MetadataUndo>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -89,16 +125,25 @@ struct Curation {
     history: Vec<Change>,
     #[serde(default)]
     merges: BTreeMap<String, String>,
+    #[serde(default)]
+    revision: u64,
+    #[serde(default)]
+    organisation: crate::organisation::Organisation,
+    #[serde(default)]
+    metadata: BTreeMap<String, crate::enrich::Accepted>,
 }
 
 impl Default for Curation {
     fn default() -> Self {
         Self {
-            version: 2,
+            version: 3,
             edits: BTreeMap::new(),
             aliases: BTreeMap::new(),
             history: Vec::new(),
             merges: BTreeMap::new(),
+            revision: 0,
+            organisation: Default::default(),
+            metadata: BTreeMap::new(),
         }
     }
 }
@@ -108,12 +153,13 @@ fn load(root: &Path) -> Result<Curation> {
         Ok(bytes) => {
             let value: Curation =
                 serde_json::from_slice(&bytes).context("cannot read saved library corrections")?;
-            if ![1, 2].contains(&value.version) {
+            if ![1, 2, 3].contains(&value.version) {
                 bail!("unsupported curation version");
             }
             for id in value.merges.keys() {
                 crate::consolidation::resolve(&value.merges, id)?;
             }
+            crate::organisation::validate(&value.organisation)?;
             Ok(value)
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Curation::default()),
@@ -198,7 +244,8 @@ fn validate_edit(edit: &mut Edit) -> Result<()> {
 
 fn save(root: &Path, mut curation: Curation) -> Result<()> {
     // Older clients must fail visibly instead of silently discarding merges.
-    curation.version = 2;
+    curation.version = 3;
+    curation.revision += 1;
     if let Ok(previous) = fs::read(root.join(".properbooky/curation.json")) {
         identity::atomic_write(&root.join(".properbooky/curation.previous.json"), &previous)?;
     }
@@ -223,10 +270,13 @@ pub fn update(conn: &Connection, root: &Path, id: &str, mut edit: Edit) -> Resul
     }
     curation.history.push(Change {
         id: id.into(),
-        before: Edit::from(book),
+        before: Some(source_edit(book)),
         merges_before: None,
         aliases_before: None,
+        organisation_before: None,
+        metadata_before: None,
     });
+    preserve_unchanged_labels(book, &mut edit);
     curation.edits.insert(id.into(), edit);
     save(root, curation)?;
     apply_curation(conn, root)
@@ -241,7 +291,22 @@ pub fn undo(conn: &Connection, root: &Path) -> Result<()> {
     if let Some(aliases) = change.aliases_before {
         curation.aliases.insert(change.id.clone(), aliases);
     }
-    curation.edits.insert(change.id, change.before);
+    if let Some(before) = change.before {
+        curation.edits.insert(change.id.clone(), before);
+    }
+    if let Some(before) = change.organisation_before {
+        curation.organisation = before;
+    }
+    if let Some(before) = change.metadata_before {
+        match before.previous {
+            Some(previous) => {
+                curation.metadata.insert(change.id.clone(), previous);
+            }
+            None => {
+                curation.metadata.remove(&change.id);
+            }
+        }
+    }
     if let Some(merges) = change.merges_before {
         curation.merges = merges;
     }
@@ -273,9 +338,11 @@ pub fn merge(
     let mut curation = load(root)?;
     curation.history.push(Change {
         id: keep.into(),
-        before: Edit::from(primary),
+        before: Some(source_edit(primary)),
         merges_before: Some(curation.merges.clone()),
         aliases_before: Some(curation.aliases.get(keep).cloned().unwrap_or_default()),
+        organisation_before: None,
+        metadata_before: None,
     });
     let aliases = curation.aliases.entry(keep.into()).or_default();
     for b in [primary, secondary] {
@@ -317,6 +384,97 @@ pub fn source_text(root: &Path, id: &str) -> Result<String> {
             ""
         }
     ))
+}
+
+#[derive(Serialize)]
+pub struct OrganisationView {
+    pub revision: u64,
+    pub value: crate::organisation::Organisation,
+}
+
+pub fn organisation(root: &Path) -> Result<OrganisationView> {
+    let curation = load(root)?;
+    Ok(OrganisationView {
+        revision: curation.revision,
+        value: curation.organisation,
+    })
+}
+
+pub fn save_organisation(
+    root: &Path,
+    revision: u64,
+    value: crate::organisation::Organisation,
+) -> Result<()> {
+    crate::organisation::validate(&value)?;
+    let mut curation = load(root)?;
+    anyhow::ensure!(
+        curation.revision == revision,
+        "library changed while you were editing; close and reopen Organize library"
+    );
+    let registry = identity::Registry::load(root)?;
+    for roadmap in &value.roadmaps {
+        for step in &roadmap.steps {
+            anyhow::ensure!(
+                registry.records.iter().any(|r| r.id == step.profile_id),
+                "unknown profile in roadmap"
+            );
+        }
+    }
+    curation.history.push(Change {
+        id: String::new(),
+        before: None,
+        merges_before: None,
+        aliases_before: None,
+        organisation_before: Some(curation.organisation.clone()),
+        metadata_before: None,
+    });
+    curation.organisation = value;
+    save(root, curation)
+}
+
+pub fn accept_metadata(
+    conn: &Connection,
+    root: &Path,
+    id: &str,
+    expected: &Edit,
+    mut edit: Edit,
+    mut accepted: crate::enrich::Accepted,
+) -> Result<()> {
+    validate_edit(&mut edit)?;
+    let books = list(conn, root, None)?;
+    let book = books
+        .iter()
+        .find(|b| b.details.stable_id == id)
+        .context("profile changed; reopen its details")?;
+    anyhow::ensure!(
+        &Edit::from(book) == expected,
+        "profile changed while you were reviewing metadata; reopen its details"
+    );
+    let mut curation = load(root)?;
+    // Choosing metadata without a new cover must retain a previously accepted cover.
+    if accepted.cover.is_none() {
+        accepted.cover = curation.metadata.get(id).and_then(|m| m.cover.clone());
+    }
+    curation.history.push(Change {
+        id: id.into(),
+        before: Some(source_edit(book)),
+        merges_before: None,
+        aliases_before: Some(curation.aliases.get(id).cloned().unwrap_or_default()),
+        organisation_before: None,
+        metadata_before: Some(MetadataUndo {
+            previous: curation.metadata.get(id).cloned(),
+        }),
+    });
+    curation.aliases.entry(id.into()).or_default().push(format!(
+        "{} {}",
+        book.title,
+        book.author.as_deref().unwrap_or("")
+    ));
+    preserve_unchanged_labels(book, &mut edit);
+    curation.edits.insert(id.into(), edit);
+    curation.metadata.insert(id.into(), accepted);
+    save(root, curation)?;
+    apply_curation(conn, root)
 }
 
 pub fn export_identities(
@@ -371,6 +529,11 @@ pub fn export_identities(
                 record.path.clone(),
                 (edit.title.clone(), edit.author.clone()),
             );
+        }
+    }
+    for (_, author) in map.values_mut() {
+        if let Some(name) = author {
+            *name = crate::organisation::label(name, &curation.organisation.authors)?;
         }
     }
     Ok(())
@@ -477,6 +640,15 @@ pub fn list(conn: &Connection, root: &Path, query: Option<&str>) -> Result<Vec<B
         }
     }
     for book in &mut books {
+        if let Some(metadata) = curation.metadata.get(&book.details.stable_id) {
+            book.details.metadata_source = Some(metadata.clone());
+            if let Some(cover) = &metadata.cover {
+                let path = identity::safe_join(root, cover)?;
+                if path.is_file() {
+                    book.cover = Some(path.to_string_lossy().into_owned());
+                }
+            }
+        }
         let path = if book.kind == "catalog" {
             book.file_link.as_deref()
         } else {
@@ -533,6 +705,36 @@ pub fn list(conn: &Connection, root: &Path, query: Option<&str>) -> Result<Vec<B
         }
     }
     let mut books = crate::consolidation::project(books, &curation.merges)?;
+    for book in &mut books {
+        book.author = book
+            .author
+            .as_deref()
+            .map(|a| crate::organisation::label(a, &curation.organisation.authors))
+            .transpose()?;
+        book.category =
+            crate::organisation::topics(book.category.as_deref(), &curation.organisation.topics)?;
+        for source in &book.details.source_profiles {
+            if let Some(author) = &source.author {
+                let name = crate::organisation::label(author, &curation.organisation.authors)?;
+                if !book.details.browse_authors.contains(&name) {
+                    book.details.browse_authors.push(name);
+                }
+            }
+            for topic in crate::organisation::topics(
+                source.category.as_deref(),
+                &curation.organisation.topics,
+            )?
+            .unwrap_or_default()
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            {
+                if !book.details.browse_topics.iter().any(|t| t == topic) {
+                    book.details.browse_topics.push(topic.into());
+                }
+            }
+        }
+    }
     if let Some(query) = query.filter(|q| !q.trim().is_empty()) {
         let terms: Vec<_> = query
             .to_lowercase()
@@ -561,13 +763,15 @@ pub fn list(conn: &Connection, root: &Path, query: Option<&str>) -> Result<Vec<B
                 .collect::<Vec<_>>()
                 .join(" ");
             let haystack = format!(
-                "{} {} {} {} {} {}",
+                "{} {} {} {} {} {} {} {}",
                 b.title,
                 b.author.as_deref().unwrap_or(""),
                 b.category.as_deref().unwrap_or(""),
                 b.filename,
                 b.file_link.as_deref().unwrap_or(""),
-                aliases
+                aliases,
+                b.details.browse_authors.join(" "),
+                b.details.browse_topics.join(" ")
             )
             .to_lowercase();
             terms.iter().all(|term| haystack.contains(term))

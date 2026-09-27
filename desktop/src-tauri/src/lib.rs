@@ -10,6 +10,7 @@ pub mod extract;
 pub mod identity;
 pub mod library;
 pub mod matcher;
+pub mod organisation;
 pub mod scanner;
 use library::Book;
 static LIBRARY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -147,6 +148,79 @@ fn library_root(conn: &Connection) -> Result<PathBuf, String> {
         .map_err(|e| e.to_string())?
         .map(PathBuf::from)
         .ok_or_else(|| "no library configured".into())
+}
+
+#[tauri::command]
+async fn get_organisation(app: tauri::AppHandle) -> Result<library::OrganisationView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        library::organisation(&library_root(&conn)?).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn save_organisation(
+    app: tauri::AppHandle,
+    revision: u64,
+    value: organisation::Organisation,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        library::save_organisation(&library_root(&conn)?, revision, value)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn lookup_metadata(
+    app: tauri::AppHandle,
+    title: String,
+    author: String,
+    refresh: bool,
+) -> Result<enrich::Suggestions, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        // Network lookup does not hold up local reading or library edits.
+        let root = {
+            let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+            library_root(&open_db(&app)?)?
+        };
+        enrich::search(&root, &title, &author, refresh).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn accept_metadata(
+    app: tauri::AppHandle,
+    id: String,
+    expected: library::Edit,
+    edit: library::Edit,
+    candidate: enrich::OlDoc,
+    use_cover: bool,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = {
+            let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+            library_root(&open_db(&app)?)?
+        };
+        let accepted = enrich::accepted(&root, candidate, use_cover).map_err(|e| e.to_string())?;
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        if library_root(&conn)? != root {
+            return Err("library folder changed; reopen the profile".into());
+        }
+        library::accept_metadata(&conn, &root, &id, &expected, edit, accepted)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Sidecar path for per-book reading state, under `<library>/.properbooky/state/`.
@@ -411,6 +485,10 @@ pub fn run() {
             scan_library,
             list_books,
             update_book,
+            get_organisation,
+            save_organisation,
+            lookup_metadata,
+            accept_metadata,
             merge_books,
             get_profile_source,
             undo_library_edit,

@@ -1,4 +1,4 @@
-use desktop_lib::enrich::{pick_isbn, pick_match, OlDoc};
+use desktop_lib::enrich::{accepted, pick_match, OlDoc};
 
 fn doc(title: &str, authors: &[&str], year: i64, cover: i64) -> OlDoc {
     OlDoc {
@@ -7,6 +7,7 @@ fn doc(title: &str, authors: &[&str], year: i64, cover: i64) -> OlDoc {
         first_publish_year: Some(year),
         cover_i: Some(cover),
         isbn: vec!["9780141031487".into(), "0141031484".into()],
+        ..Default::default()
     }
 }
 
@@ -32,24 +33,29 @@ fn accepts_matching_title_and_author() {
 
 #[test]
 fn rejects_wrong_author_even_with_similar_title() {
-    let docs = vec![doc(
-        "The Art of Seduction",
-        &["Robert Greene"],
-        2001,
-        7,
-    )];
+    let docs = vec![doc("The Art of Seduction", &["Robert Greene"], 2001, 7)];
     // Similar-ish garbled query with a different author must not attach.
     assert!(pick_match("The Art of Client Service", Some("Robert Solomon"), &docs).is_none());
 }
 
 #[test]
 fn authorless_query_needs_near_exact_distinctive_title() {
-    let docs = vec![doc("Thinking, Fast and Slow", &["Daniel Kahneman"], 2011, 9)];
+    let docs = vec![doc(
+        "Thinking, Fast and Slow",
+        &["Daniel Kahneman"],
+        2011,
+        9,
+    )];
     assert!(pick_match("Thinking Fast and Slow", None, &docs).is_some());
     // Too few tokens to trust without an author.
     let short = vec![doc("PDF", &[], 2000, 1)];
     assert!(pick_match(") pdf", None, &short).is_none());
-    assert!(pick_match("Deep Work", None, &[doc("Deep Work", &["Cal Newport"], 2016, 9)]).is_none());
+    assert!(pick_match(
+        "Deep Work",
+        None,
+        &[doc("Deep Work", &["Cal Newport"], 2016, 9)]
+    )
+    .is_none());
 }
 
 #[test]
@@ -59,7 +65,11 @@ fn garbled_adopted_title_finds_nothing() {
 }
 
 #[test]
-fn prefers_isbn13() {
-    let d = doc("X", &[], 2000, 1);
-    assert_eq!(pick_isbn(&d).as_deref(), Some("9780141031487"));
+fn work_isbns_and_first_publish_year_are_not_accepted_as_edition_metadata() {
+    let root = tempfile::tempdir().unwrap();
+    let mut d = doc("X", &[], 2000, 1);
+    d.key = "/works/OL1W".into();
+    let result = serde_json::to_value(accepted(root.path(), d, false).unwrap()).unwrap();
+    assert!(result.get("isbn").is_none());
+    assert!(result.get("year").is_none());
 }
