@@ -37,6 +37,7 @@ export function combinedTopics(books: Book[]): string | null {
 }
 
 export function authorLabels(book: Book): string[] {
+  if (book.browse_authors) return book.browse_authors;
   return [
     ...new Set(
       [book.author, ...book.source_profiles.map((s) => s.author)].filter(
@@ -46,6 +47,7 @@ export function authorLabels(book: Book): string[] {
   ];
 }
 export function topicLabels(book: Book): string[] {
+  if (book.browse_topics) return book.browse_topics;
   return [
     ...new Set(
       [book.category, ...book.source_profiles.map((s) => s.category)].flatMap(

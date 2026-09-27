@@ -4,6 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import AcquirePanel from "./AcquirePanel";
 import ObsidianPanel from "./ObsidianPanel";
 import BookReview from "./BookReview";
+import OrganizeLibrary from "./OrganizeLibrary";
 import { authorKey, authorLabels, topicKey, topicLabels } from "./bookMetadata";
 import type { Book, LibraryState, ScanResult } from "./types";
 
@@ -111,6 +112,7 @@ export default function LibraryView({
   const [showAcquire, setShowAcquire] = useState(false);
   const [showSaveUrl, setShowSaveUrl] = useState(false);
   const [showObsidian, setShowObsidian] = useState(false);
+  const [showOrganize, setShowOrganize] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [savingUrl, setSavingUrl] = useState(false);
   const [review, setReview] = useState<Book | null>(null);
@@ -242,6 +244,9 @@ export default function LibraryView({
             </button>
             <button onClick={() => setShowSaveUrl((s) => !s)}>Save URL</button>
             <button onClick={() => setShowObsidian(true)}>Obsidian</button>
+            <button onClick={() => setShowOrganize(true)}>
+              Organize library
+            </button>
           </>
         )}
       </header>
@@ -510,6 +515,20 @@ export default function LibraryView({
         />
       )}
       {showObsidian && <ObsidianPanel onClose={() => setShowObsidian(false)} />}
+      {showOrganize && (
+        <OrganizeLibrary
+          onClose={() => setShowOrganize(false)}
+          onOpen={onOpen}
+          onSaved={async () => {
+            setAuthorFilter("");
+            setTopicFilter("");
+            await refreshBooks(query);
+            setStatus(
+              "Organization saved. Undo is available in Library cleanup.",
+            );
+          }}
+        />
+      )}
       {review && (
         <BookReview
           key={review.stable_id}

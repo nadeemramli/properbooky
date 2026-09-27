@@ -9,6 +9,7 @@ import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { remote } from "webdriverio";
+import { createHash } from "node:crypto";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const application =
@@ -38,6 +39,30 @@ writeFileSync(
   "---\ntitle: A reading article\nauthor: Test Author\nsource_url: https://example.com/article\n---\n\n# The article\n\nReading content that survives library corrections.\n",
 );
 const appData = path.join(temp, "data");
+// Exercise the real lookup command offline through its normal persisted cache.
+const metadataCache = path.join(library, ".properbooky/metadata-cache");
+mkdirSync(metadataCache, { recursive: true });
+writeFileSync(
+  path.join(
+    metadataCache,
+    `${createHash("sha256").update("0071713166.pdf\nStandard Author").digest("hex")}.json`,
+  ),
+  JSON.stringify({
+    fetched_at: Math.floor(Date.now() / 1000),
+    stale: false,
+    docs: [
+      {
+        key: "/works/OL1W",
+        title: "Clean Book Title",
+        author_name: ["Standard Author"],
+        subject: ["Psychology"],
+        first_publish_year: 1999,
+        cover_i: null,
+        isbn: [],
+      },
+    ],
+  }),
+);
 execFileSync(path.join(path.dirname(application), "examples/seed_index"), [
   library,
   path.join(appData, "com.nadeemramli.properbooky/library.db"),
@@ -53,19 +78,31 @@ try {
     hostname: "127.0.0.1",
     port: 4444,
     logLevel: "warn",
+    connectionRetryTimeout: 30000,
+    connectionRetryCount: 0,
+    waitforTimeout: 10000,
     capabilities: { alwaysMatch: { "tauri:options": { application } } },
   });
   const count = async (n) =>
     browser.waitUntil(async () => (await browser.$$(".card")).length === n, {
       timeout: 20000,
     });
-  const click = async (text) => browser.$(`button=${text}`).click();
+  const click = async (text) => {
+    console.log(`UI: ${text}`);
+    await browser.$(`button=${text}`).click();
+  };
+  const screenshot = async (name) => {
+    if (process.env.PB_SCREENSHOTS !== "1") return;
+    await browser.saveScreenshot(path.join(temp, name));
+  };
   const type = async (selector, value) => {
     await browser.execute(
       (selector, value) => {
         const el = document.querySelector(selector);
         Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
+          el instanceof HTMLTextAreaElement
+            ? HTMLTextAreaElement.prototype
+            : HTMLInputElement.prototype,
           "value",
         ).set.call(el, value);
         el.dispatchEvent(new Event("input", { bubbles: true }));
@@ -74,6 +111,24 @@ try {
       value,
     );
     await wait(350);
+  };
+  // WebKit's native option clicking can return without firing change after
+  // closing a modal. Set the DOM control and dispatch its normal change event.
+  const select = async (selector, value) => {
+    await browser.execute(
+      (selector, value) => {
+        const el = document.querySelector(selector);
+        if (![...el.options].some((option) => option.value === value))
+          throw new Error(`Missing option: ${value}`);
+        Object.getOwnPropertyDescriptor(
+          HTMLSelectElement.prototype,
+          "value",
+        ).set.call(el, value);
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      },
+      selector,
+      value,
+    );
   };
   await count(4); // Linked raw file is hidden, duplicate profiles remain reviewable.
   await click("On the shelf");
@@ -89,7 +144,7 @@ try {
     /Other edition/,
   );
   await type(".review-fields input", "Corrected Title");
-  await browser.$(".review-fields select").selectByAttribute("value", "report");
+  await select(".review-fields select", "report");
   await click("Preview changes");
   assert.match(
     await browser.$(".book-review table").getText(),
@@ -99,7 +154,7 @@ try {
     await browser.$(".book-review table").getText(),
     /Corrected Title/,
   );
-  await browser.saveScreenshot(path.join(temp, "review-preview.png"));
+  await screenshot("review-preview.png");
   await click("Save changes");
   await browser.$(".book-review").waitForExist({ reverse: true });
   await click("Documents");
@@ -133,18 +188,15 @@ try {
   );
   await click("Everything");
   await count(4);
-  await browser
-    .$('select[aria-label="Filter by author"]')
-    .selectByAttribute("value", "test author");
+  await select('select[aria-label="Filter by author"]', "test author");
   await count(3);
-  await browser
-    .$('select[aria-label="Filter by topic"]')
-    .selectByAttribute("value", "self help");
+  await select('select[aria-label="Filter by topic"]', "self help");
   await count(2);
   await click("Clear browse filters");
   await click("Continue reading");
   await count(1);
   await click("Review details");
+  await type(".candidate-search input", "Other edition");
   await click("Review combination");
   await browser.$(".merge-review").waitForExist();
   await click("Cancel");
@@ -163,7 +215,7 @@ try {
     await browser.$(".merge-review").getText(),
     /2 source profiles and 1 linked file/,
   );
-  await browser.saveScreenshot(path.join(temp, "merge-preview.png"));
+  await screenshot("merge-preview.png");
   await click("Combine profiles");
   await browser.$(".merge-review").waitForExist({ reverse: true });
   await click("Everything");
@@ -202,13 +254,121 @@ try {
     readFileSync(path.join(library, "Catalog/original.md"), "utf8"),
     source,
   );
+  // Shared labels, ordered roadmaps and reviewed enrichment use real Tauri IPC.
+  await click("Organize library");
+  await browser
+    .$('.organize-library input[list="existing-labels"]')
+    .waitForExist();
+  await type('.organize-library input[list="existing-labels"]', "Test Author");
+  await type(
+    ".organize-library .review-fields label:nth-child(3) input",
+    "Standard Author",
+  );
+  await click("Add label rule");
+  await select(".organize-library .review-fields select", "topics");
+  await type('.organize-library input[list="existing-labels"]', "Self-help");
+  await type(
+    ".organize-library .review-fields label:nth-child(3) input",
+    "Personal Growth",
+  );
+  await click("Add label rule");
+  await click("Reading roadmaps");
+  await click("New roadmap");
+  await type(
+    ".organize-library .review-fields input",
+    "Psychology foundations",
+  );
+  await click("Add: 0071713166.pdf");
+  await click("Add: Other edition");
+  await click("Add: Future Book");
+  await type(".roadmap-steps textarea", "Start with the foundations");
+  await browser.$('button[aria-label="Move earlier: Future Book"]').click();
+  assert.deepEqual(
+    await browser.$$(".roadmap-steps strong").map((el) => el.getText()),
+    ["0071713166.pdf", "Future Book", "Other edition"],
+  );
+  await click("Preview organization");
+  assert.match(
+    await browser.$(".organize-library").getText(),
+    /3 profiles will display updated/,
+  );
+  await screenshot("organization-preview.png");
+  await click("Save organization");
+  await browser.$(".organize-library").waitForExist({ reverse: true });
+  await click("Everything");
+  await select('select[aria-label="Filter by author"]', "standard author");
+  await count(3);
+  await select('select[aria-label="Filter by topic"]', "personal growth");
+  await count(2);
+  await click("Clear browse filters");
+  await click("Continue reading");
+  await count(1);
+  await click("Review details");
+  await type(".candidate-search input", "Other edition");
+  await click("Review combination");
+  await click("Preview combination");
+  await click("Combine profiles");
+  await browser.$(".merge-review").waitForExist({ reverse: true });
+  await click("Organize library");
+  await click("Reading roadmaps");
+  await browser.waitUntil(
+    async () => (await browser.$$(".roadmap-steps > li")).length === 2,
+  );
+  assert.match(
+    await browser.$(".roadmap-steps").getText(),
+    /Start with the foundations/,
+  );
+  await screenshot("roadmap.png");
+  await click("Close");
+  await click("Library cleanup");
+  await click("Undo last correction");
+  await click("Continue reading");
+  await count(1);
+  await click("Review details");
+  await click("Look up metadata");
+  await browser.$(".metadata-results article").waitForExist();
+  await click("Choose this result");
+  await click("Use selected fields");
+  await click("Preview changes");
+  assert.match(
+    await browser.$(".book-review").getText(),
+    /Edition year and ISBN stay unchanged/,
+  );
+  await click("Save changes");
+  await browser.$(".book-review").waitForExist({ reverse: true });
+  assert.equal(await browser.$(".card h2").getText(), "Clean Book Title");
+  await click("Rescan");
+  await browser.waitUntil(async () =>
+    (await browser.$(".status").getText()).startsWith("Indexed"),
+  );
+  assert.match(await browser.$(".card .meta").getText(), /2014/);
+  await click("Organize library");
+  await click("Reading roadmaps");
+  await browser.waitUntil(
+    async () => (await browser.$$(".roadmap-steps > li")).length === 3,
+  );
+  assert.equal(
+    await browser.$(".roadmap-steps strong").getText(),
+    "Clean Book Title",
+  );
+  await click("Close");
+  await click("Library cleanup");
+  await click("Undo last correction");
+  await click("Continue reading");
+  await count(1);
+  assert.equal(await browser.$(".card h2").getText(), "0071713166.pdf");
+  assert.equal(
+    readFileSync(path.join(library, "Catalog/original.md"), "utf8"),
+    source,
+  );
+  await click("Everything");
   await type('.toolbar input[type="search"]', "A reading article");
   await count(1);
   await click("Read");
   await browser.$(".reader").waitForExist({ timeout: 15000 });
   await browser.$(".tab-library").click();
   await browser.$('.toolbar input[type="search"]').waitForExist();
-  await browser.saveScreenshot(path.join(temp, "library.png"));
+  await screenshot("library.png");
   console.log(`LIBRARY REVIEW E2E: PASS; artifacts: ${temp}`);
 } catch (error) {
   if (browser) {

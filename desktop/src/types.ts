@@ -11,6 +11,16 @@ export interface Book {
   duplicate_candidates: string[];
   assets: BookAsset[];
   source_profiles: SourceProfile[];
+  browse_authors: string[];
+  browse_topics: string[];
+  metadata_source: {
+    source_url: string;
+    accepted_at: number;
+    suggested_title: string;
+    suggested_authors: string[];
+    suggested_topics: string[];
+    cover: string | null;
+  } | null;
   path: string;
   filename: string;
   title: string;
@@ -27,6 +37,30 @@ export interface Book {
   year: number | null;
   spectrum: string | null;
   priority: number | null;
+}
+
+export interface MetadataCandidate {
+  key: string;
+  title: string;
+  author_name: string[];
+  subject: string[];
+  first_publish_year: number | null;
+  cover_i: number | null;
+}
+
+export interface Organisation {
+  authors: Record<string, string>;
+  topics: Record<string, string>;
+  roadmaps: {
+    id: string;
+    title: string;
+    description: string;
+    steps: { profile_id: string; note: string }[];
+  }[];
+}
+export interface OrganisationView {
+  revision: number;
+  value: Organisation;
 }
 
 export interface BookAsset {

@@ -1115,3 +1115,80 @@ body {
   text-align: center;
   font-size: 0.85rem;
 }
+.metadata-lookup,
+.metadata-selection {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border: 1px solid var(--border, #394638);
+  border-radius: 8px;
+}
+.metadata-results article {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border, #394638);
+}
+.metadata-selection .check,
+.topic-suggestions .check {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0.6rem 0;
+}
+.topic-suggestions {
+  max-height: 200px;
+  overflow: auto;
+}
+.organize-library textarea {
+  display: block;
+  width: 100%;
+  min-height: 4rem;
+  box-sizing: border-box;
+  font: inherit;
+  color: inherit;
+  background: var(--bg, #171c17);
+  border: 1px solid var(--border, #394638);
+  border-radius: 5px;
+  padding: 0.6rem;
+}
+.label-rules {
+  padding: 0;
+  list-style: none;
+}
+.label-rules li,
+.roadmap-toolbar {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0.7rem 0;
+}
+.roadmap-toolbar label {
+  display: grid;
+  gap: 0.5rem;
+  flex: 1;
+}
+.roadmap-steps {
+  padding-left: 1.8rem;
+}
+.roadmap-steps li {
+  padding: 1rem 0.5rem;
+  border-bottom: 1px solid var(--border, #394638);
+}
+.roadmap-steps .card-actions {
+  flex-wrap: wrap;
+  margin-top: 0.7rem;
+}
+.roadmap-results {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.roadmap-results button {
+  text-align: left;
+}
+.suggested-cover {
+  float: right;
+  max-width: 100px;
+  max-height: 150px;
+  margin: 0 0 1rem 1rem;
+}

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { Book, BookEdit } from "./types";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import type { Book, BookEdit, MetadataCandidate } from "./types";
+import MetadataLookup from "./MetadataLookup";
 
 import { bookEdit } from "./bookMetadata";
 import MergeReview from "./MergeReview";
@@ -33,6 +35,10 @@ export default function BookReview({
   const [candidates, setCandidates] = useState<Book[]>([]);
   const [candidateQuery, setCandidateQuery] = useState("");
   const [mergeTarget, setMergeTarget] = useState<Book | null>(null);
+  const [metadata, setMetadata] = useState<{
+    candidate: MetadataCandidate;
+    cover: boolean;
+  } | null>(null);
   useEffect(() => {
     dialog.current?.showModal();
   }, [mergeTarget]);
@@ -60,7 +66,15 @@ export default function BookReview({
     setBusy(true);
     setError(null);
     try {
-      await invoke("update_book", { id: book.stable_id, edit });
+      if (metadata)
+        await invoke("accept_metadata", {
+          id: book.stable_id,
+          expected: original,
+          edit,
+          candidate: metadata.candidate,
+          useCover: metadata.cover,
+        });
+      else await invoke("update_book", { id: book.stable_id, edit });
       await onSaved();
       onClose();
     } catch (e) {
@@ -138,6 +152,29 @@ export default function BookReview({
               ))}
             </tbody>
           </table>
+          {metadata && (
+            <p>
+              Metadata source:{" "}
+              <a
+                href={`https://openlibrary.org${metadata.candidate.key}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  openUrl(
+                    `https://openlibrary.org${metadata.candidate.key}`,
+                  ).catch((error) => setError(String(error)));
+                }}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {metadata.candidate.title} · Open Library
+              </a>
+              .{" "}
+              {metadata.cover
+                ? "Download and use this result’s cover."
+                : "Keep the current cover."}{" "}
+              Edition year and ISBN stay unchanged.
+            </p>
+          )}
           <p>
             These corrections stay with your library. Original files and
             filenames are preserved. You can undo the change from Library
@@ -254,6 +291,46 @@ export default function BookReview({
               Up next
             </label>
           </div>
+          {book.content_type === "book" ||
+          book.content_type === "unidentified" ? (
+            <MetadataLookup
+              edit={edit}
+              hasCover={Boolean(book.cover)}
+              onSelect={(candidate, nextEdit, cover) => {
+                setEdit(nextEdit);
+                setMetadata({ candidate, cover });
+              }}
+            />
+          ) : null}
+          {metadata && (
+            <p role="status">
+              Suggestions selected from {metadata.candidate.title}. Preview
+              changes to save them.
+            </p>
+          )}
+          {book.metadata_source && (
+            <p>
+              Last accepted metadata:{" "}
+              <a
+                href={book.metadata_source.source_url}
+                onClick={(e) => {
+                  e.preventDefault();
+                  openUrl(book.metadata_source!.source_url).catch((error) =>
+                    setError(String(error)),
+                  );
+                }}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {book.metadata_source.suggested_title} · Open Library
+              </a>
+              ,{" "}
+              {new Date(
+                book.metadata_source.accepted_at * 1000,
+              ).toLocaleDateString()}
+              .
+            </p>
+          )}
           <details className="review-source">
             <summary>Original location and edition context</summary>
             <p>{book.path}</p>
@@ -305,14 +382,14 @@ export default function BookReview({
                     <button
                       type="button"
                       onClick={() => setMergeTarget(candidate)}
-                      disabled={changed.length > 0}
+                      disabled={changed.length > 0 || metadata !== null}
                     >
                       Review combination
                     </button>
                   </div>
                 </article>
               ))}
-              {changed.length > 0 && (
+              {(changed.length > 0 || metadata !== null) && (
                 <p>
                   Save or cancel your metadata edits before combining profiles.
                 </p>
@@ -329,7 +406,9 @@ export default function BookReview({
             <button
               className="primary"
               type="submit"
-              disabled={!edit.title.trim() || changed.length === 0}
+              disabled={
+                !edit.title.trim() || (changed.length === 0 && !metadata)
+              }
             >
               Preview changes
             </button>
