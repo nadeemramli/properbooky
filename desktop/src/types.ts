@@ -1,5 +1,14 @@
 export interface Book {
   id: number;
+  stable_id: string;
+  asset_id: string | null;
+  availability: "local" | "missing" | "none";
+  reading_status: "unread" | "reading" | "paused" | "finished" | "stopped";
+  want_to_read: boolean;
+  up_next: boolean;
+  content_type: string;
+  issues: string[];
+  duplicate_candidates: string[];
   path: string;
   filename: string;
   title: string;
@@ -17,6 +26,17 @@ export interface Book {
   spectrum: string | null;
   priority: number | null;
 }
+
+export type BookEdit = Pick<
+  Book,
+  | "title"
+  | "author"
+  | "category"
+  | "content_type"
+  | "reading_status"
+  | "want_to_read"
+  | "up_next"
+>;
 
 export interface LibraryState {
   library_path: string | null;
