@@ -4,19 +4,25 @@ use std::path::Path;
 
 /// Bump when the schema changes. The index is disposable (files are the
 /// source of truth), so a mismatch drops and recreates everything.
-const SCHEMA_VERSION: i64 = 8;
+const SCHEMA_VERSION: i64 = 9;
 
 pub fn open(db_path: &Path) -> Result<Connection> {
     if let Some(parent) = db_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
     let conn = Connection::open(db_path)?;
+    conn.busy_timeout(std::time::Duration::from_secs(10))?;
+    conn.pragma_update(None, "journal_mode", "WAL")?;
+    let migration = conn.unchecked_transaction()?;
     let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+    anyhow::ensure!(
+        version <= SCHEMA_VERSION,
+        "index was written by a newer ProperBooky version"
+    );
     if version != 0 && version != SCHEMA_VERSION {
         conn.execute_batch(
             "DROP TABLE IF EXISTS books_fts;
              DROP TABLE IF EXISTS books;
-             DROP TABLE IF EXISTS settings;
              DROP TABLE IF EXISTS chunks_fts;
              DROP TABLE IF EXISTS chunks;",
         )?;
@@ -24,7 +30,6 @@ pub fn open(db_path: &Path) -> Result<Connection> {
     conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     conn.execute_batch(
         r#"
-        PRAGMA journal_mode = WAL;
 
         CREATE TABLE IF NOT EXISTS settings (
             key   TEXT PRIMARY KEY,
@@ -46,6 +51,12 @@ pub fn open(db_path: &Path) -> Result<Connection> {
             cover       TEXT,
             year        INTEGER,
             spectrum    TEXT,
+            stable_id   TEXT,
+            asset_id    TEXT,
+            reading_status TEXT NOT NULL DEFAULT 'unread',
+            want_to_read INTEGER NOT NULL DEFAULT 0,
+            up_next INTEGER NOT NULL DEFAULT 0,
+            content_type TEXT NOT NULL DEFAULT 'unidentified',
             format      TEXT NOT NULL,
             size_bytes  INTEGER NOT NULL,
             modified_at INTEGER NOT NULL,
@@ -96,6 +107,7 @@ pub fn open(db_path: &Path) -> Result<Connection> {
         END;
         "#,
     )?;
+    migration.commit()?;
     Ok(conn)
 }
 

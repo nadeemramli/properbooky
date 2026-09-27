@@ -1,0 +1,424 @@
+use crate::identity;
+use anyhow::{bail, Context, Result};
+use rusqlite::{params, Connection};
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fs,
+    path::Path,
+};
+
+#[derive(Clone, Default, Serialize)]
+pub struct Details {
+    pub stable_id: String,
+    pub asset_id: Option<String>,
+    pub availability: String,
+    pub reading_status: String,
+    pub want_to_read: bool,
+    pub up_next: bool,
+    pub content_type: String,
+    pub issues: Vec<String>,
+    pub duplicate_candidates: Vec<String>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct Book {
+    pub id: i64,
+    pub path: String,
+    pub filename: String,
+    pub title: String,
+    pub author: Option<String>,
+    pub category: Option<String>,
+    pub kind: String,
+    pub status: Option<String>,
+    pub rating: Option<i64>,
+    pub file_link: Option<String>,
+    pub format: String,
+    pub size_bytes: i64,
+    pub recommended: bool,
+    pub cover: Option<String>,
+    pub year: Option<i64>,
+    pub spectrum: Option<String>,
+    pub priority: Option<f64>,
+    #[serde(flatten)]
+    pub details: Details,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Edit {
+    pub title: String,
+    pub author: Option<String>,
+    pub category: Option<String>,
+    pub content_type: String,
+    pub reading_status: String,
+    pub want_to_read: bool,
+    pub up_next: bool,
+}
+
+impl From<&Book> for Edit {
+    fn from(b: &Book) -> Self {
+        Self {
+            title: b.title.clone(),
+            author: b.author.clone(),
+            category: b.category.clone(),
+            content_type: b.details.content_type.clone(),
+            reading_status: b.details.reading_status.clone(),
+            want_to_read: b.details.want_to_read,
+            up_next: b.details.up_next,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct Change {
+    id: String,
+    before: Edit,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Curation {
+    version: u32,
+    edits: BTreeMap<String, Edit>,
+    aliases: BTreeMap<String, Vec<String>>,
+    history: Vec<Change>,
+}
+
+impl Default for Curation {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            edits: BTreeMap::new(),
+            aliases: BTreeMap::new(),
+            history: Vec::new(),
+        }
+    }
+}
+
+fn load(root: &Path) -> Result<Curation> {
+    match fs::read(root.join(".properbooky/curation.json")) {
+        Ok(bytes) => {
+            let value: Curation =
+                serde_json::from_slice(&bytes).context("cannot read saved library corrections")?;
+            if value.version != 1 {
+                bail!("unsupported curation version");
+            }
+            Ok(value)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Curation::default()),
+        Err(e) => Err(e.into()),
+    }
+}
+
+fn apply(conn: &Connection, id: &str, edit: &Edit) -> Result<()> {
+    conn.execute("UPDATE books SET title=?1, author=?2, category=?3, content_type=?4, reading_status=?5, want_to_read=?6, up_next=?7 WHERE stable_id=?8 AND (title IS NOT ?1 OR author IS NOT ?2 OR category IS NOT ?3 OR content_type IS NOT ?4 OR reading_status IS NOT ?5 OR want_to_read IS NOT ?6 OR up_next IS NOT ?7)",
+        params![edit.title, edit.author, edit.category, edit.content_type, edit.reading_status, edit.want_to_read, edit.up_next, id])?;
+    Ok(())
+}
+
+pub fn apply_curation(conn: &Connection, root: &Path) -> Result<()> {
+    for (id, edit) in load(root)?.edits {
+        apply(conn, &id, &edit)?;
+    }
+    Ok(())
+}
+
+pub fn update(conn: &Connection, root: &Path, id: &str, mut edit: Edit) -> Result<()> {
+    edit.title = edit.title.trim().into();
+    edit.author = edit
+        .author
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty());
+    edit.category = edit
+        .category
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty());
+    if edit.title.is_empty() || edit.title.len() > 1000 {
+        bail!("enter a title between 1 and 1000 bytes");
+    }
+    if ![
+        "book",
+        "paper",
+        "report",
+        "manual",
+        "notes",
+        "article",
+        "other",
+        "unidentified",
+    ]
+    .contains(&edit.content_type.as_str())
+    {
+        bail!("invalid content type");
+    }
+    if !["unread", "reading", "paused", "finished", "stopped"]
+        .contains(&edit.reading_status.as_str())
+    {
+        bail!("invalid reading status");
+    }
+    let books = list(conn, root, None)?;
+    let book = books
+        .iter()
+        .find(|b| b.details.stable_id == id)
+        .context("book is no longer in the library; refresh and try again")?;
+    let mut curation = load(root)?;
+    let aliases = curation.aliases.entry(id.into()).or_default();
+    let old = format!("{} {}", book.title, book.author.as_deref().unwrap_or(""));
+    if !aliases.contains(&old) {
+        aliases.push(old);
+    }
+    curation.history.push(Change {
+        id: id.into(),
+        before: Edit::from(book),
+    });
+    curation.edits.insert(id.into(), edit);
+    identity::atomic_write(
+        &root.join(".properbooky/curation.json"),
+        &serde_json::to_vec_pretty(&curation)?,
+    )?;
+    apply_curation(conn, root)
+}
+
+pub fn undo(conn: &Connection, root: &Path) -> Result<()> {
+    let mut curation = load(root)?;
+    let change = curation
+        .history
+        .pop()
+        .context("no library correction to undo")?;
+    curation.edits.insert(change.id, change.before);
+    identity::atomic_write(
+        &root.join(".properbooky/curation.json"),
+        &serde_json::to_vec_pretty(&curation)?,
+    )?;
+    apply_curation(conn, root)
+}
+
+pub fn export_identities(
+    root: &Path,
+    registry: &identity::Registry,
+    map: &mut HashMap<String, (String, Option<String>)>,
+) -> Result<()> {
+    let curation = load(root)?;
+    // A linked profile's corrections take precedence over old raw-file edits.
+    let records = registry
+        .records
+        .iter()
+        .filter(|r| r.kind != "catalog")
+        .chain(registry.records.iter().filter(|r| r.kind == "catalog"));
+    for record in records {
+        if record.kind == "catalog" {
+            if let Ok(raw) = fs::read_to_string(root.join(&record.path)) {
+                if let Some((entry, _)) = crate::catalog::parse(&raw) {
+                    if let Some(file) = entry.file {
+                        let relative = file.replace('\\', "/");
+                        let exact = registry
+                            .at_path(&relative)
+                            .filter(|r| root.join(&r.path).is_file());
+                        let aliases: Vec<_> = registry
+                            .records
+                            .iter()
+                            .filter(|r| {
+                                r.kind != "catalog"
+                                    && r.aliases.contains(&relative)
+                                    && root.join(&r.path).is_file()
+                            })
+                            .collect();
+                        let actual = exact
+                            .or_else(|| (aliases.len() == 1).then(|| aliases[0]))
+                            .map(|r| r.path.clone())
+                            .unwrap_or(relative);
+                        let value = curation
+                            .edits
+                            .get(&record.id)
+                            .map(|e| (e.title.clone(), e.author.clone()))
+                            .unwrap_or((entry.title, entry.author));
+                        map.insert(actual, value);
+                    }
+                }
+            }
+        } else if let Some(edit) = curation.edits.get(&record.id) {
+            map.insert(
+                record.path.clone(),
+                (edit.title.clone(), edit.author.clone()),
+            );
+        }
+    }
+    Ok(())
+}
+
+pub fn list(conn: &Connection, root: &Path, query: Option<&str>) -> Result<Vec<Book>> {
+    // Apply the file-backed override after an interrupted index update too.
+    apply_curation(conn, root)?;
+    let mut stmt = conn.prepare("SELECT id,path,filename,title,author,category,kind,status,rating,file_link,format,size_bytes,recommended,cover,year,spectrum,stable_id,asset_id,reading_status,want_to_read,up_next,content_type FROM books ORDER BY title COLLATE NOCASE")?;
+    let mut books: Vec<Book> = stmt
+        .query_map([], |r| {
+            Ok(Book {
+                id: r.get(0)?,
+                path: r.get(1)?,
+                filename: r.get(2)?,
+                title: r.get(3)?,
+                author: r.get(4)?,
+                category: r.get(5)?,
+                kind: r.get(6)?,
+                status: r.get(7)?,
+                rating: r.get(8)?,
+                file_link: r.get(9)?,
+                format: r.get(10)?,
+                size_bytes: r.get(11)?,
+                recommended: r.get(12)?,
+                cover: r.get(13)?,
+                year: r.get(14)?,
+                spectrum: r.get(15)?,
+                priority: None,
+                details: Details {
+                    stable_id: r.get::<_, Option<String>>(16)?.unwrap_or_default(),
+                    asset_id: r.get(17)?,
+                    reading_status: r.get(18)?,
+                    want_to_read: r.get(19)?,
+                    up_next: r.get(20)?,
+                    content_type: r.get(21)?,
+                    ..Default::default()
+                },
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    let linked: std::collections::HashSet<_> = books
+        .iter()
+        .filter(|b| b.kind == "catalog")
+        .filter_map(|b| b.details.asset_id.clone())
+        .collect();
+    books.retain(|b| {
+        b.kind != "file"
+            || !b
+                .details
+                .asset_id
+                .as_ref()
+                .is_some_and(|id| linked.contains(id))
+    });
+    let mut groups: HashMap<String, Vec<String>> = HashMap::new();
+    let registry = identity::Registry::load(root)?;
+    let hashes: HashMap<_, _> = registry
+        .records
+        .iter()
+        .map(|r| (r.id.as_str(), r.hash.as_str()))
+        .collect();
+    for book in &books {
+        if let Some(asset) = &book.details.asset_id {
+            groups
+                .entry(format!("asset:{asset}"))
+                .or_default()
+                .push(book.details.stable_id.clone());
+        }
+        if let Some(hash) = book
+            .details
+            .asset_id
+            .as_deref()
+            .and_then(|id| hashes.get(id))
+        {
+            groups
+                .entry(format!("hash:{hash}"))
+                .or_default()
+                .push(book.details.stable_id.clone());
+        }
+        if let Some(author) = &book.author {
+            let title = book.title.split(':').next().unwrap_or(&book.title);
+            let key = crate::catalog::normalize_key(title, Some(author));
+            if !key.is_empty() {
+                groups
+                    .entry(format!("title:{key}"))
+                    .or_default()
+                    .push(book.details.stable_id.clone());
+            }
+        }
+    }
+    let mut candidates: HashMap<String, Vec<String>> = HashMap::new();
+    for group in groups.values().filter(|g| g.len() > 1) {
+        for id in group {
+            candidates
+                .entry(id.clone())
+                .or_default()
+                .extend(group.iter().filter(|other| *other != id).cloned());
+        }
+    }
+    for book in &mut books {
+        let path = if book.kind == "catalog" {
+            book.file_link.as_deref()
+        } else {
+            Some(book.path.as_str())
+        };
+        let present = path.is_some_and(|p| Path::new(p).is_file());
+        book.details.availability = if present {
+            "local"
+        } else if path.is_some() || book.status.as_deref() == Some("available") {
+            "missing"
+        } else {
+            "none"
+        }
+        .into();
+        if let Some(path) = path {
+            book.format = if book.kind == "article" {
+                "article".into()
+            } else {
+                Path::new(path)
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("")
+                    .to_lowercase()
+            };
+        }
+        if book.kind == "catalog" && path.is_none() {
+            book.format.clear();
+        }
+        let lower = book.title.to_lowercase();
+        if ["pdfdrive", "z-lib", "libgen", ".pdf", ".epub"]
+            .iter()
+            .any(|s| lower.contains(s))
+            || book.title.chars().filter(|c| c.is_alphabetic()).count() < 3
+        {
+            book.details.issues.push("Check title".into());
+        }
+        if book.author.as_deref().is_none_or(|a| a.trim().is_empty()) {
+            book.details.issues.push("Missing author".into());
+        }
+        if book.details.availability == "missing" {
+            book.details.issues.push("Missing file".into());
+        }
+        if book.details.content_type == "unidentified" {
+            book.details.issues.push("Classify item".into());
+        }
+        if book.cover.is_none() && book.details.content_type == "book" {
+            book.details.issues.push("Missing cover".into());
+        }
+        if let Some(mut duplicates) = candidates.remove(&book.details.stable_id) {
+            duplicates.sort();
+            duplicates.dedup();
+            book.details.duplicate_candidates = duplicates;
+            book.details.issues.push("Possible duplicate".into());
+        }
+    }
+    if let Some(query) = query.filter(|q| !q.trim().is_empty()) {
+        let curation = load(root)?;
+        let terms: Vec<_> = query
+            .to_lowercase()
+            .split_whitespace()
+            .map(str::to_owned)
+            .collect();
+        books.retain(|b| {
+            let aliases = curation
+                .aliases
+                .get(&b.details.stable_id)
+                .map(|a| a.join(" "))
+                .unwrap_or_default();
+            let haystack = format!(
+                "{} {} {} {} {} {}",
+                b.title,
+                b.author.as_deref().unwrap_or(""),
+                b.category.as_deref().unwrap_or(""),
+                b.filename,
+                b.file_link.as_deref().unwrap_or(""),
+                aliases
+            )
+            .to_lowercase();
+            terms.iter().all(|term| haystack.contains(term))
+        });
+    }
+    Ok(books)
+}

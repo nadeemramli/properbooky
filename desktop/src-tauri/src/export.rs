@@ -75,7 +75,9 @@ fn yaml_quote(value: &str) -> String {
 /// a dedicated generated folder (e.g. `<vault>/Properbooky`).
 pub fn export_highlights(root: &Path, out: &Path) -> Result<ExportReport> {
     std::fs::create_dir_all(out)?;
-    let identities = identities(root);
+    let mut identities = identities(root);
+    let registry = crate::identity::Registry::load(root)?;
+    crate::library::export_identities(root, &registry, &mut identities)?;
     let state_dir = root.join(".properbooky").join("state");
     let mut report = ExportReport {
         books: 0,
@@ -99,7 +101,13 @@ pub fn export_highlights(root: &Path, out: &Path) -> Result<ExportReport> {
             .file_stem()
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let relative = slug.replace("__", "/");
+        let name = format!("{slug}.json");
+        let relative = registry
+            .records
+            .iter()
+            .find(|r| r.state_file.as_deref() == Some(&name))
+            .map(|r| r.path.clone())
+            .unwrap_or_else(|| slug.replace("__", "/"));
         let (title, author) = identities.get(&relative).cloned().unwrap_or_else(|| {
             let stem = relative
                 .rsplit('/')
