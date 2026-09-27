@@ -21,8 +21,9 @@ const LIBRARY_ROOT =
   process.env.PROPERBOOKY_LIBRARY ??
   db.prepare("SELECT value FROM settings WHERE key = 'library_path'").get()?.value;
 
+const HAS_IDENTITIES = db.prepare("PRAGMA table_info(books)").all().some((c) => c.name === "stable_id");
 const ROW_FIELDS =
-  "id, title, author, category, kind, status, rating, year, path, file_link, format";
+  "id, title, author, category, kind, status, rating, year, path, file_link, format" + (HAS_IDENTITIES ? ", stable_id, asset_id, reading_status, want_to_read, up_next, content_type" : "");
 
 function ftsQuery(query) {
   return query
@@ -40,10 +41,36 @@ function text(payload) {
   };
 }
 
+function identityRecords() {
+  try {
+    const registry = JSON.parse(fs.readFileSync(path.join(LIBRARY_ROOT, ".properbooky", "identities.json"), "utf8"));
+    if (registry.version !== 1 || !Array.isArray(registry.records)) throw new Error("Unsupported identity registry");
+    return registry.records;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    return [];
+  }
+}
+
+function effectiveRow(row) {
+  const assetPath = row.kind === "catalog" ? row.file_link : row.path;
+  const present = assetPath && fs.existsSync(assetPath) && fs.statSync(assetPath).isFile();
+  return {
+    ...row,
+    availability: present ? "local" : assetPath || row.status === "available" ? "missing" : "none",
+    format: row.kind === "article" ? "article" : assetPath ? path.extname(assetPath).slice(1).toLowerCase() : "",
+  };
+}
+
 function sidecarPath(bookPath) {
   const relative = bookPath.startsWith(LIBRARY_ROOT)
     ? bookPath.slice(LIBRARY_ROOT.length).replace(/^[/\\]/, "")
     : bookPath;
+  const normalized = relative.replaceAll("\\", "/");
+  const record = identityRecords().findLast((r) => r.path === normalized);
+  if (record?.state_file && !/[\\/:]/.test(record.state_file)) {
+    return path.join(LIBRARY_ROOT, ".properbooky", "state", record.state_file);
+  }
   const slug = relative.replaceAll("/", "__").replaceAll("\\", "__");
   return path.join(LIBRARY_ROOT, ".properbooky", "state", `${slug}.json`);
 }
@@ -72,12 +99,11 @@ server.tool(
         `SELECT ${prefixed} FROM books b
          JOIN books_fts f ON f.rowid = b.id
          WHERE books_fts MATCH ?
-           AND NOT (b.kind = 'file' AND b.path IN
-                    (SELECT file_link FROM books WHERE file_link IS NOT NULL))
+           AND NOT (b.kind = 'file' AND ${HAS_IDENTITIES ? "b.asset_id IN (SELECT asset_id FROM books WHERE kind='catalog' AND asset_id IS NOT NULL)" : "b.path IN (SELECT file_link FROM books WHERE file_link IS NOT NULL)"})
          ORDER BY rank LIMIT ?`
       )
       .all(ftsQuery(query), limit);
-    return text(rows);
+    return text(rows.map(effectiveRow));
   }
 );
 
@@ -107,7 +133,7 @@ server.tool(
       const content = fs.readFileSync(assetPath, "utf8");
       return text(content.length > 100_000 ? content.slice(0, 100_000) + "\n…[truncated]" : content);
     }
-    return text({ ...row, note: "binary book file — use highlights or the reading app for content" });
+    return text({ ...effectiveRow(row), note: "binary book file — use highlights or the reading app for content" });
   }
 );
 
@@ -168,6 +194,7 @@ server.tool(
     const stateDir = path.join(LIBRARY_ROOT, ".properbooky", "state");
     const needle = query.toLowerCase();
     const hits = [];
+    const records = identityRecords();
     for (const file of fs.existsSync(stateDir) ? fs.readdirSync(stateDir) : []) {
       if (!file.endsWith(".json")) continue;
       try {
@@ -179,7 +206,7 @@ server.tool(
             (h.note ?? "").toLowerCase().includes(needle)
           ) {
             hits.push({
-              book: file.replace(/\.json$/, "").replaceAll("__", "/"),
+              book: records.find((r) => r.state_file === file)?.path ?? file.replace(/\.json$/, "").replaceAll("__", "/"),
               text: h.text,
               note: h.note ?? null,
               anchor: h.anchor,
