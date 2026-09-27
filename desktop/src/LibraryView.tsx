@@ -4,6 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import AcquirePanel from "./AcquirePanel";
 import ObsidianPanel from "./ObsidianPanel";
 import BookReview from "./BookReview";
+import { authorKey, authorLabels, topicKey, topicLabels } from "./bookMetadata";
 import type { Book, LibraryState, ScanResult } from "./types";
 
 function formatSize(bytes: number): string {
@@ -55,9 +56,38 @@ function matchesFilter(book: Book, filter: ShelfFilter): boolean {
 
 const READABLE = new Set(["epub", "pdf"]);
 
+function browseOptions(
+  books: Book[],
+  labels: (book: Book) => string[],
+  key: (value: string) => string,
+) {
+  const options = new Map<string, { label: string; count: number }>();
+  for (const book of books) {
+    const seen = new Set<string>();
+    for (const label of labels(book)) {
+      const id = key(label);
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      const current = options.get(id);
+      options.set(id, {
+        label: current?.label ?? label,
+        count: (current?.count ?? 0) + 1,
+      });
+    }
+  }
+  return [...options].sort((a, b) => a[1].label.localeCompare(b[1].label));
+}
+
 /** A book is openable when a real, readable file backs it. Legacy formats
  * (mobi/chm/…) are indexed for availability but have no reader yet. */
 export function openablePath(book: Book): string | null {
+  if (book.assets.length)
+    return (
+      book.assets.find(
+        (asset) =>
+          asset.available && ["pdf", "epub", "article"].includes(asset.format),
+      )?.path ?? null
+    );
   if (book.availability !== "local") return null;
   if (book.kind === "article") return book.file_link ?? book.path;
   const path = book.kind === "file" ? book.path : book.file_link;
@@ -86,6 +116,8 @@ export default function LibraryView({
   const [review, setReview] = useState<Book | null>(null);
   const [cleanupReason, setCleanupReason] = useState("");
   const [loading, setLoading] = useState(false);
+  const [authorFilter, setAuthorFilter] = useState("");
+  const [topicFilter, setTopicFilter] = useState("");
   const request = useRef(0);
 
   const refreshBooks = useCallback(async (search: string) => {
@@ -161,9 +193,15 @@ export default function LibraryView({
     [query, refreshBooks],
   );
 
+  const authorOptions = browseOptions(books, authorLabels, authorKey);
+  const topicOptions = browseOptions(books, topicLabels, topicKey);
   const visible = books.filter(
     (b) =>
       matchesFilter(b, filter) &&
+      (!authorFilter ||
+        authorLabels(b).some((a) => authorKey(a) === authorFilter)) &&
+      (!topicFilter ||
+        topicLabels(b).some((t) => topicKey(t) === topicFilter)) &&
       (filter !== "cleanup" ||
         !cleanupReason ||
         b.issues.includes(cleanupReason)),
@@ -248,6 +286,50 @@ export default function LibraryView({
       )}
 
       {status && <p className="status">{status}</p>}
+      {libraryPath && (
+        <section className="browse-filters" aria-label="Browse your library">
+          <label>
+            Author
+            <select
+              aria-label="Filter by author"
+              value={authorFilter}
+              onChange={(e) => setAuthorFilter(e.target.value)}
+            >
+              <option value="">All authors</option>
+              {authorOptions.map(([key, value]) => (
+                <option key={key} value={key}>
+                  {value.label} ({value.count})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Topic
+            <select
+              aria-label="Filter by topic"
+              value={topicFilter}
+              onChange={(e) => setTopicFilter(e.target.value)}
+            >
+              <option value="">All topics</option>
+              {topicOptions.map(([key, value]) => (
+                <option key={key} value={key}>
+                  {value.label} ({value.count})
+                </option>
+              ))}
+            </select>
+          </label>
+          {(authorFilter || topicFilter) && (
+            <button
+              onClick={() => {
+                setAuthorFilter("");
+                setTopicFilter("");
+              }}
+            >
+              Clear browse filters
+            </button>
+          )}
+        </section>
+      )}
       {loading && <p role="status">Loading your library…</p>}
       {filter === "cleanup" && (
         <div className="cleanup-toolbar">
@@ -272,6 +354,7 @@ export default function LibraryView({
                 "Classify item",
                 "Missing cover",
                 "Possible duplicate",
+                "Missing primary profile",
               ].map((reason) => (
                 <option key={reason}>{reason}</option>
               ))}
@@ -339,7 +422,11 @@ export default function LibraryView({
                 </div>
                 <h2>{book.title}</h2>
                 <p className="book-state">
-                  {book.format ? `${book.format.toUpperCase()} · ` : ""}
+                  {book.assets.length
+                    ? `${[...new Set(book.assets.map((a) => a.format.toUpperCase()))].join(" / ")} · `
+                    : book.format
+                      ? `${book.format.toUpperCase()} · `
+                      : ""}
                   {book.reading_status}
                   {book.up_next ? " · Up next" : ""}
                   {book.content_type !== "book"
@@ -347,6 +434,12 @@ export default function LibraryView({
                     : ""}
                 </p>
                 {book.author && <p className="author">{book.author}</p>}
+                {book.source_profiles.length > 1 && (
+                  <p className="review-context">
+                    {book.source_profiles.length} source profiles ·{" "}
+                    {book.assets.length} linked files
+                  </p>
+                )}
                 <p className="meta">
                   {book.year ? `${book.year} · ` : ""}
                   {book.category ? `${book.category} · ` : ""}
@@ -360,11 +453,36 @@ export default function LibraryView({
                   <p className="review-context">{book.issues.join(" · ")}</p>
                 )}
                 <div className="card-actions">
-                  {openable && (
+                  {openable && book.assets.length <= 1 && (
                     <button className="read-book" onClick={() => onOpen(book)}>
                       Read
                     </button>
                   )}
+                  {book.assets.length > 1 &&
+                    book.assets.map((asset, i) => (
+                      <span key={asset.id ?? asset.path}>
+                        {asset.available &&
+                        ["pdf", "epub", "article"].includes(asset.format) ? (
+                          <button
+                            className="read-book"
+                            title={asset.path}
+                            onClick={() => onOpen({ ...book, assets: [asset] })}
+                          >
+                            Read {asset.format.toUpperCase()}
+                            {asset.year
+                              ? ` (${asset.year})`
+                              : ` · Copy ${i + 1}`}
+                          </button>
+                        ) : (
+                          <small>
+                            {asset.format.toUpperCase()} ·{" "}
+                            {asset.available
+                              ? "External reader"
+                              : "Missing file"}
+                          </small>
+                        )}
+                      </span>
+                    ))}
                   <button onClick={() => setReview(book)}>
                     Review details
                   </button>

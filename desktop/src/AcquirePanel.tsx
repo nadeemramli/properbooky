@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { bookEdit } from "./BookReview";
+import { bookEdit } from "./bookMetadata";
 import type { Book } from "./types";
 
 interface DropOutcome {

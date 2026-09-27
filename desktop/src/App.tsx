@@ -16,26 +16,24 @@ export default function App() {
     const path = openablePath(book);
     if (!path) return;
     const format =
-      book.kind === "article"
+      book.assets.find((asset) => asset.path === path)?.format ??
+      (book.kind === "article"
         ? "article"
         : path.toLowerCase().endsWith(".epub")
           ? "epub"
-          : "pdf";
+          : "pdf");
     setTabs((current) =>
       current.some((t) => t.path === path)
         ? current
-        : [...current, { path, title: book.title, format, percent: null }]
+        : [...current, { path, title: book.title, format, percent: null }],
     );
     setActive(path);
   }, []);
 
-  const closeTab = useCallback(
-    (path: string) => {
-      setTabs((current) => current.filter((t) => t.path !== path));
-      setActive((current) => (current === path ? LIBRARY_TAB : current));
-    },
-    []
-  );
+  const closeTab = useCallback((path: string) => {
+    setTabs((current) => current.filter((t) => t.path !== path));
+    setActive((current) => (current === path ? LIBRARY_TAB : current));
+  }, []);
 
   const reportProgress = useCallback((path: string, percent: number | null) => {
     setTabs((current) => {

@@ -19,6 +19,77 @@
   text-transform: capitalize;
   margin: 0 0 8px;
 }
+
+.browse-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin: 12px 0 20px;
+}
+.browse-filters label,
+.candidate-search {
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.browse-filters select,
+.candidate-search input {
+  max-width: min(420px, 80vw);
+  padding: 8px 10px;
+  background: var(--card);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+}
+.browse-filters button {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  background: var(--rail);
+  color: var(--fg);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.source-profiles {
+  margin-top: 20px;
+  font-size: 0.85rem;
+}
+.source-profiles details {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.source-profiles summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.source-profiles small {
+  overflow-wrap: anywhere;
+  display: block;
+  margin-bottom: 10px;
+  color: var(--muted);
+}
+.source-profiles pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 300px;
+  overflow: auto;
+  padding: 12px;
+  background: var(--bg);
+}
+.merge-review .review-fields {
+  margin-top: 24px;
+}
+.merge-notice {
+  border-left: 3px solid var(--accent);
+  padding: 12px;
+  background: var(--bg);
+  font-size: 0.85rem;
+}
+.candidate-search {
+  margin: 16px 0;
+}
 .card-actions {
   display: flex;
   gap: 8px;

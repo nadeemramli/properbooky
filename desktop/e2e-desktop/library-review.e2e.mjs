@@ -19,11 +19,11 @@ const library = path.join(temp, "library");
 for (const folder of ["Catalog", "Library", "Articles"])
   mkdirSync(path.join(library, folder), { recursive: true });
 const source =
-  "---\ntitle: 0071713166.pdf\nauthor: Test Author\nstatus: reading\nfile: Library/book.pdf\n---\n\nKeep my context.\n";
+  "---\ntitle: 0071713166.pdf\nauthor: Test Author\nstatus: reading\nyear: 2014\ntopics: [Self-Help]\nfile: Library/book.pdf\n---\n\nKeep my context.\n";
 writeFileSync(path.join(library, "Catalog/original.md"), source);
 writeFileSync(
   path.join(library, "Catalog/duplicate.md"),
-  "---\ntitle: Other edition\nauthor: Test Author\nstatus: wishlist\nfile: Library/book.pdf\nyear: 2017\n---\n",
+  "---\ntitle: Other edition\nauthor: Test  Author\nstatus: wishlist\nfile: Library/book.pdf\ntopics: [Self-help]\nyear: 2017\n---\n",
 );
 writeFileSync(
   path.join(library, "Catalog/wanted.md"),
@@ -133,6 +133,75 @@ try {
   );
   await click("Everything");
   await count(4);
+  await browser
+    .$('select[aria-label="Filter by author"]')
+    .selectByAttribute("value", "test author");
+  await count(3);
+  await browser
+    .$('select[aria-label="Filter by topic"]')
+    .selectByAttribute("value", "self help");
+  await count(2);
+  await click("Clear browse filters");
+  await click("Continue reading");
+  await count(1);
+  await click("Review details");
+  await click("Review combination");
+  await browser.$(".merge-review").waitForExist();
+  await click("Cancel");
+  await browser.$("#review-title").waitForDisplayed();
+  await click("Review combination");
+  assert.match(await browser.$(".merge-notice").getText(), /years differ/);
+  await browser.$(".source-profiles summary").click();
+  await click("Read original notes and metadata");
+  await browser.$(".source-profiles pre").waitForExist();
+  assert.match(
+    await browser.$(".source-profiles pre").getText(),
+    /Keep my context/,
+  );
+  await click("Preview combination");
+  assert.match(
+    await browser.$(".merge-review").getText(),
+    /2 source profiles and 1 linked file/,
+  );
+  await browser.saveScreenshot(path.join(temp, "merge-preview.png"));
+  await click("Combine profiles");
+  await browser.$(".merge-review").waitForExist({ reverse: true });
+  await click("Everything");
+  await count(3);
+  await type('.toolbar input[type="search"]', "Other edition");
+  await count(1);
+  assert.equal(await browser.$(".card h2").getText(), "0071713166.pdf");
+  assert.match(await browser.$(".card").getText(), /2 source profiles/);
+  // A later download attached to a retained source joins the same visible work.
+  writeFileSync(
+    path.join(library, "Library/edition.epub"),
+    "epub metadata fixture",
+  );
+  const duplicate = path.join(library, "Catalog/duplicate.md");
+  writeFileSync(
+    duplicate,
+    readFileSync(duplicate, "utf8").replace(
+      "Library/book.pdf",
+      "Library/edition.epub",
+    ),
+  );
+  await click("Rescan");
+  await browser.waitUntil(
+    async () => (await browser.$$(".read-book")).length === 2,
+  );
+  assert.match(await browser.$(".card").getText(), /PDF \/ EPUB|EPUB \/ PDF/);
+  await type('.toolbar input[type="search"]', "");
+  await click("Library cleanup");
+  await click("Undo last correction");
+  await browser.waitUntil(async () =>
+    (await browser.$(".status").getText()).includes("undone"),
+  );
+  await click("Everything");
+  await count(4);
+  assert.equal(
+    readFileSync(path.join(library, "Catalog/original.md"), "utf8"),
+    source,
+  );
   await type('.toolbar input[type="search"]', "A reading article");
   await count(1);
   await click("Read");

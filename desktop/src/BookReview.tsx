@@ -2,17 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Book, BookEdit } from "./types";
 
-export function bookEdit(book: Book): BookEdit {
-  return {
-    title: book.title,
-    author: book.author,
-    category: book.category,
-    content_type: book.content_type,
-    reading_status: book.reading_status,
-    want_to_read: book.want_to_read,
-    up_next: book.up_next,
-  };
-}
+import { bookEdit } from "./bookMetadata";
+import MergeReview from "./MergeReview";
+import SourceProfiles from "./SourceProfiles";
 
 const labels: Record<keyof BookEdit, string> = {
   title: "Title",
@@ -39,20 +31,18 @@ export default function BookReview({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<Book[]>([]);
+  const [candidateQuery, setCandidateQuery] = useState("");
+  const [mergeTarget, setMergeTarget] = useState<Book | null>(null);
   useEffect(() => {
     dialog.current?.showModal();
-  }, []);
+  }, [mergeTarget]);
   useEffect(() => {
     let cancelled = false;
-    if (book.duplicate_candidates.length) {
+    {
       invoke<Book[]>("list_books", { query: null })
         .then((books) => {
           if (!cancelled)
-            setCandidates(
-              books.filter((b) =>
-                book.duplicate_candidates.includes(b.stable_id),
-              ),
-            );
+            setCandidates(books.filter((b) => b.stable_id !== book.stable_id));
         })
         .catch((e) => {
           if (!cancelled) setError(String(e));
@@ -61,7 +51,7 @@ export default function BookReview({
     return () => {
       cancelled = true;
     };
-  }, [book.duplicate_candidates]);
+  }, [book.stable_id]);
   const original = bookEdit(book);
   const changed = (Object.keys(labels) as (keyof BookEdit)[]).filter(
     (key) => original[key] !== edit[key],
@@ -79,6 +69,27 @@ export default function BookReview({
       setBusy(false);
     }
   };
+  if (mergeTarget)
+    return (
+      <MergeReview
+        primary={book}
+        secondary={mergeTarget}
+        onClose={() => setMergeTarget(null)}
+        onSaved={async () => {
+          await onSaved();
+          onClose();
+        }}
+      />
+    );
+  const matchingCandidates = candidates
+    .filter((candidate) =>
+      candidateQuery.trim()
+        ? `${candidate.title} ${candidate.author ?? ""}`
+            .toLocaleLowerCase()
+            .includes(candidateQuery.trim().toLocaleLowerCase())
+        : book.duplicate_candidates.includes(candidate.stable_id),
+    )
+    .slice(0, 12);
   return (
     <dialog
       ref={dialog}
@@ -262,15 +273,26 @@ export default function BookReview({
                   : "No local file"}
             </p>
           </details>
-          {book.duplicate_candidates.length > 0 && (
+          <SourceProfiles sources={book.source_profiles} />
+          {
             <section className="review-candidates">
               <h3>Possible duplicates</h3>
               <p>
                 These profiles share a linked file, identical file content, or a
                 similar title and author. Compare edition details before
-                merging. This release keeps candidates separate.
+                combining. Sources and files are preserved, and the combination
+                can be undone.
               </p>
-              {candidates.map((candidate) => (
+              <label className="candidate-search">
+                Find another profile
+                <input
+                  type="search"
+                  placeholder="Search another title or author"
+                  value={candidateQuery}
+                  onChange={(e) => setCandidateQuery(e.target.value)}
+                />
+              </label>
+              {matchingCandidates.map((candidate) => (
                 <article key={candidate.stable_id}>
                   <strong>{candidate.title}</strong>
                   <p>
@@ -279,10 +301,27 @@ export default function BookReview({
                     {candidate.format.toUpperCase() || "No file"}
                   </p>
                   <small>{candidate.file_link ?? candidate.path}</small>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setMergeTarget(candidate)}
+                      disabled={changed.length > 0}
+                    >
+                      Review combination
+                    </button>
+                  </div>
                 </article>
               ))}
+              {changed.length > 0 && (
+                <p>
+                  Save or cancel your metadata edits before combining profiles.
+                </p>
+              )}
+              {candidateQuery && matchingCandidates.length === 0 && (
+                <p>No matching profiles.</p>
+              )}
             </section>
-          )}
+          }
           <footer>
             <button type="button" onClick={onClose}>
               Cancel

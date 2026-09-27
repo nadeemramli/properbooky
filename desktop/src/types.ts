@@ -9,6 +9,8 @@ export interface Book {
   content_type: string;
   issues: string[];
   duplicate_candidates: string[];
+  assets: BookAsset[];
+  source_profiles: SourceProfile[];
   path: string;
   filename: string;
   title: string;
@@ -25,6 +27,29 @@ export interface Book {
   year: number | null;
   spectrum: string | null;
   priority: number | null;
+}
+
+export interface BookAsset {
+  id: string | null;
+  path: string;
+  format: string;
+  available: boolean;
+  year: number | null;
+}
+
+export interface SourceProfile {
+  id: string;
+  path: string;
+  kind: string;
+  title: string;
+  author: string | null;
+  category: string | null;
+  year: number | null;
+  rating: number | null;
+  recommended: boolean;
+  reading_status: Book["reading_status"];
+  want_to_read: boolean;
+  up_next: boolean;
 }
 
 export type BookEdit = Pick<
