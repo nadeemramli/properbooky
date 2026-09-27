@@ -19,6 +19,8 @@ pub struct Details {
     pub content_type: String,
     pub issues: Vec<String>,
     pub duplicate_candidates: Vec<String>,
+    pub assets: Vec<crate::consolidation::Asset>,
+    pub source_profiles: Vec<crate::consolidation::SourceProfile>,
 }
 
 #[derive(Clone, Serialize)]
@@ -73,6 +75,10 @@ impl From<&Book> for Edit {
 struct Change {
     id: String,
     before: Edit,
+    #[serde(default)]
+    merges_before: Option<BTreeMap<String, String>>,
+    #[serde(default)]
+    aliases_before: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -81,15 +87,18 @@ struct Curation {
     edits: BTreeMap<String, Edit>,
     aliases: BTreeMap<String, Vec<String>>,
     history: Vec<Change>,
+    #[serde(default)]
+    merges: BTreeMap<String, String>,
 }
 
 impl Default for Curation {
     fn default() -> Self {
         Self {
-            version: 1,
+            version: 2,
             edits: BTreeMap::new(),
             aliases: BTreeMap::new(),
             history: Vec::new(),
+            merges: BTreeMap::new(),
         }
     }
 }
@@ -99,8 +108,11 @@ fn load(root: &Path) -> Result<Curation> {
         Ok(bytes) => {
             let value: Curation =
                 serde_json::from_slice(&bytes).context("cannot read saved library corrections")?;
-            if value.version != 1 {
+            if ![1, 2].contains(&value.version) {
                 bail!("unsupported curation version");
+            }
+            for id in value.merges.keys() {
+                crate::consolidation::resolve(&value.merges, id)?;
             }
             Ok(value)
         }
@@ -116,20 +128,47 @@ fn apply(conn: &Connection, id: &str, edit: &Edit) -> Result<()> {
 }
 
 pub fn apply_curation(conn: &Connection, root: &Path) -> Result<()> {
-    for (id, edit) in load(root)?.edits {
-        apply(conn, &id, &edit)?;
+    let curation = load(root)?;
+    conn.execute_batch("SAVEPOINT apply_curation")?;
+    let result: Result<()> = (|| {
+        for (id, edit) in curation.edits {
+            apply(conn, &id, &edit)?;
+        }
+        let assignments: Vec<(String, Option<String>)> = conn
+            .prepare("SELECT stable_id, merged_into FROM books WHERE stable_id IS NOT NULL")?
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?;
+        let present: std::collections::HashSet<_> =
+            assignments.iter().map(|(id, _)| id.as_str()).collect();
+        for (id, current) in &assignments {
+            let resolved = crate::consolidation::resolve(&curation.merges, id)?;
+            let target = (resolved != id && present.contains(resolved)).then_some(resolved);
+            if current.as_deref() != target {
+                conn.execute(
+                    "UPDATE books SET merged_into=?1 WHERE stable_id=?2",
+                    (target, id),
+                )?;
+            }
+        }
+        Ok(())
+    })();
+    if result.is_err() {
+        conn.execute_batch("ROLLBACK TO apply_curation")?;
     }
-    Ok(())
+    conn.execute_batch("RELEASE apply_curation")?;
+    result
 }
 
-pub fn update(conn: &Connection, root: &Path, id: &str, mut edit: Edit) -> Result<()> {
+fn validate_edit(edit: &mut Edit) -> Result<()> {
     edit.title = edit.title.trim().into();
     edit.author = edit
         .author
+        .take()
         .map(|s| s.trim().to_owned())
         .filter(|s| !s.is_empty());
     edit.category = edit
         .category
+        .take()
         .map(|s| s.trim().to_owned())
         .filter(|s| !s.is_empty());
     if edit.title.is_empty() || edit.title.len() > 1000 {
@@ -154,6 +193,23 @@ pub fn update(conn: &Connection, root: &Path, id: &str, mut edit: Edit) -> Resul
     {
         bail!("invalid reading status");
     }
+    Ok(())
+}
+
+fn save(root: &Path, mut curation: Curation) -> Result<()> {
+    // Older clients must fail visibly instead of silently discarding merges.
+    curation.version = 2;
+    if let Ok(previous) = fs::read(root.join(".properbooky/curation.json")) {
+        identity::atomic_write(&root.join(".properbooky/curation.previous.json"), &previous)?;
+    }
+    identity::atomic_write(
+        &root.join(".properbooky/curation.json"),
+        &serde_json::to_vec_pretty(&curation)?,
+    )
+}
+
+pub fn update(conn: &Connection, root: &Path, id: &str, mut edit: Edit) -> Result<()> {
+    validate_edit(&mut edit)?;
     let books = list(conn, root, None)?;
     let book = books
         .iter()
@@ -168,12 +224,11 @@ pub fn update(conn: &Connection, root: &Path, id: &str, mut edit: Edit) -> Resul
     curation.history.push(Change {
         id: id.into(),
         before: Edit::from(book),
+        merges_before: None,
+        aliases_before: None,
     });
     curation.edits.insert(id.into(), edit);
-    identity::atomic_write(
-        &root.join(".properbooky/curation.json"),
-        &serde_json::to_vec_pretty(&curation)?,
-    )?;
+    save(root, curation)?;
     apply_curation(conn, root)
 }
 
@@ -183,12 +238,85 @@ pub fn undo(conn: &Connection, root: &Path) -> Result<()> {
         .history
         .pop()
         .context("no library correction to undo")?;
+    if let Some(aliases) = change.aliases_before {
+        curation.aliases.insert(change.id.clone(), aliases);
+    }
     curation.edits.insert(change.id, change.before);
-    identity::atomic_write(
-        &root.join(".properbooky/curation.json"),
-        &serde_json::to_vec_pretty(&curation)?,
-    )?;
+    if let Some(merges) = change.merges_before {
+        curation.merges = merges;
+    }
+    save(root, curation)?;
     apply_curation(conn, root)
+}
+
+/// Combine visible profiles, never their asset bytes or reading sidecars.
+/// The selected editable fields are explicit; other source metadata stays on
+/// its original profile. One history entry restores the prior grouping.
+pub fn merge(
+    conn: &Connection,
+    root: &Path,
+    keep: &str,
+    absorb: &str,
+    mut edit: Edit,
+) -> Result<()> {
+    anyhow::ensure!(keep != absorb, "choose two different profiles");
+    validate_edit(&mut edit)?;
+    let books = list(conn, root, None)?;
+    let primary = books
+        .iter()
+        .find(|b| b.details.stable_id == keep)
+        .context("primary profile changed; refresh before combining")?;
+    let secondary = books
+        .iter()
+        .find(|b| b.details.stable_id == absorb)
+        .context("other profile changed; refresh before combining")?;
+    let mut curation = load(root)?;
+    curation.history.push(Change {
+        id: keep.into(),
+        before: Edit::from(primary),
+        merges_before: Some(curation.merges.clone()),
+        aliases_before: Some(curation.aliases.get(keep).cloned().unwrap_or_default()),
+    });
+    let aliases = curation.aliases.entry(keep.into()).or_default();
+    for b in [primary, secondary] {
+        let alias = format!("{} {}", b.title, b.author.as_deref().unwrap_or(""));
+        if !aliases.contains(&alias) {
+            aliases.push(alias);
+        }
+    }
+    curation.merges.insert(absorb.into(), keep.into());
+    curation.edits.insert(keep.into(), edit);
+    save(root, curation)?;
+    apply_curation(conn, root)
+}
+
+pub fn source_text(root: &Path, id: &str) -> Result<String> {
+    let registry = identity::Registry::load(root)?;
+    let record = registry
+        .records
+        .iter()
+        .find(|r| r.id == id)
+        .context("source profile is unavailable")?;
+    anyhow::ensure!(
+        record.kind == "catalog" || record.kind == "article",
+        "this source is a binary asset"
+    );
+    use std::io::Read;
+    let mut raw = Vec::new();
+    fs::File::open(identity::safe_join(root, &record.path)?)?
+        .take(100_001)
+        .read_to_end(&mut raw)?;
+    let truncated = raw.len() > 100_000;
+    raw.truncate(100_000);
+    Ok(format!(
+        "{}{}",
+        String::from_utf8_lossy(&raw),
+        if truncated {
+            "\n[Source preview truncated]"
+        } else {
+            ""
+        }
+    ))
 }
 
 pub fn export_identities(
@@ -225,16 +353,20 @@ pub fn export_identities(
                             .or_else(|| (aliases.len() == 1).then(|| aliases[0]))
                             .map(|r| r.path.clone())
                             .unwrap_or(relative);
+                        let primary = crate::consolidation::resolve(&curation.merges, &record.id)?;
                         let value = curation
                             .edits
-                            .get(&record.id)
+                            .get(primary)
                             .map(|e| (e.title.clone(), e.author.clone()))
                             .unwrap_or((entry.title, entry.author));
                         map.insert(actual, value);
                     }
                 }
             }
-        } else if let Some(edit) = curation.edits.get(&record.id) {
+        } else if let Some(edit) = curation
+            .edits
+            .get(crate::consolidation::resolve(&curation.merges, &record.id)?)
+        {
             map.insert(
                 record.path.clone(),
                 (edit.title.clone(), edit.author.clone()),
@@ -247,6 +379,7 @@ pub fn export_identities(
 pub fn list(conn: &Connection, root: &Path, query: Option<&str>) -> Result<Vec<Book>> {
     // Apply the file-backed override after an interrupted index update too.
     apply_curation(conn, root)?;
+    let curation = load(root)?;
     let mut stmt = conn.prepare("SELECT id,path,filename,title,author,category,kind,status,rating,file_link,format,size_bytes,recommended,cover,year,spectrum,stable_id,asset_id,reading_status,want_to_read,up_next,content_type FROM books ORDER BY title COLLATE NOCASE")?;
     let mut books: Vec<Book> = stmt
         .query_map([], |r| {
@@ -287,6 +420,11 @@ pub fn list(conn: &Connection, root: &Path, query: Option<&str>) -> Result<Vec<B
         .collect();
     books.retain(|b| {
         b.kind != "file"
+            || curation.merges.contains_key(&b.details.stable_id)
+            || curation
+                .merges
+                .values()
+                .any(|id| id == &b.details.stable_id)
             || !b
                 .details
                 .asset_id
@@ -394,19 +532,34 @@ pub fn list(conn: &Connection, root: &Path, query: Option<&str>) -> Result<Vec<B
             book.details.issues.push("Possible duplicate".into());
         }
     }
+    let mut books = crate::consolidation::project(books, &curation.merges)?;
     if let Some(query) = query.filter(|q| !q.trim().is_empty()) {
-        let curation = load(root)?;
         let terms: Vec<_> = query
             .to_lowercase()
             .split_whitespace()
             .map(str::to_owned)
             .collect();
         books.retain(|b| {
-            let aliases = curation
-                .aliases
-                .get(&b.details.stable_id)
-                .map(|a| a.join(" "))
-                .unwrap_or_default();
+            let aliases = b
+                .details
+                .source_profiles
+                .iter()
+                .map(|s| {
+                    format!(
+                        "{} {} {} {} {}",
+                        s.title,
+                        s.author.as_deref().unwrap_or(""),
+                        s.category.as_deref().unwrap_or(""),
+                        s.path,
+                        curation
+                            .aliases
+                            .get(&s.id)
+                            .map(|a| a.join(" "))
+                            .unwrap_or_default()
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
             let haystack = format!(
                 "{} {} {} {} {} {}",
                 b.title,

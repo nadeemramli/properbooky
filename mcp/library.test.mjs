@@ -7,8 +7,9 @@ import Database from "better-sqlite3";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-for (const modern of [false, true]) {
-  test(`MCP metadata and highlights with ${modern ? "stable identities" : "legacy paths"}`, async () => {
+for (const version of [8, 9, 10]) {
+  const modern = version >= 9;
+  test(`MCP metadata and highlights with schema ${version}`, async () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "properbooky-mcp-"));
     const dbPath = path.join(root, "library.db");
     const assetPath = path.join(root, "reading.pdf");
@@ -34,6 +35,15 @@ for (const modern of [false, true]) {
     db.exec(
       "INSERT INTO books_fts(rowid,title) VALUES (1,'Corrected Title'),(2,'Corrected file')",
     );
+    if (version === 10) {
+      db.exec("ALTER TABLE books ADD COLUMN merged_into TEXT");
+      const otherAsset = path.join(root, "edition.epub");
+      writeFileSync(otherAsset, "epub fixture");
+      db.prepare(
+        "INSERT INTO books VALUES (3,'Alias Edition','Test Author','Philosophy','catalog','finished',5,2017,?,?,'md','other-profile','other-asset','finished',1,0,'book','profile-id')",
+      ).run(path.join(root, "other.md"), otherAsset);
+      db.exec("INSERT INTO books_fts(rowid,title) VALUES (3,'Alias Edition')");
+    }
     db.close();
     const stateName = modern ? "asset-test-id.json" : "reading.pdf.json";
     mkdirSync(path.join(root, ".properbooky/state"), { recursive: true });
@@ -86,6 +96,20 @@ for (const modern of [false, true]) {
       assert.equal(rows[0].format, "pdf");
       assert.equal(rows[0].availability, "local");
       if (modern) assert.equal(rows[0].reading_status, "reading");
+      if (version === 10) {
+        const stats = await call("library_stats", {});
+        assert.equal(stats.visible_profiles, 1);
+        assert.equal(stats.by_availability.local, 1);
+        const aliases = await call("search_library", { query: "Alias" });
+        assert.equal(aliases.length, 1);
+        assert.equal(aliases[0].title, "Corrected Title");
+        assert.equal(aliases[0].source_profiles.length, 2);
+        assert.equal(aliases[0].assets.length, 2);
+        assert.deepEqual(aliases[0].assets.map((a) => a.format).sort(), [
+          "epub",
+          "pdf",
+        ]);
+      }
       const highlights = await call("get_highlights", { path: assetPath });
       assert.equal(highlights.length, 1);
       const hits = await call("search_highlights", { query: "Retained" });

@@ -22,8 +22,9 @@ const LIBRARY_ROOT =
   db.prepare("SELECT value FROM settings WHERE key = 'library_path'").get()?.value;
 
 const HAS_IDENTITIES = db.prepare("PRAGMA table_info(books)").all().some((c) => c.name === "stable_id");
+const HAS_MERGES = db.prepare("PRAGMA table_info(books)").all().some((c) => c.name === "merged_into");
 const ROW_FIELDS =
-  "id, title, author, category, kind, status, rating, year, path, file_link, format" + (HAS_IDENTITIES ? ", stable_id, asset_id, reading_status, want_to_read, up_next, content_type" : "");
+  "id, title, author, category, kind, status, rating, year, path, file_link, format" + (HAS_IDENTITIES ? ", stable_id, asset_id, reading_status, want_to_read, up_next, content_type" : "") + (HAS_MERGES ? ", merged_into" : "");
 
 function ftsQuery(query) {
   return query
@@ -53,6 +54,18 @@ function identityRecords() {
 }
 
 function effectiveRow(row) {
+  if (HAS_MERGES) {
+    const members = db.prepare(`SELECT ${ROW_FIELDS} FROM books WHERE stable_id = ? OR merged_into = ? ORDER BY CASE WHEN stable_id = ? THEN 0 ELSE 1 END, stable_id`).all(row.stable_id, row.stable_id, row.stable_id);
+    const files = new Map();
+    for (const member of members) {
+      const assetPath = member.kind === "catalog" ? member.file_link : member.path;
+      if (!assetPath) continue;
+      const key = member.asset_id ?? assetPath;
+      if (!files.has(key)) files.set(key, { id: member.asset_id, path: assetPath, format: member.kind === "article" ? "article" : path.extname(assetPath).slice(1).toLowerCase(), available: fs.existsSync(assetPath) && fs.statSync(assetPath).isFile(), year: member.year });
+    }
+    const assets = [...files.values()].sort((a,b) => Number(b.available) - Number(a.available) || Number(["pdf","epub","article"].includes(b.format)) - Number(["pdf","epub","article"].includes(a.format)));
+    return { ...row, assets, source_profiles: members, file_link: assets[0]?.path ?? row.file_link, format: assets[0]?.format ?? "", availability: assets.some((a) => a.available) ? "local" : assets.length || row.status === "available" ? "missing" : "none" };
+  }
   const assetPath = row.kind === "catalog" ? row.file_link : row.path;
   const present = assetPath && fs.existsSync(assetPath) && fs.statSync(assetPath).isFile();
   return {
@@ -99,24 +112,38 @@ server.tool(
         `SELECT ${prefixed} FROM books b
          JOIN books_fts f ON f.rowid = b.id
          WHERE books_fts MATCH ?
-           AND NOT (b.kind = 'file' AND ${HAS_IDENTITIES ? "b.asset_id IN (SELECT asset_id FROM books WHERE kind='catalog' AND asset_id IS NOT NULL)" : "b.path IN (SELECT file_link FROM books WHERE file_link IS NOT NULL)"})
-         ORDER BY rank LIMIT ?`
+           AND NOT (b.kind = 'file' AND ${HAS_IDENTITIES ? "b.asset_id IN (SELECT asset_id FROM books WHERE kind='catalog' AND asset_id IS NOT NULL)" : "b.path IN (SELECT file_link FROM books WHERE file_link IS NOT NULL)"}${HAS_MERGES ? " AND b.merged_into IS NULL AND NOT EXISTS(SELECT 1 FROM books child WHERE child.merged_into=b.stable_id)" : ""})
+         ORDER BY rank`
       )
-      .all(ftsQuery(query), limit);
-    return text(rows.map(effectiveRow));
+      .all(ftsQuery(query));
+    const visible = new Map();
+    for (const hit of rows) {
+      const primary = HAS_MERGES && hit.merged_into ? db.prepare(`SELECT ${ROW_FIELDS} FROM books WHERE stable_id=?`).get(hit.merged_into) ?? hit : hit;
+      if (!visible.has(primary.id)) visible.set(primary.id, effectiveRow(primary));
+      if (visible.size >= limit) break;
+    }
+    return text([...visible.values()]);
   }
 );
 
 server.tool(
   "library_stats",
-  "Counts by kind and status — the shape of the library.",
+  "Indexed-row counts plus visible combined profiles and their reading/availability states when supported.",
   {},
   async () => {
     const byKind = db.prepare("SELECT kind, COUNT(*) n FROM books GROUP BY kind").all();
     const byStatus = db
       .prepare("SELECT status, COUNT(*) n FROM books WHERE kind='catalog' GROUP BY status")
       .all();
-    return text({ library_root: LIBRARY_ROOT, by_kind: byKind, catalog_by_status: byStatus });
+    const stats = { library_root: LIBRARY_ROOT, by_kind: byKind, catalog_by_status: byStatus };
+    if (HAS_MERGES) {
+      const profiles = db.prepare(`SELECT ${ROW_FIELDS} FROM books b WHERE merged_into IS NULL AND NOT (kind='file' AND asset_id IN (SELECT asset_id FROM books WHERE kind='catalog' AND asset_id IS NOT NULL) AND NOT EXISTS(SELECT 1 FROM books child WHERE child.merged_into=b.stable_id))`).all().map(effectiveRow);
+      const counts = (field) => profiles.reduce((result, row) => { result[row[field]] = (result[row[field]] ?? 0) + 1; return result; }, {});
+      stats.visible_profiles = profiles.length;
+      stats.by_reading_status = counts("reading_status");
+      stats.by_availability = counts("availability");
+    }
+    return text(stats);
   }
 );
 

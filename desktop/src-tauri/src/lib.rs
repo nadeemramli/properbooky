@@ -2,6 +2,7 @@ pub mod acquire;
 pub mod annotations;
 pub mod article;
 pub mod catalog;
+pub mod consolidation;
 pub mod db;
 pub mod enrich;
 pub mod export;
@@ -108,6 +109,34 @@ async fn undo_library_edit(app: tauri::AppHandle) -> Result<(), String> {
         let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
         let conn = open_db(&app)?;
         library::undo(&conn, &library_root(&conn)?).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn merge_books(
+    app: tauri::AppHandle,
+    keep: String,
+    absorb: String,
+    edit: library::Edit,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        library::merge(&conn, &library_root(&conn)?, &keep, &absorb, edit)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn get_profile_source(app: tauri::AppHandle, id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        library::source_text(&library_root(&conn)?, &id).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| e.to_string())?
@@ -382,6 +411,8 @@ pub fn run() {
             scan_library,
             list_books,
             update_book,
+            merge_books,
+            get_profile_source,
             undo_library_edit,
             get_sidecar,
             save_progress,
