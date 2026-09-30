@@ -38,6 +38,7 @@ pub fn set_status(conn: &Connection, md_path: &Path, status: &str) -> Result<()>
     let (mut entry, body): (CatalogEntry, String) = catalog::parse(&content)
         .ok_or_else(|| anyhow::anyhow!("unparseable catalog entry: {md_path:?}"))?;
     entry.status = status.to_owned();
+    if status == "queued" { entry.up_next = Some(true); entry.want_to_read = Some(true); }
     std::fs::write(md_path, catalog::render(&entry, &body))?;
     conn.execute(
         "UPDATE books SET status = ?1 WHERE path = ?2",
@@ -175,6 +176,8 @@ pub fn process_drop(conn: &Connection, root: &Path) -> Result<DropReport> {
             parsed.hash = Some(matcher::sha256_file(&target)?);
             parsed.original_filename = Some(filename.clone());
             if matches!(parsed.status.as_str(), "wishlist" | "queued") {
+                parsed.up_next = Some(parsed.up_next.unwrap_or(parsed.status == "queued"));
+                parsed.want_to_read = Some(parsed.want_to_read.unwrap_or(true));
                 parsed.status = "available".to_owned();
             }
             let status = parsed.status.clone();

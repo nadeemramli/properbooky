@@ -75,13 +75,17 @@ fn yaml_quote(value: &str) -> String {
 /// a dedicated generated folder (e.g. `<vault>/Properbooky`).
 pub fn export_highlights(root: &Path, out: &Path) -> Result<ExportReport> {
     std::fs::create_dir_all(out)?;
-    let identities = identities(root);
+    let mut identities = identities(root);
+    let registry = crate::identity::Registry::load(root)?;
+    crate::library::export_identities(root, &registry, &mut identities)?;
     let state_dir = root.join(".properbooky").join("state");
     let mut report = ExportReport {
         books: 0,
         highlights: 0,
         target: out.to_string_lossy().into_owned(),
     };
+    let mut outputs: std::collections::BTreeMap<String, Vec<(String, String)>> =
+        std::collections::BTreeMap::new();
 
     for entry in WalkDir::new(&state_dir)
         .into_iter()
@@ -99,7 +103,13 @@ pub fn export_highlights(root: &Path, out: &Path) -> Result<ExportReport> {
             .file_stem()
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let relative = slug.replace("__", "/");
+        let name = format!("{slug}.json");
+        let relative = registry
+            .records
+            .iter()
+            .find(|r| r.state_file.as_deref() == Some(&name))
+            .map(|r| r.path.clone())
+            .unwrap_or_else(|| slug.replace("__", "/"));
         let (title, author) = identities.get(&relative).cloned().unwrap_or_else(|| {
             let stem = relative
                 .rsplit('/')
@@ -115,7 +125,7 @@ pub fn export_highlights(root: &Path, out: &Path) -> Result<ExportReport> {
         if let Some(author) = &author {
             doc.push_str(&format!("author: {}\n", yaml_quote(author)));
         }
-        doc.push_str(&format!("source: {relative}\n"));
+        doc.push_str(&format!("source: {}\n", yaml_quote(&relative)));
         doc.push_str("generated_by: properbooky\n");
         doc.push_str("---\n\n");
         doc.push_str(&format!("# {title}\n\n## Highlights\n\n"));
@@ -135,8 +145,26 @@ pub fn export_highlights(root: &Path, out: &Path) -> Result<ExportReport> {
         }
 
         let filename = catalog::entry_filename(&title, author.as_deref());
-        std::fs::write(out.join(filename), doc)?;
+        outputs.entry(filename).or_default().push((name, doc));
         report.books += 1;
+    }
+
+    for (filename, documents) in outputs {
+        let collision = documents.len() > 1;
+        for (state_name, doc) in documents {
+            let destination = if collision {
+                use sha2::Digest;
+                let suffix = format!("{:x}", sha2::Sha256::digest(state_name.as_bytes()));
+                format!(
+                    "{} - {}.md",
+                    filename.trim_end_matches(".md"),
+                    &suffix[..12]
+                )
+            } else {
+                filename.clone()
+            };
+            std::fs::write(out.join(destination), doc)?;
+        }
     }
 
     Ok(report)

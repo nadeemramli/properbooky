@@ -1,7 +1,8 @@
 :root {
   color-scheme: light dark;
   font-family: Inter, "Segoe UI", system-ui, sans-serif;
-  --serif: "Charter", "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+  --serif:
+    "Charter", "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
   --bg: #faf7f2;
   --fg: #1f2421;
   --muted: #6b7268;
@@ -10,6 +11,255 @@
   --accent: #3f6b4f;
   --rail: #f0ebe1;
   --ribbon: #b05b3f;
+}
+
+.book-state {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: capitalize;
+  margin: 0 0 8px;
+}
+
+.browse-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin: 12px 0 20px;
+}
+.browse-filters label,
+.candidate-search {
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.browse-filters select,
+.candidate-search input {
+  max-width: min(420px, 80vw);
+  padding: 8px 10px;
+  background: var(--card);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+}
+.browse-filters button {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  background: var(--rail);
+  color: var(--fg);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.source-profiles {
+  margin-top: 20px;
+  font-size: 0.85rem;
+}
+.source-profiles details {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.source-profiles summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.source-profiles small {
+  overflow-wrap: anywhere;
+  display: block;
+  margin-bottom: 10px;
+  color: var(--muted);
+}
+.source-profiles pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 300px;
+  overflow: auto;
+  padding: 12px;
+  background: var(--bg);
+}
+.merge-review .review-fields {
+  margin-top: 24px;
+}
+.merge-notice {
+  border-left: 3px solid var(--accent);
+  padding: 12px;
+  background: var(--bg);
+  font-size: 0.85rem;
+}
+.candidate-search {
+  margin: 16px 0;
+}
+.card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.card-actions button,
+.cleanup-toolbar button,
+.book-review button {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--rail);
+  color: var(--fg);
+  cursor: pointer;
+}
+.card-actions button:hover,
+.book-review button:hover {
+  border-color: var(--accent);
+}
+.card-actions button:focus-visible,
+.book-review :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.cleanup-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 18px 0;
+  flex-wrap: wrap;
+}
+.cleanup-toolbar h2 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.25rem;
+}
+.cleanup-toolbar p {
+  margin: 5px 0 0;
+  color: var(--muted);
+}
+.cleanup-toolbar label {
+  display: grid;
+  gap: 4px;
+}
+.cleanup-toolbar select,
+.review-fields input,
+.review-fields select {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  padding: 9px;
+  font: inherit;
+  width: 100%;
+}
+.book-review {
+  width: min(760px, calc(100vw - 32px));
+  max-height: 88vh;
+  overflow: auto;
+  background: var(--card);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 24px 80px #0005;
+}
+.book-review::backdrop {
+  background: #0007;
+}
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+}
+.review-header h2 {
+  margin: 4px 0;
+  font-family: var(--serif);
+}
+.eyebrow {
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.7rem;
+  margin: 0;
+}
+.review-context {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.review-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.review-fields label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+.review-fields .wide {
+  grid-column: 1 / -1;
+}
+.review-fields .check {
+  display: flex;
+  align-items: center;
+}
+.review-fields .check input {
+  width: auto;
+}
+.review-source {
+  margin-top: 20px;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+.review-source summary {
+  cursor: pointer;
+}
+.book-review footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+.book-review .primary {
+  background: var(--accent);
+  color: var(--bg);
+}
+.book-review button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.book-review table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.85rem;
+}
+.book-review td,
+.book-review th {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.review-candidates {
+  margin-top: 24px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.review-candidates p {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.review-candidates article {
+  padding: 12px;
+  margin: 8px 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 520px) {
+  .review-fields {
+    grid-template-columns: 1fr;
+  }
+  .book-review {
+    padding: 16px;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -81,7 +331,9 @@ body {
   background: color-mix(in srgb, var(--card) 55%, var(--rail));
   color: var(--muted);
   transform: translateY(4px);
-  transition: transform 150ms ease, background 150ms ease;
+  transition:
+    transform 150ms ease,
+    background 150ms ease;
   white-space: nowrap;
   overflow: hidden;
 }
@@ -862,4 +1114,81 @@ body {
   color: var(--fg);
   text-align: center;
   font-size: 0.85rem;
+}
+.metadata-lookup,
+.metadata-selection {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border: 1px solid var(--border, #394638);
+  border-radius: 8px;
+}
+.metadata-results article {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border, #394638);
+}
+.metadata-selection .check,
+.topic-suggestions .check {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0.6rem 0;
+}
+.topic-suggestions {
+  max-height: 200px;
+  overflow: auto;
+}
+.organize-library textarea {
+  display: block;
+  width: 100%;
+  min-height: 4rem;
+  box-sizing: border-box;
+  font: inherit;
+  color: inherit;
+  background: var(--bg, #171c17);
+  border: 1px solid var(--border, #394638);
+  border-radius: 5px;
+  padding: 0.6rem;
+}
+.label-rules {
+  padding: 0;
+  list-style: none;
+}
+.label-rules li,
+.roadmap-toolbar {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0.7rem 0;
+}
+.roadmap-toolbar label {
+  display: grid;
+  gap: 0.5rem;
+  flex: 1;
+}
+.roadmap-steps {
+  padding-left: 1.8rem;
+}
+.roadmap-steps li {
+  padding: 1rem 0.5rem;
+  border-bottom: 1px solid var(--border, #394638);
+}
+.roadmap-steps .card-actions {
+  flex-wrap: wrap;
+  margin-top: 0.7rem;
+}
+.roadmap-results {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.roadmap-results button {
+  text-align: left;
+}
+.suggested-cover {
+  float: right;
+  max-width: 100px;
+  max-height: 150px;
+  margin: 0 0 1rem 1rem;
 }

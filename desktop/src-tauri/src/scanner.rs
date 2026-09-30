@@ -19,6 +19,9 @@ pub struct ScanResult {
 /// Rebuild the index from the library folder. The folder is the source of
 /// truth: existing rows are dropped so a rescan always converges on disk state.
 pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
+    anyhow::ensure!(root.is_dir(), "library folder is unavailable");
+    let transaction = conn.unchecked_transaction()?;
+    let mut identities = crate::identity::Registry::load(root)?;
     conn.execute("DELETE FROM books", [])?;
 
     let now = unix_now();
@@ -30,15 +33,13 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
         .into_iter()
         .filter_entry(|e| {
             // Skip dot-directories (.properbooky state, .obsidian, …).
-            e.depth() == 0
-                || !e
-                    .file_name()
-                    .to_string_lossy()
-                    .starts_with('.')
+            e.depth() == 0 || !e.file_name().to_string_lossy().starts_with('.')
         })
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file())
     {
+        let entry = entry?;
+        if !entry.file_type().is_file() {
+            continue;
+        }
         let path = entry.path();
         let Some(ext) = path
             .extension()
@@ -88,6 +89,8 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
                         now,
                     ),
                 )?;
+                let id = identities.register(root, path, "article")?;
+                conn.execute("UPDATE books SET stable_id=?1, asset_id=?1, content_type='article' WHERE path=?2", (&id, path.to_string_lossy()))?;
                 indexed += 1;
                 continue;
             }
@@ -96,8 +99,19 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
             .as_deref()
             .and_then(|content| catalog::parse(content).map(|(entry, _)| entry));
 
-        let (title, author, category, kind, status, rating, recommended, file_link, cover, year, spectrum) =
-            match &catalog_entry {
+        let (
+            title,
+            author,
+            category,
+            kind,
+            status,
+            rating,
+            recommended,
+            file_link,
+            cover,
+            year,
+            spectrum,
+        ) = match &catalog_entry {
             Some(entry) => (
                 entry.title.clone(),
                 entry.author.clone(),
@@ -109,7 +123,8 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
                 entry
                     .file
                     .as_ref()
-                    .map(|rel| root.join(rel).to_string_lossy().into_owned()),
+                    .and_then(|rel| crate::identity::safe_join(root, rel).ok())
+                    .map(|path| path.to_string_lossy().into_owned()),
                 entry
                     .cover
                     .as_ref()
@@ -127,7 +142,9 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
                     .and_then(|rel| rel.parent())
                     .and_then(|parent| parent.file_name())
                     .map(|c| c.to_string_lossy().into_owned());
-                (title, author, category, "file", None, None, false, None, None, None, None)
+                (
+                    title, author, category, "file", None, None, false, None, None, None, None,
+                )
             }
         };
         let modified_at = meta
@@ -161,8 +178,73 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
                 now,
             ],
         )?;
+        let stable_id = identities.register(root, path, kind)?;
+        let reading = catalog_entry
+            .as_ref()
+            .and_then(|e| e.reading_status.as_deref())
+            .unwrap_or(match status.as_deref() {
+                Some("reading") => "reading",
+                Some("done") => "finished",
+                Some("paused") => "paused",
+                _ => "unread",
+            });
+        let want = catalog_entry
+            .as_ref()
+            .and_then(|e| e.want_to_read)
+            .unwrap_or(matches!(status.as_deref(), Some("wishlist" | "queued")));
+        let next = catalog_entry
+            .as_ref()
+            .and_then(|e| e.up_next)
+            .unwrap_or(status.as_deref() == Some("queued"));
+        let content_type = catalog_entry
+            .as_ref()
+            .and_then(|e| e.content_type.as_deref())
+            .unwrap_or(if kind == "catalog" {
+                "book"
+            } else {
+                "unidentified"
+            });
+        conn.execute("UPDATE books SET stable_id=?1, asset_id=?2, reading_status=?3, want_to_read=?4, up_next=?5, content_type=?6 WHERE path=?7", rusqlite::params![stable_id, (kind == "file").then_some(&stable_id), reading, want, next, content_type, path.to_string_lossy()])?;
         indexed += 1;
     }
+
+    // Link catalog rows to assets by normalized relative paths. Recognized
+    // unique moves retain the old location as an alias in the durable registry.
+    let links: Vec<(String, String)> = conn
+        .prepare(
+            "SELECT path, file_link FROM books WHERE kind='catalog' AND file_link IS NOT NULL",
+        )?
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    for (profile, link) in links {
+        let rel = crate::identity::relative(root, Path::new(&link))?;
+        let candidates: Vec<_> = identities
+            .records
+            .iter()
+            .filter(|r| {
+                identities.is_active(&r.id)
+                    && r.kind != "catalog"
+                    && (r.path == rel || (!root.join(&rel).exists() && r.aliases.contains(&rel)))
+                    && root.join(&r.path).is_file()
+            })
+            .collect();
+        if candidates.len() == 1 {
+            let asset = candidates[0];
+            conn.execute(
+                "UPDATE books SET asset_id=?1, file_link=?2 WHERE path=?3",
+                (
+                    &asset.id,
+                    root.join(&asset.path).to_string_lossy(),
+                    &profile,
+                ),
+            )?;
+        }
+    }
+    crate::library::apply_curation(conn, root)?;
+    // If an index commit fails, the registry remains valid and a rescan reuses
+    // its IDs. Originals and sidecars have not been rewritten.
+    identities.save(root)?;
+    transaction.commit()?;
 
     Ok(ScanResult { indexed, skipped })
 }

@@ -80,7 +80,7 @@ try {
     await wait(600);
 
     // 4. Open the first openable book; the reader must appear.
-    const openable = await browser.$$(".card-openable");
+    const openable = await browser.$$(".read-book");
     if (openable.length > 0) {
       await openable[0].click();
       await browser.$(".reader").waitForExist({ timeout: 45000 });

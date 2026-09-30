@@ -71,6 +71,8 @@ fn drop_processing_files_matches_and_leaves_strangers() {
     // Catalog entry linked, hashed, flipped to available; original kept.
     let (entry, _) = catalog::parse(&fs::read_to_string(&entry_md).unwrap()).unwrap();
     assert_eq!(entry.status, "available");
+    assert_eq!(entry.up_next, Some(true));
+    assert_eq!(entry.want_to_read, Some(true));
     assert_eq!(
         entry.file.as_deref(),
         Some("Library/00 Inbox/George D. Taylor - The Taylor Trading Technique.pdf")

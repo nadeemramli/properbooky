@@ -21,8 +21,10 @@ const LIBRARY_ROOT =
   process.env.PROPERBOOKY_LIBRARY ??
   db.prepare("SELECT value FROM settings WHERE key = 'library_path'").get()?.value;
 
+const HAS_IDENTITIES = db.prepare("PRAGMA table_info(books)").all().some((c) => c.name === "stable_id");
+const HAS_MERGES = db.prepare("PRAGMA table_info(books)").all().some((c) => c.name === "merged_into");
 const ROW_FIELDS =
-  "id, title, author, category, kind, status, rating, year, path, file_link, format";
+  "id, title, author, category, kind, status, rating, year, path, file_link, format" + (HAS_IDENTITIES ? ", stable_id, asset_id, reading_status, want_to_read, up_next, content_type" : "") + (HAS_MERGES ? ", merged_into" : "");
 
 function ftsQuery(query) {
   return query
@@ -40,10 +42,75 @@ function text(payload) {
   };
 }
 
+function identityRecords() {
+  try {
+    const registry = JSON.parse(fs.readFileSync(path.join(LIBRARY_ROOT, ".properbooky", "identities.json"), "utf8"));
+    if (registry.version !== 1 || !Array.isArray(registry.records)) throw new Error("Unsupported identity registry");
+    return registry.records;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    return [];
+  }
+}
+
+function curation() {
+  try {
+    const value = JSON.parse(fs.readFileSync(path.join(LIBRARY_ROOT, ".properbooky", "curation.json"), "utf8"));
+    if (![1, 2, 3].includes(value.version)) throw new Error("Unsupported library curation version");
+    return value;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    return {};
+  }
+}
+const labelKey = (s) => s.trim().replace(/\s+/g, " ").toLowerCase();
+function canonical(value, aliases = {}) {
+  if (!value) return value;
+  const seen = new Set();
+  while (Object.hasOwn(aliases, labelKey(value))) {
+    const key = labelKey(value), next = aliases[key];
+    if (labelKey(next) === key) return next;
+    if (seen.has(key)) throw new Error("Invalid label alias cycle");
+    seen.add(key); value = next;
+  }
+  return value;
+}
+function effectiveRow(row, curated = curation()) {
+  const organisation = curated.organisation ?? {};
+  const metadata = curated.metadata?.[row.stable_id];
+  row = { ...row, author: canonical(row.author, organisation.authors),
+    category: row.category ? [...new Set(row.category.split(",").map(t => canonical(t.trim(), organisation.topics)).filter(Boolean))].join(", ") : null,
+    ...(metadata ? { metadata_source: metadata } : {}) };
+  if (HAS_MERGES) {
+    const members = db.prepare(`SELECT ${ROW_FIELDS} FROM books WHERE stable_id = ? OR merged_into = ? ORDER BY CASE WHEN stable_id = ? THEN 0 ELSE 1 END, stable_id`).all(row.stable_id, row.stable_id, row.stable_id);
+    const files = new Map();
+    for (const member of members) {
+      const assetPath = member.kind === "catalog" ? member.file_link : member.path;
+      if (!assetPath) continue;
+      const key = member.asset_id ?? assetPath;
+      if (!files.has(key)) files.set(key, { id: member.asset_id, path: assetPath, format: member.kind === "article" ? "article" : path.extname(assetPath).slice(1).toLowerCase(), available: fs.existsSync(assetPath) && fs.statSync(assetPath).isFile(), year: member.year });
+    }
+    const assets = [...files.values()].sort((a,b) => Number(b.available) - Number(a.available) || Number(["pdf","epub","article"].includes(b.format)) - Number(["pdf","epub","article"].includes(a.format)));
+    return { ...row, assets, source_profiles: members, file_link: assets[0]?.path ?? row.file_link, format: assets[0]?.format ?? "", availability: assets.some((a) => a.available) ? "local" : assets.length || row.status === "available" ? "missing" : "none" };
+  }
+  const assetPath = row.kind === "catalog" ? row.file_link : row.path;
+  const present = assetPath && fs.existsSync(assetPath) && fs.statSync(assetPath).isFile();
+  return {
+    ...row,
+    availability: present ? "local" : assetPath || row.status === "available" ? "missing" : "none",
+    format: row.kind === "article" ? "article" : assetPath ? path.extname(assetPath).slice(1).toLowerCase() : "",
+  };
+}
+
 function sidecarPath(bookPath) {
   const relative = bookPath.startsWith(LIBRARY_ROOT)
     ? bookPath.slice(LIBRARY_ROOT.length).replace(/^[/\\]/, "")
     : bookPath;
+  const normalized = relative.replaceAll("\\", "/");
+  const record = identityRecords().findLast((r) => r.path === normalized);
+  if (record?.state_file && !/[\\/:]/.test(record.state_file)) {
+    return path.join(LIBRARY_ROOT, ".properbooky", "state", record.state_file);
+  }
   const slug = relative.replaceAll("/", "__").replaceAll("\\", "__");
   return path.join(LIBRARY_ROOT, ".properbooky", "state", `${slug}.json`);
 }
@@ -72,25 +139,72 @@ server.tool(
         `SELECT ${prefixed} FROM books b
          JOIN books_fts f ON f.rowid = b.id
          WHERE books_fts MATCH ?
-           AND NOT (b.kind = 'file' AND b.path IN
-                    (SELECT file_link FROM books WHERE file_link IS NOT NULL))
-         ORDER BY rank LIMIT ?`
+           AND NOT (b.kind = 'file' AND ${HAS_IDENTITIES ? "b.asset_id IN (SELECT asset_id FROM books WHERE kind='catalog' AND asset_id IS NOT NULL)" : "b.path IN (SELECT file_link FROM books WHERE file_link IS NOT NULL)"}${HAS_MERGES ? " AND b.merged_into IS NULL AND NOT EXISTS(SELECT 1 FROM books child WHERE child.merged_into=b.stable_id)" : ""})
+         ORDER BY rank`
       )
-      .all(ftsQuery(query), limit);
-    return text(rows);
+      .all(ftsQuery(query));
+    const curated = curation();
+    // Shared labels are file-backed projections, so their preferred spellings
+    // may not exist in the disposable FTS index. Search them as well.
+    if (HAS_IDENTITIES && curated.organisation) {
+      const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+      for (const row of db.prepare(`SELECT ${ROW_FIELDS} FROM books`).all()) {
+        const org = curated.organisation;
+        const labels = `${canonical(row.author, org.authors) ?? ""} ${(row.category ?? "").split(",").map(t => canonical(t.trim(), org.topics)).join(" ")} ${row.title}`.toLowerCase();
+        if (terms.length && terms.every(t => labels.includes(t)) && !rows.some(r => r.id === row.id)) {
+          if (row.kind === "file" && !row.merged_into && row.asset_id && db.prepare("SELECT 1 FROM books WHERE kind='catalog' AND asset_id=?").get(row.asset_id)) continue;
+          rows.push(row);
+        }
+      }
+    }
+    const visible = new Map();
+    for (const hit of rows) {
+      const primary = HAS_MERGES && hit.merged_into ? db.prepare(`SELECT ${ROW_FIELDS} FROM books WHERE stable_id=?`).get(hit.merged_into) ?? hit : hit;
+      if (!visible.has(primary.id)) visible.set(primary.id, effectiveRow(primary, curated));
+      if (visible.size >= limit) break;
+    }
+    return text([...visible.values()]);
   }
 );
 
+server.tool("reading_roadmaps", "Ordered reading plans with current availability and reading state. Combined profiles appear once and retain all step notes.", {}, async () => {
+  const curated = curation();
+  if (!HAS_IDENTITIES) return text([]);
+  const rows = db.prepare(`SELECT ${ROW_FIELDS} FROM books`).all();
+  const byId = new Map(rows.map(row => [row.stable_id, row]));
+  return text((curated.organisation?.roadmaps ?? []).map(roadmap => {
+    const steps = new Map();
+    for (const step of roadmap.steps) {
+      const source = byId.get(step.profile_id);
+      const row = source?.merged_into ? byId.get(source.merged_into) ?? source : source;
+      const id = row?.stable_id ?? step.profile_id;
+      if (!steps.has(id)) steps.set(id, { profile_id: id, book: row ? effectiveRow(row, curated) : null, notes: [] });
+      if (step.note) steps.get(id).notes.push(step.note);
+    }
+    const ordered = [...steps.values()];
+    return { ...roadmap, steps: ordered, next_profile_id: ordered.find(s => s.book && !["finished", "stopped"].includes(s.book.reading_status))?.profile_id ?? null };
+  }));
+});
+
 server.tool(
   "library_stats",
-  "Counts by kind and status — the shape of the library.",
+  "Indexed-row counts plus visible combined profiles and their reading/availability states when supported.",
   {},
   async () => {
     const byKind = db.prepare("SELECT kind, COUNT(*) n FROM books GROUP BY kind").all();
     const byStatus = db
       .prepare("SELECT status, COUNT(*) n FROM books WHERE kind='catalog' GROUP BY status")
       .all();
-    return text({ library_root: LIBRARY_ROOT, by_kind: byKind, catalog_by_status: byStatus });
+    const stats = { library_root: LIBRARY_ROOT, by_kind: byKind, catalog_by_status: byStatus };
+    if (HAS_MERGES) {
+      const curated = curation();
+      const profiles = db.prepare(`SELECT ${ROW_FIELDS} FROM books b WHERE merged_into IS NULL AND NOT (kind='file' AND asset_id IN (SELECT asset_id FROM books WHERE kind='catalog' AND asset_id IS NOT NULL) AND NOT EXISTS(SELECT 1 FROM books child WHERE child.merged_into=b.stable_id))`).all().map(row => effectiveRow(row, curated));
+      const counts = (field) => profiles.reduce((result, row) => { result[row[field]] = (result[row[field]] ?? 0) + 1; return result; }, {});
+      stats.visible_profiles = profiles.length;
+      stats.by_reading_status = counts("reading_status");
+      stats.by_availability = counts("availability");
+    }
+    return text(stats);
   }
 );
 
@@ -107,7 +221,7 @@ server.tool(
       const content = fs.readFileSync(assetPath, "utf8");
       return text(content.length > 100_000 ? content.slice(0, 100_000) + "\n…[truncated]" : content);
     }
-    return text({ ...row, note: "binary book file — use highlights or the reading app for content" });
+    return text({ ...effectiveRow(row), note: "binary book file — use highlights or the reading app for content" });
   }
 );
 
@@ -168,6 +282,7 @@ server.tool(
     const stateDir = path.join(LIBRARY_ROOT, ".properbooky", "state");
     const needle = query.toLowerCase();
     const hits = [];
+    const records = identityRecords();
     for (const file of fs.existsSync(stateDir) ? fs.readdirSync(stateDir) : []) {
       if (!file.endsWith(".json")) continue;
       try {
@@ -179,7 +294,7 @@ server.tool(
             (h.note ?? "").toLowerCase().includes(needle)
           ) {
             hits.push({
-              book: file.replace(/\.json$/, "").replaceAll("__", "/"),
+              book: records.find((r) => r.state_file === file)?.path ?? file.replace(/\.json$/, "").replaceAll("__", "/"),
               text: h.text,
               note: h.note ?? null,
               anchor: h.anchor,

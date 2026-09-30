@@ -196,6 +196,8 @@ pub fn apply_match(library_root: &Path, row: &PlanRow) -> Result<ApplyOutcome> {
         entry.original_filename = Some(original_name);
     }
     if matches!(entry.status.as_str(), "wishlist" | "queued") {
+        entry.up_next = Some(entry.up_next.unwrap_or(entry.status == "queued"));
+        entry.want_to_read = Some(entry.want_to_read.unwrap_or(true));
         entry.status = "available".to_owned();
     }
     fs::write(&row.catalog_path, catalog::render(&entry, &body))?;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { bookEdit } from "./bookMetadata";
 import type { Book } from "./types";
 
 interface DropOutcome {
@@ -34,7 +35,9 @@ export default function AcquirePanel({
 
   const refresh = useCallback(async () => {
     try {
-      setQueue(await invoke<Book[]>("acquisition_queue", { limit: QUEUE_SIZE }));
+      setQueue(
+        await invoke<Book[]>("acquisition_queue", { limit: QUEUE_SIZE }),
+      );
     } catch (e) {
       setError(String(e));
     }
@@ -47,23 +50,26 @@ export default function AcquirePanel({
   const search = useCallback(
     async (book: Book) => {
       const query = encodeURIComponent(
-        [book.title, book.author].filter(Boolean).join(" ")
+        [book.title, book.author].filter(Boolean).join(" "),
       );
       openUrl(`https://z-library.sk/s/${query}`).catch(() => {});
-      if (book.status !== "queued") {
-        await invoke("set_catalog_status", {
-          path: book.path,
-          status: "queued",
-        }).catch(() => {});
+      if (!book.up_next) {
+        await invoke("update_book", {
+          id: book.stable_id,
+          edit: { ...bookEdit(book), want_to_read: true, up_next: true },
+        }).catch((e) => {
+          setError(String(e));
+          throw e;
+        });
         setQueue((current) =>
           current.map((b) =>
-            b.id === book.id ? { ...b, status: "queued" } : b
-          )
+            b.stable_id === book.stable_id ? { ...b, up_next: true } : b,
+          ),
         );
         onLibraryChanged();
       }
     },
-    [onLibraryChanged]
+    [onLibraryChanged],
   );
 
   const runDrop = useCallback(async () => {
@@ -130,14 +136,17 @@ export default function AcquirePanel({
                     {book.priority.toFixed(2)}
                   </strong>
                 )}
-                {book.status === "queued" ? " · queued" : ""}
+                {book.up_next ? " · queued" : ""}
                 {book.year ? ` · ${book.year}` : ""}
                 {book.rating ? ` · ★${book.rating}` : " · unrated"}
                 {book.recommended ? " · rec" : ""}
                 {book.spectrum ? ` · ${book.spectrum}` : ""}
               </span>
-              <button className="acquire-search" onClick={() => search(book)}>
-                {book.status === "queued" ? "Search again" : "Search & queue"}
+              <button
+                className="acquire-search"
+                onClick={() => search(book).catch(() => {})}
+              >
+                {book.up_next ? "Search again" : "Search & queue"}
               </button>
             </div>
           </li>

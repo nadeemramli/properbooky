@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import AcquirePanel from "./AcquirePanel";
 import ObsidianPanel from "./ObsidianPanel";
+import BookReview from "./BookReview";
+import OrganizeLibrary from "./OrganizeLibrary";
+import { authorKey, authorLabels, topicKey, topicLabels } from "./bookMetadata";
 import type { Book, LibraryState, ScanResult } from "./types";
 
 function formatSize(bytes: number): string {
@@ -16,6 +19,11 @@ const SHELF_FILTERS = [
   { key: "on-shelf", label: "On the shelf" },
   { key: "wishlist", label: "Wishlist" },
   { key: "queued", label: "Up next" },
+  { key: "wanted", label: "Want to read" },
+  { key: "reading", label: "Continue reading" },
+  { key: "finished", label: "Finished" },
+  { key: "documents", label: "Documents" },
+  { key: "cleanup", label: "Library cleanup" },
 ] as const;
 
 type ShelfFilter = (typeof SHELF_FILTERS)[number]["key"];
@@ -25,19 +33,63 @@ function matchesFilter(book: Book, filter: ShelfFilter): boolean {
     case "all":
       return true;
     case "on-shelf":
-      return book.kind === "file" || book.status === "available";
+      return book.availability === "local";
     case "wishlist":
-      return book.status === "wishlist";
+      return book.want_to_read && book.availability !== "local";
     case "queued":
-      return book.status === "queued";
+      return book.up_next;
+    case "wanted":
+      return book.want_to_read;
+    case "reading":
+      return (
+        book.reading_status === "reading" || book.reading_status === "paused"
+      );
+    case "finished":
+      return book.reading_status === "finished";
+    case "documents":
+      return ["paper", "report", "manual", "notes", "other"].includes(
+        book.content_type,
+      );
+    case "cleanup":
+      return book.issues.length > 0;
   }
 }
 
 const READABLE = new Set(["epub", "pdf"]);
 
+function browseOptions(
+  books: Book[],
+  labels: (book: Book) => string[],
+  key: (value: string) => string,
+) {
+  const options = new Map<string, { label: string; count: number }>();
+  for (const book of books) {
+    const seen = new Set<string>();
+    for (const label of labels(book)) {
+      const id = key(label);
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      const current = options.get(id);
+      options.set(id, {
+        label: current?.label ?? label,
+        count: (current?.count ?? 0) + 1,
+      });
+    }
+  }
+  return [...options].sort((a, b) => a[1].label.localeCompare(b[1].label));
+}
+
 /** A book is openable when a real, readable file backs it. Legacy formats
  * (mobi/chm/…) are indexed for availability but have no reader yet. */
 export function openablePath(book: Book): string | null {
+  if (book.assets.length)
+    return (
+      book.assets.find(
+        (asset) =>
+          asset.available && ["pdf", "epub", "article"].includes(asset.format),
+      )?.path ?? null
+    );
+  if (book.availability !== "local") return null;
   if (book.kind === "article") return book.file_link ?? book.path;
   const path = book.kind === "file" ? book.path : book.file_link;
   if (!path) return null;
@@ -60,21 +112,33 @@ export default function LibraryView({
   const [showAcquire, setShowAcquire] = useState(false);
   const [showSaveUrl, setShowSaveUrl] = useState(false);
   const [showObsidian, setShowObsidian] = useState(false);
+  const [showOrganize, setShowOrganize] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [savingUrl, setSavingUrl] = useState(false);
+  const [review, setReview] = useState<Book | null>(null);
+  const [cleanupReason, setCleanupReason] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [authorFilter, setAuthorFilter] = useState("");
+  const [topicFilter, setTopicFilter] = useState("");
+  const request = useRef(0);
 
   const refreshBooks = useCallback(async (search: string) => {
-    const result = await invoke<Book[]>("list_books", {
-      query: search || null,
-    });
-    setBooks(result);
+    const sequence = ++request.current;
+    setLoading(true);
+    try {
+      const result = await invoke<Book[]>("list_books", {
+        query: search || null,
+      });
+      if (sequence === request.current) setBooks(result);
+    } finally {
+      if (sequence === request.current) setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     invoke<LibraryState>("get_library_state")
       .then((state) => {
         setLibraryPath(state.library_path);
-        if (state.book_count > 0) refreshBooks("");
       })
       .catch((e) => setStatus(String(e)));
   }, [refreshBooks]);
@@ -95,7 +159,7 @@ export default function LibraryView({
         setLibraryPath(path);
         setStatus(
           `Indexed ${result.indexed} books` +
-            (result.skipped ? ` (${result.skipped} skipped)` : "")
+            (result.skipped ? ` (${result.skipped} skipped)` : ""),
         );
         await refreshBooks(query);
       } catch (e) {
@@ -104,7 +168,7 @@ export default function LibraryView({
         setScanning(false);
       }
     },
-    [query, refreshBooks]
+    [query, refreshBooks],
   );
 
   const chooseFolder = useCallback(async () => {
@@ -128,10 +192,31 @@ export default function LibraryView({
         setSavingUrl(false);
       }
     },
-    [query, refreshBooks]
+    [query, refreshBooks],
   );
 
-  const visible = books.filter((b) => matchesFilter(b, filter));
+  const authorOptions = browseOptions(books, authorLabels, authorKey);
+  const topicOptions = browseOptions(books, topicLabels, topicKey);
+  const visible = books.filter(
+    (b) =>
+      matchesFilter(b, filter) &&
+      (!authorFilter ||
+        authorLabels(b).some((a) => authorKey(a) === authorFilter)) &&
+      (!topicFilter ||
+        topicLabels(b).some((t) => topicKey(t) === topicFilter)) &&
+      (filter !== "cleanup" ||
+        !cleanupReason ||
+        b.issues.includes(cleanupReason)),
+  );
+  const undo = async () => {
+    try {
+      await invoke("undo_library_edit");
+      await refreshBooks(query);
+      setStatus("Last correction undone.");
+    } catch (e) {
+      setStatus(String(e));
+    }
+  };
 
   return (
     <div className="library">
@@ -159,6 +244,9 @@ export default function LibraryView({
             </button>
             <button onClick={() => setShowSaveUrl((s) => !s)}>Save URL</button>
             <button onClick={() => setShowObsidian(true)}>Obsidian</button>
+            <button onClick={() => setShowOrganize(true)}>
+              Organize library
+            </button>
           </>
         )}
       </header>
@@ -191,16 +279,97 @@ export default function LibraryView({
             <button
               key={f.key}
               className={`chip ${filter === f.key ? "chip-active" : ""}`}
+              role="tab"
+              aria-selected={filter === f.key}
               onClick={() => setFilter(f.key)}
             >
               {f.label}
             </button>
           ))}
-          <span className="chip-count">{visible.length} books</span>
+          <span className="chip-count">{visible.length} items</span>
         </div>
       )}
 
       {status && <p className="status">{status}</p>}
+      {libraryPath && (
+        <section className="browse-filters" aria-label="Browse your library">
+          <label>
+            Author
+            <select
+              aria-label="Filter by author"
+              value={authorFilter}
+              onChange={(e) => setAuthorFilter(e.target.value)}
+            >
+              <option value="">All authors</option>
+              {authorOptions.map(([key, value]) => (
+                <option key={key} value={key}>
+                  {value.label} ({value.count})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Topic
+            <select
+              aria-label="Filter by topic"
+              value={topicFilter}
+              onChange={(e) => setTopicFilter(e.target.value)}
+            >
+              <option value="">All topics</option>
+              {topicOptions.map(([key, value]) => (
+                <option key={key} value={key}>
+                  {value.label} ({value.count})
+                </option>
+              ))}
+            </select>
+          </label>
+          {(authorFilter || topicFilter) && (
+            <button
+              onClick={() => {
+                setAuthorFilter("");
+                setTopicFilter("");
+              }}
+            >
+              Clear browse filters
+            </button>
+          )}
+        </section>
+      )}
+      {loading && <p role="status">Loading your library…</p>}
+      {filter === "cleanup" && (
+        <div className="cleanup-toolbar">
+          <div>
+            <h2>Make your library easier to find</h2>
+            <p>
+              Review uncertain details and duplicate candidates. Every
+              correction can be undone.
+            </p>
+          </div>
+          <label>
+            Show
+            <select
+              value={cleanupReason}
+              onChange={(e) => setCleanupReason(e.target.value)}
+            >
+              <option value="">All issues</option>
+              {[
+                "Check title",
+                "Missing author",
+                "Missing file",
+                "Classify item",
+                "Missing cover",
+                "Possible duplicate",
+                "Missing primary profile",
+              ].map((reason) => (
+                <option key={reason}>{reason}</option>
+              ))}
+            </select>
+          </label>
+          <button onClick={undo} disabled={loading}>
+            Undo last correction
+          </button>
+        </div>
+      )}
 
       {!libraryPath ? (
         <div className="empty">
@@ -234,30 +403,19 @@ export default function LibraryView({
             const openable = openablePath(book) !== null;
             return (
               <article
-                key={book.id}
+                key={book.stable_id}
                 className={`card ${openable ? "card-openable" : ""}`}
-                title={openable ? `Open ${book.title}` : `${book.title} — not on the shelf yet`}
-                tabIndex={openable ? 0 : -1}
-                onClick={() => openable && onOpen(book)}
-                onKeyDown={(e) => {
-                  if (openable && (e.key === "Enter" || e.key === " ")) {
-                    e.preventDefault();
-                    onOpen(book);
-                  }
-                }}
               >
                 <div className="card-top">
-                  {book.kind === "article" ? (
-                    <span className="badge badge-article">ARTICLE</span>
-                  ) : book.kind === "catalog" ? (
-                    <span className={`badge badge-${book.status ?? "wishlist"}`}>
-                      {(book.status ?? "wishlist").toUpperCase()}
-                    </span>
-                  ) : (
-                    <span className={`badge badge-${book.format}`}>
-                      {book.format.toUpperCase()}
-                    </span>
-                  )}
+                  <span
+                    className={`badge badge-${book.availability === "local" ? "available" : "wishlist"}`}
+                  >
+                    {book.availability === "local"
+                      ? "On the shelf"
+                      : book.availability === "missing"
+                        ? "File missing"
+                        : "No local file"}
+                  </span>
                   {book.cover && (
                     <img
                       className="card-cover"
@@ -268,7 +426,25 @@ export default function LibraryView({
                   )}
                 </div>
                 <h2>{book.title}</h2>
+                <p className="book-state">
+                  {book.assets.length
+                    ? `${[...new Set(book.assets.map((a) => a.format.toUpperCase()))].join(" / ")} · `
+                    : book.format
+                      ? `${book.format.toUpperCase()} · `
+                      : ""}
+                  {book.reading_status}
+                  {book.up_next ? " · Up next" : ""}
+                  {book.content_type !== "book"
+                    ? ` · ${book.content_type}`
+                    : ""}
+                </p>
                 {book.author && <p className="author">{book.author}</p>}
+                {book.source_profiles.length > 1 && (
+                  <p className="review-context">
+                    {book.source_profiles.length} source profiles ·{" "}
+                    {book.assets.length} linked files
+                  </p>
+                )}
                 <p className="meta">
                   {book.year ? `${book.year} · ` : ""}
                   {book.category ? `${book.category} · ` : ""}
@@ -278,11 +454,56 @@ export default function LibraryView({
                       : "unrated"
                     : formatSize(book.size_bytes)}
                 </p>
+                {filter === "cleanup" && (
+                  <p className="review-context">{book.issues.join(" · ")}</p>
+                )}
+                <div className="card-actions">
+                  {openable && book.assets.length <= 1 && (
+                    <button className="read-book" onClick={() => onOpen(book)}>
+                      Read
+                    </button>
+                  )}
+                  {book.assets.length > 1 &&
+                    book.assets.map((asset, i) => (
+                      <span key={asset.id ?? asset.path}>
+                        {asset.available &&
+                        ["pdf", "epub", "article"].includes(asset.format) ? (
+                          <button
+                            className="read-book"
+                            title={asset.path}
+                            onClick={() => onOpen({ ...book, assets: [asset] })}
+                          >
+                            Read {asset.format.toUpperCase()}
+                            {asset.year
+                              ? ` (${asset.year})`
+                              : ` · Copy ${i + 1}`}
+                          </button>
+                        ) : (
+                          <small>
+                            {asset.format.toUpperCase()} ·{" "}
+                            {asset.available
+                              ? "External reader"
+                              : "Missing file"}
+                          </small>
+                        )}
+                      </span>
+                    ))}
+                  <button onClick={() => setReview(book)}>
+                    Review details
+                  </button>
+                </div>
+                {!openable && book.availability === "local" && (
+                  <small className="review-context">
+                    This format needs an external reader.
+                  </small>
+                )}
               </article>
             );
           })}
           {visible.length === 0 && (
-            <p className="empty">Nothing here{query ? ` for “${query}”` : ""}.</p>
+            <p className="empty">
+              Nothing here{query ? ` for “${query}”` : ""}.
+            </p>
           )}
         </section>
       )}
@@ -294,6 +515,33 @@ export default function LibraryView({
         />
       )}
       {showObsidian && <ObsidianPanel onClose={() => setShowObsidian(false)} />}
+      {showOrganize && (
+        <OrganizeLibrary
+          onClose={() => setShowOrganize(false)}
+          onOpen={onOpen}
+          onSaved={async () => {
+            setAuthorFilter("");
+            setTopicFilter("");
+            await refreshBooks(query);
+            setStatus(
+              "Organization saved. Undo is available in Library cleanup.",
+            );
+          }}
+        />
+      )}
+      {review && (
+        <BookReview
+          key={review.stable_id}
+          book={review}
+          onClose={() => setReview(null)}
+          onSaved={async () => {
+            await refreshBooks(query);
+            setStatus(
+              "Correction saved. Undo is available in Library cleanup.",
+            );
+          }}
+        />
+      )}
     </div>
   );
 }

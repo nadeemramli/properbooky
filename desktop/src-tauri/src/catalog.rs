@@ -46,6 +46,17 @@ pub struct CatalogEntry {
     /// source of original ideas, a derivative treatment, or an anthology?
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spectrum: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reading_status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub want_to_read: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub up_next: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
+    /// Preserve provider and future fields during legacy acquisition writes.
+    #[serde(flatten)]
+    pub extra: std::collections::BTreeMap<String, serde_yaml::Value>,
 }
 
 fn default_status() -> String {

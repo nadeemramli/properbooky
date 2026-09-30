@@ -1,5 +1,26 @@
 export interface Book {
   id: number;
+  stable_id: string;
+  asset_id: string | null;
+  availability: "local" | "missing" | "none";
+  reading_status: "unread" | "reading" | "paused" | "finished" | "stopped";
+  want_to_read: boolean;
+  up_next: boolean;
+  content_type: string;
+  issues: string[];
+  duplicate_candidates: string[];
+  assets: BookAsset[];
+  source_profiles: SourceProfile[];
+  browse_authors: string[];
+  browse_topics: string[];
+  metadata_source: {
+    source_url: string;
+    accepted_at: number;
+    suggested_title: string;
+    suggested_authors: string[];
+    suggested_topics: string[];
+    cover: string | null;
+  } | null;
   path: string;
   filename: string;
   title: string;
@@ -17,6 +38,64 @@ export interface Book {
   spectrum: string | null;
   priority: number | null;
 }
+
+export interface MetadataCandidate {
+  key: string;
+  title: string;
+  author_name: string[];
+  subject: string[];
+  first_publish_year: number | null;
+  cover_i: number | null;
+}
+
+export interface Organisation {
+  authors: Record<string, string>;
+  topics: Record<string, string>;
+  roadmaps: {
+    id: string;
+    title: string;
+    description: string;
+    steps: { profile_id: string; note: string }[];
+  }[];
+}
+export interface OrganisationView {
+  revision: number;
+  value: Organisation;
+}
+
+export interface BookAsset {
+  id: string | null;
+  path: string;
+  format: string;
+  available: boolean;
+  year: number | null;
+}
+
+export interface SourceProfile {
+  id: string;
+  path: string;
+  kind: string;
+  title: string;
+  author: string | null;
+  category: string | null;
+  year: number | null;
+  rating: number | null;
+  recommended: boolean;
+  reading_status: Book["reading_status"];
+  want_to_read: boolean;
+  up_next: boolean;
+}
+
+export type BookEdit = Pick<
+  Book,
+  | "title"
+  | "author"
+  | "category"
+  | "content_type"
+  | "reading_status"
+  | "want_to_read"
+  | "up_next"
+>;
 
 export interface LibraryState {
   library_path: string | null;

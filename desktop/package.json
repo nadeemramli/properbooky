@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test:e2e:desktop": "node e2e-desktop/smoke.e2e.mjs",
+    "test:e2e:review": "node e2e-desktop/library-review.e2e.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

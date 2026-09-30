@@ -2,12 +2,18 @@ pub mod acquire;
 pub mod annotations;
 pub mod article;
 pub mod catalog;
+pub mod consolidation;
 pub mod db;
 pub mod enrich;
 pub mod export;
 pub mod extract;
+pub mod identity;
+pub mod library;
 pub mod matcher;
+pub mod organisation;
 pub mod scanner;
+use library::Book;
+static LIBRARY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 use rusqlite::Connection;
 use serde::Serialize;
@@ -15,29 +21,6 @@ use std::path::PathBuf;
 use tauri::Manager;
 
 const LIBRARY_PATH_KEY: &str = "library_path";
-
-#[derive(Serialize)]
-struct Book {
-    id: i64,
-    path: String,
-    filename: String,
-    title: String,
-    author: Option<String>,
-    category: Option<String>,
-    kind: String,
-    status: Option<String>,
-    rating: Option<i64>,
-    file_link: Option<String>,
-    format: String,
-    size_bytes: i64,
-    recommended: bool,
-    cover: Option<String>,
-    year: Option<i64>,
-    spectrum: Option<String>,
-    /// Prioritization score — only computed for the acquisition queue.
-    priority: Option<f64>,
-}
-
 
 #[derive(Serialize)]
 struct LibraryState {
@@ -56,89 +39,188 @@ fn db_file(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-fn get_library_state(app: tauri::AppHandle) -> Result<LibraryState, String> {
-    let conn = open_db(&app)?;
-    let library_path = db::get_setting(&conn, LIBRARY_PATH_KEY).map_err(|e| e.to_string())?;
-    let book_count = conn
-        .query_row("SELECT COUNT(*) FROM books", [], |r| r.get(0))
-        .map_err(|e| e.to_string())?;
-    Ok(LibraryState {
-        library_path,
-        book_count,
-    })
-}
-
-#[tauri::command]
-fn scan_library(app: tauri::AppHandle, path: String) -> Result<scanner::ScanResult, String> {
-    let conn = open_db(&app)?;
-    let result = scanner::scan_library(&conn, PathBuf::from(&path).as_path())
-        .map_err(|e| e.to_string())?;
-    db::set_setting(&conn, LIBRARY_PATH_KEY, &path).map_err(|e| e.to_string())?;
-    Ok(result)
-}
-
-#[tauri::command]
-fn list_books(app: tauri::AppHandle, query: Option<String>) -> Result<Vec<Book>, String> {
-    let conn = open_db(&app)?;
-    let map_row = |row: &rusqlite::Row| -> rusqlite::Result<Book> {
-        Ok(Book {
-            id: row.get(0)?,
-            path: row.get(1)?,
-            filename: row.get(2)?,
-            title: row.get(3)?,
-            author: row.get(4)?,
-            category: row.get(5)?,
-            kind: row.get(6)?,
-            status: row.get(7)?,
-            rating: row.get(8)?,
-            file_link: row.get(9)?,
-            format: row.get(10)?,
-            size_bytes: row.get(11)?,
-            recommended: row.get(12)?,
-            cover: row.get(13)?,
-            year: row.get(14)?,
-            spectrum: row.get(15)?,
-            priority: None,
+async fn get_library_state(app: tauri::AppHandle) -> Result<LibraryState, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        let library_path = db::get_setting(&conn, LIBRARY_PATH_KEY).map_err(|e| e.to_string())?;
+        let book_count = conn
+            .query_row("SELECT COUNT(*) FROM books", [], |r| r.get(0))
+            .map_err(|e| e.to_string())?;
+        Ok(LibraryState {
+            library_path,
+            book_count,
         })
-    };
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
 
-    let books = match query.as_deref().map(str::trim).filter(|q| !q.is_empty()) {
-        Some(q) => {
-            let fts_query = q
-                .split_whitespace()
-                .map(|token| format!("\"{}\"*", token.replace('"', "")))
-                .collect::<Vec<_>>()
-                .join(" ");
-            let mut stmt = conn
-                .prepare(
-                    "SELECT b.id, b.path, b.filename, b.title, b.author, b.category, b.kind, b.status, b.rating, b.file_link, b.format, b.size_bytes, b.recommended, b.cover, b.year, b.spectrum
-                     FROM books b JOIN books_fts f ON f.rowid = b.id
-                     WHERE books_fts MATCH ?1
-                       AND NOT (b.kind = 'file' AND b.path IN
-                                (SELECT file_link FROM books WHERE file_link IS NOT NULL))
-                     ORDER BY rank",
-                )
-                .map_err(|e| e.to_string())?;
-            let rows = stmt
-                .query_map([fts_query], map_row)
-                .map_err(|e| e.to_string())?;
-            rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+#[tauri::command]
+async fn scan_library(app: tauri::AppHandle, path: String) -> Result<scanner::ScanResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        let root = PathBuf::from(&path);
+        let result = scanner::scan_library(&conn, &root).map_err(|e| e.to_string())?;
+        db::set_setting(&conn, LIBRARY_PATH_KEY, &path).map_err(|e| e.to_string())?;
+        Ok(result)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn list_books(app: tauri::AppHandle, query: Option<String>) -> Result<Vec<Book>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        let Some(root) = db::get_setting(&conn, LIBRARY_PATH_KEY).map_err(|e| e.to_string())?
+        else {
+            return Ok(Vec::new());
+        };
+        let root = PathBuf::from(root);
+        let count: i64 = conn
+            .query_row("SELECT count(*) FROM books", [], |r| r.get(0))
+            .map_err(|e| e.to_string())?;
+        if count == 0 {
+            scanner::scan_library(&conn, &root).map_err(|e| e.to_string())?;
         }
-        None => {
-            let mut stmt = conn
-                .prepare(
-                    "SELECT id, path, filename, title, author, category, kind, status, rating, file_link, format, size_bytes, recommended, cover, year, spectrum
-                     FROM books
-                     WHERE NOT (kind = 'file' AND path IN
-                                (SELECT file_link FROM books WHERE file_link IS NOT NULL))
-                     ORDER BY title COLLATE NOCASE",
-                )
-                .map_err(|e| e.to_string())?;
-            let rows = stmt.query_map([], map_row).map_err(|e| e.to_string())?;
-            rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+        library::list(&conn, &root, query.as_deref()).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn update_book(app: tauri::AppHandle, id: String, edit: library::Edit) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        let root = library_root(&conn)?;
+        library::update(&conn, &root, &id, edit).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn undo_library_edit(app: tauri::AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        library::undo(&conn, &library_root(&conn)?).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn merge_books(
+    app: tauri::AppHandle,
+    keep: String,
+    absorb: String,
+    edit: library::Edit,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        library::merge(&conn, &library_root(&conn)?, &keep, &absorb, edit)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn get_profile_source(app: tauri::AppHandle, id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        library::source_text(&library_root(&conn)?, &id).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+fn library_root(conn: &Connection) -> Result<PathBuf, String> {
+    db::get_setting(conn, LIBRARY_PATH_KEY)
+        .map_err(|e| e.to_string())?
+        .map(PathBuf::from)
+        .ok_or_else(|| "no library configured".into())
+}
+
+#[tauri::command]
+async fn get_organisation(app: tauri::AppHandle) -> Result<library::OrganisationView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        library::organisation(&library_root(&conn)?).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn save_organisation(
+    app: tauri::AppHandle,
+    revision: u64,
+    value: organisation::Organisation,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        library::save_organisation(&library_root(&conn)?, revision, value)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn lookup_metadata(
+    app: tauri::AppHandle,
+    title: String,
+    author: String,
+    refresh: bool,
+) -> Result<enrich::Suggestions, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        // Network lookup does not hold up local reading or library edits.
+        let root = {
+            let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+            library_root(&open_db(&app)?)?
+        };
+        enrich::search(&root, &title, &author, refresh).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn accept_metadata(
+    app: tauri::AppHandle,
+    id: String,
+    expected: library::Edit,
+    edit: library::Edit,
+    candidate: enrich::OlDoc,
+    use_cover: bool,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = {
+            let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+            library_root(&open_db(&app)?)?
+        };
+        let accepted = enrich::accepted(&root, candidate, use_cover).map_err(|e| e.to_string())?;
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        if library_root(&conn)? != root {
+            return Err("library folder changed; reopen the profile".into());
         }
-    };
-    Ok(books)
+        library::accept_metadata(&conn, &root, &id, &expected, edit, accepted)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Sidecar path for per-book reading state, under `<library>/.properbooky/state/`.
@@ -148,74 +230,100 @@ fn progress_file(app: &tauri::AppHandle, book_path: &str) -> Result<PathBuf, Str
     let root = db::get_setting(&conn, LIBRARY_PATH_KEY)
         .map_err(|e| e.to_string())?
         .ok_or("no library configured")?;
-    let relative = book_path
-        .strip_prefix(&root)
-        .unwrap_or(book_path)
-        .trim_start_matches(['/', '\\']);
-    let slug: String = relative
-        .chars()
-        .map(|c| if matches!(c, '/' | '\\') { "__".to_owned() } else { c.to_string() })
-        .collect();
-    let dir = PathBuf::from(root).join(".properbooky").join("state");
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    Ok(dir.join(format!("{slug}.json")))
+    let root = PathBuf::from(root);
+    identity::Registry::load(&root)
+        .and_then(|registry| registry.state_path(&root, PathBuf::from(book_path).as_path()))
+        .map_err(|e| e.to_string())
 }
 
 /// Top of the wishlist, ranked for the daily download run: queued first,
 /// then recommended, then by rating.
 #[tauri::command]
-fn acquisition_queue(app: tauri::AppHandle, limit: i64) -> Result<Vec<Book>, String> {
-    let conn = open_db(&app)?;
-    let mut stmt = conn
-        .prepare(acquire::QUEUE_SQL)
-        .map_err(|e| e.to_string())?;
-    let rows = stmt
-        .query_map([limit], |row| {
-            Ok(Book {
-                id: row.get(0)?,
-                path: row.get(1)?,
-                filename: row.get(2)?,
-                title: row.get(3)?,
-                author: row.get(4)?,
-                category: row.get(5)?,
-                kind: row.get(6)?,
-                status: row.get(7)?,
-                rating: row.get(8)?,
-                file_link: row.get(9)?,
-                format: row.get(10)?,
-                size_bytes: row.get(11)?,
-                recommended: row.get(12)?,
-                cover: row.get(13)?,
-                year: row.get(14)?,
-                spectrum: row.get(15)?,
-                priority: row.get(16)?,
+async fn acquisition_queue(app: tauri::AppHandle, limit: i64) -> Result<Vec<Book>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        let mut books =
+            library::list(&conn, &library_root(&conn)?, None).map_err(|e| e.to_string())?;
+        books.retain(|b| {
+            b.kind == "catalog" && b.details.want_to_read && b.details.availability != "local"
+        });
+        let year: i64 = conn
+            .query_row("SELECT CAST(strftime('%Y','now') AS INTEGER)", [], |r| {
+                r.get(0)
             })
-        })
-        .map_err(|e| e.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+        for b in &mut books {
+            let age = b
+                .year
+                .map(|y| ((year - y).clamp(0, 120) as f64) / 120.0)
+                .unwrap_or(0.3);
+            b.priority = Some(
+                0.35 * age
+                    + 0.25 * (b.recommended as u8 as f64)
+                    + 0.25 * (b.rating.unwrap_or(3) as f64) / 5.0
+                    + 0.15
+                        * match b.spectrum.as_deref() {
+                            Some("original") => 1.0,
+                            Some("novel") => 0.6,
+                            Some("collection") => 0.3,
+                            _ => 0.5,
+                        },
+            );
+        }
+        books.sort_by(|a, b| {
+            b.details
+                .up_next
+                .cmp(&a.details.up_next)
+                .then_with(|| {
+                    b.priority
+                        .partial_cmp(&a.priority)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .then_with(|| a.title.cmp(&b.title))
+        });
+        books.truncate(limit.clamp(1, 100) as usize);
+        Ok(books)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Flip a catalog entry's status (markdown is the source of truth; the
 /// index row is mirrored).
 #[tauri::command]
-fn set_catalog_status(
+async fn set_catalog_status(
     app: tauri::AppHandle,
     path: String,
     status: String,
 ) -> Result<(), String> {
-    let conn = open_db(&app)?;
-    acquire::set_status(&conn, PathBuf::from(path).as_path(), &status)
-        .map_err(|e| e.to_string())
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        acquire::set_status(&conn, PathBuf::from(path).as_path(), &status)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Match, rename, file, and link everything waiting in `<library>/Drop/`.
 #[tauri::command]
-fn process_drop(app: tauri::AppHandle) -> Result<acquire::DropReport, String> {
-    let conn = open_db(&app)?;
-    let root = db::get_setting(&conn, LIBRARY_PATH_KEY)
-        .map_err(|e| e.to_string())?
-        .ok_or("no library configured")?;
-    acquire::process_drop(&conn, PathBuf::from(root).as_path()).map_err(|e| e.to_string())
+async fn process_drop(app: tauri::AppHandle) -> Result<acquire::DropReport, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&app)?;
+        let root = db::get_setting(&conn, LIBRARY_PATH_KEY)
+            .map_err(|e| e.to_string())?
+            .ok_or("no library configured")?;
+        let root = PathBuf::from(root);
+        scanner::scan_library(&conn, &root).map_err(|e| e.to_string())?;
+        let report = acquire::process_drop(&conn, &root).map_err(|e| e.to_string())?;
+        scanner::scan_library(&conn, &root).map_err(|e| e.to_string())?;
+        Ok(report)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 const OBSIDIAN_VAULT_KEY: &str = "obsidian_vault_path";
@@ -258,7 +366,8 @@ fn sync_obsidian(app: tauri::AppHandle) -> Result<export::ExportReport, String> 
 /// Fetch a URL, readability-extract it, and save it into the library as a
 /// permanent markdown article; the index row is inserted immediately.
 #[tauri::command]
-fn save_article(app: tauri::AppHandle, url: String) -> Result<Book, String> {
+async fn save_article(app: tauri::AppHandle, url: String) -> Result<Book, String> {
+    tauri::async_runtime::spawn_blocking(move || {
     let conn = open_db(&app)?;
     let root = db::get_setting(&conn, LIBRARY_PATH_KEY)
         .map_err(|e| e.to_string())?
@@ -277,9 +386,12 @@ fn save_article(app: tauri::AppHandle, url: String) -> Result<Book, String> {
         .map_err(|e| format!("could not read the page: {e}"))?;
 
     let (meta, markdown) = article::extract(&html, &url).map_err(|e| e.to_string())?;
+    let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
     let path = article::save(&root, &meta, &markdown).map_err(|e| e.to_string())?;
 
-    let size = std::fs::metadata(&path).map(|m| m.len() as i64).unwrap_or(0);
+    let size = std::fs::metadata(&path)
+        .map(|m| m.len() as i64)
+        .unwrap_or(0);
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
@@ -303,32 +415,14 @@ fn save_article(app: tauri::AppHandle, url: String) -> Result<Book, String> {
     )
     .map_err(|e| e.to_string())?;
 
-    let id: i64 = conn
-        .query_row(
-            "SELECT id FROM books WHERE path = ?1",
-            [path.to_string_lossy()],
-            |r| r.get(0),
-        )
-        .map_err(|e| e.to_string())?;
-    Ok(Book {
-        id,
-        path: path.to_string_lossy().into_owned(),
-        filename,
-        title: meta.title,
-        author: meta.author,
-        category: Some("Articles".to_owned()),
-        kind: "article".to_owned(),
-        status: Some("available".to_owned()),
-        rating: None,
-        file_link: Some(path.to_string_lossy().into_owned()),
-        format: "article".to_owned(),
-        size_bytes: size,
-        recommended: false,
-        cover: None,
-        year: None,
-        spectrum: None,
-        priority: None,
-    })
+    scanner::scan_library(&conn, &root).map_err(|e| e.to_string())?;
+    library::list(&conn, &root, None)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .find(|b| b.path == path.to_string_lossy())
+        .ok_or_else(|| "saved article was not indexed".into())
+
+    }).await.map_err(|e| e.to_string())?
 }
 
 /// Sidecar with only live highlights — what the readers need at open.
@@ -390,6 +484,14 @@ pub fn run() {
             get_library_state,
             scan_library,
             list_books,
+            update_book,
+            get_organisation,
+            save_organisation,
+            lookup_metadata,
+            accept_metadata,
+            merge_books,
+            get_profile_source,
+            undo_library_edit,
             get_sidecar,
             save_progress,
             add_highlight,
