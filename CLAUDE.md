@@ -2,7 +2,7 @@
 
 Personal reading system: a Reader-by-Readwise-style app (library + EPUB/PDF reader + highlights) with Readwise-style sync capabilities (Obsidian export, local-first usage, mobile). Built for local/personal use first; Supabase provides auth + storage so login/sync can be enabled later.
 
-See `AGENTS.md` for the development workflow (Linear, product vault, verification loop). Read it before shaping or picking up work.
+See `AGENTS.md` for the development workflow (Direct, product vault, agent E2E and owner acceptance). Read it before shaping or picking up work.
 
 ## Commands
 
