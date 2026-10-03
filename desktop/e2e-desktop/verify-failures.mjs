@@ -86,14 +86,14 @@ const cases = [
   },
   {
     name: "stall",
-    env: { E2E_FAULT: "stall", E2E_STALL_MS: String(STALL_MS) },
     ...stallExpectation,
+    env: { E2E_FAULT: "stall", E2E_STALL_MS: String(STALL_MS) },
   },
   {
     // Regression: setup longer than the stall budget must not consume it.
     name: "stall-after-slow-setup",
-    env: { E2E_FAULT: "stall", E2E_STALL_MS: String(STALL_MS), E2E_SETUP_DELAY_MS: String(SLOW_SETUP_MS) },
     ...stallExpectation,
+    env: { E2E_FAULT: "stall", E2E_STALL_MS: String(STALL_MS), E2E_SETUP_DELAY_MS: String(SLOW_SETUP_MS) },
     mustPass: [...DRIVER, "injected setup delay", ...SETUP.slice(DRIVER.length)],
     extra: (report) => {
       const problems = stallExpectation.extra(report);
