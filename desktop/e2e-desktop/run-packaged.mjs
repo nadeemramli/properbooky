@@ -75,6 +75,8 @@ const EXPECTED_TITLES = [
 const RESPONSIVE_MS = 5000;
 
 const started = Date.now();
+const monoStart = performance.now();
+const elapsed = () => Math.round(performance.now() - monoStart);
 const report = {
   run_id: RUN_ID,
   fault: FAULT || null,
@@ -424,11 +426,12 @@ async function launchApp() {
 }
 
 // The deliberate-stall deadline starts only when that phase is entered.
+// Phase timings use the monotonic clock; wall-clock time can jump (e.g. VM sync).
 function armStallDeadline() {
-  report.stall = { entered_at_ms: Date.now() - started, armed_ms: STALL_MS, fired_at_ms: null };
+  report.stall = { clock: "monotonic", entered_at_ms: elapsed(), armed_ms: STALL_MS, fired_at_ms: null };
   log(`stall phase entered; deadline armed for ${STALL_MS}ms`);
   setTimeout(() => {
-    report.stall.fired_at_ms = Date.now() - started;
+    report.stall.fired_at_ms = elapsed();
     report.steps.push({
       name: "stall deadline",
       ok: false,

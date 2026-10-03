@@ -50,7 +50,8 @@ const stallExpectation = {
     if (typeof s.fired_at_ms !== "number") problems.push("stall deadline did not fire");
     else {
       const waited = s.fired_at_ms - s.entered_at_ms;
-      if (waited < STALL_MS || waited > STALL_MS + 5000) problems.push(`stall deadline fired ${waited}ms after entry, expected ${STALL_MS}-${STALL_MS + 5000}ms`);
+      // Monotonic timings; Node timers may fire ~1ms early, hence 10ms slack.
+      if (waited < STALL_MS - 10 || waited > STALL_MS + 5000) problems.push(`stall deadline fired ${waited}ms after entry, expected ${STALL_MS}-${STALL_MS + 5000}ms`);
     }
     if (report.steps.some((step) => step.name === "watchdog")) problems.push("whole-run watchdog fired");
     return problems;
@@ -102,6 +103,20 @@ const cases = [
     },
   },
   {
+    name: "wrong-restore",
+    env: { E2E_FAULT: "wrong-restore" },
+    expectCode: 1,
+    mustPass: [
+      ...INDEXED,
+      "open EPUB fixture and turn a page",
+      "close app (session 1)",
+      "relaunch same packaged binary",
+      "PDF reopens at the recorded page",
+    ],
+    failStep: "EPUB position survives restart",
+    failMessage: /EPUB restored at epubcfi\(.*\), expected the recorded epubcfi\(/,
+  },
+  {
     // A hung launch fails as setup with its own bound.
     name: "launch-timeout",
     env: { E2E_LAUNCH_TIMEOUT_MS: "1" },
@@ -141,12 +156,12 @@ function markedBy(runId) {
 
 function run(env, artifacts) {
   return new Promise((resolve) => {
-    const t0 = Date.now();
+    const t0 = performance.now();
     const child = spawn(process.execPath, [path.join(here, "run-packaged.mjs")], {
       env: { ...process.env, E2E_TIMEOUT_MS: String(WHOLE_RUN_MS), ...env, E2E_ARTIFACTS: artifacts },
       stdio: "inherit",
     });
-    child.on("exit", (code, signal) => resolve({ code, signal, ms: Date.now() - t0 }));
+    child.on("exit", (code, signal) => resolve({ code, signal, ms: Math.round(performance.now() - t0) }));
   });
 }
 
