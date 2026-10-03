@@ -9,12 +9,20 @@
 // Environment:
 //   E2E_APP         binary under test (default: src-tauri/target/debug/desktop)
 //   E2E_ARTIFACTS   directory for report.json, logs and failure screenshots
-//   E2E_TIMEOUT_MS  hard watchdog for the whole run (default 240000)
+//   E2E_TIMEOUT_MS  hard watchdog for the whole run, setup included
+//                   (default 240000; hosted CI journeys take ~70s)
+//   E2E_LAUNCH_TIMEOUT_MS  bound per app launch (default 90000; hosted CI
+//                   launches take ~31s, local ~1s)
+//   E2E_STALL_MS    deadline armed only when the deliberate stall phase is
+//                   entered (default 20000), so setup time never consumes it
+//   E2E_SETUP_DELAY_MS  test-only delay injected before the first launch
 //   E2E_FAULT       disposable failure injection: assert | missing-fixture |
 //                   corrupt-fixture | stall | wrong-restore
 //   E2E_KEEP=1      keep the temporary app-data/library after the run
 //
-// Exit codes: 0 pass, 1 failed assertion/setup, 124 watchdog timeout.
+// Exit codes: 0 pass, 1 failed assertion/setup (including a launch that
+// exceeds its bound), 124 timeout (result "timeout" for the whole-run
+// watchdog, "stall-timeout" for the armed stall-phase deadline).
 
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
@@ -47,6 +55,9 @@ const APP = path.resolve(
 );
 const FAULT = process.env.E2E_FAULT ?? "";
 const TIMEOUT_MS = Number(process.env.E2E_TIMEOUT_MS ?? 240000);
+const LAUNCH_TIMEOUT_MS = Number(process.env.E2E_LAUNCH_TIMEOUT_MS ?? 90000);
+const STALL_MS = Number(process.env.E2E_STALL_MS ?? 20000);
+const SETUP_DELAY_MS = Number(process.env.E2E_SETUP_DELAY_MS ?? 0);
 const PORT = Number(process.env.E2E_DRIVER_PORT ?? 4444);
 const RUN_ID = `pbk-e2e-${randomUUID()}`;
 const ARTIFACTS = path.resolve(
@@ -385,15 +396,46 @@ async function startDriver(env) {
 }
 
 async function launchApp() {
-  browser = await remote({
-    hostname: "127.0.0.1",
-    port: PORT,
-    logLevel: "warn",
-    connectionRetryCount: 0,
-    capabilities: { alwaysMatch: { "tauri:options": { application: APP } } },
+  // A hung launch is a setup failure with its own bound; it must never be
+  // absorbed by (or mistaken for) a later phase's deadline.
+  let timer;
+  const bound = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`launch exceeded ${LAUNCH_TIMEOUT_MS}ms`)), LAUNCH_TIMEOUT_MS);
   });
-  await browser.$(".tab-rail").waitForExist({ timeout: 30000 });
-  check(await browser.$(".tab-library").isExisting(), "Library tab missing from the tab rail");
+  try {
+    await Promise.race([
+      bound,
+      (async () => {
+        browser = await remote({
+          hostname: "127.0.0.1",
+          port: PORT,
+          logLevel: "warn",
+          connectionRetryCount: 0,
+          connectionRetryTimeout: LAUNCH_TIMEOUT_MS + 5000,
+          capabilities: { alwaysMatch: { "tauri:options": { application: APP } } },
+        });
+        await browser.$(".tab-rail").waitForExist({ timeout: 30000 });
+        check(await browser.$(".tab-library").isExisting(), "Library tab missing from the tab rail");
+      })(),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// The deliberate-stall deadline starts only when that phase is entered.
+function armStallDeadline() {
+  report.stall = { entered_at_ms: Date.now() - started, armed_ms: STALL_MS, fired_at_ms: null };
+  log(`stall phase entered; deadline armed for ${STALL_MS}ms`);
+  setTimeout(() => {
+    report.stall.fired_at_ms = Date.now() - started;
+    report.steps.push({
+      name: "stall deadline",
+      ok: false,
+      error: `deliberate stall exceeded its ${STALL_MS}ms phase deadline (entered at ${report.stall.entered_at_ms}ms)`,
+    });
+    finish(124, "stall-timeout");
+  }, STALL_MS);
 }
 
 async function closeApp() {
@@ -446,6 +488,13 @@ try {
   };
   await step("tauri-driver ready", () => startDriver(env));
 
+  if (SETUP_DELAY_MS > 0) {
+    await step("injected setup delay", async () => {
+      await new Promise((r) => setTimeout(r, SETUP_DELAY_MS));
+      return { ms: SETUP_DELAY_MS };
+    });
+  }
+
   // Session 1: first run on empty app-data.
   await step("launch packaged app: tab rail visible", launchApp);
 
@@ -457,9 +506,10 @@ try {
   });
 
   if (FAULT === "stall") {
-    await step("deliberate stall (watchdog must fire)", () =>
-      browser.$(".never-rendered-by-properbooky").waitForExist({ timeout: 24 * 3600 * 1000 }),
-    );
+    await step("deliberate stall (phase deadline must fire)", () => {
+      armStallDeadline();
+      return browser.$(".never-rendered-by-properbooky").waitForExist({ timeout: 24 * 3600 * 1000 });
+    });
   }
 
   await step("fresh app-data has no configured library", async () => {
