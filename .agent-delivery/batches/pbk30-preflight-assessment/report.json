@@ -1,0 +1,54 @@
+{
+  "batch_id": "pbk30-preflight-assessment",
+  "kind": "pre-dispatch assessment only: environment feasibility + defect reproduction; no product/test code changed, PBK-30 criteria NOT executed",
+  "issue_keys": ["PBK-30", "PBK-1", "PBK-31"],
+  "base_sha": "9c850168b35c2545bbe7ba88fac27f908960366d",
+  "tested_sha": "9c850168b35c2545bbe7ba88fac27f908960366d",
+  "handoff_sha": null,
+  "branch": "claude/funny-dirac-xv8791 (evidence only)",
+  "pr_url": null,
+  "model_observed": "reported to the coordinator in the session handoff, not recorded in Git",
+  "environment": "Cloud container Ubuntu 24.04, Docker 29.6.2 (dockerd started in-container), Supabase CLI 2.33.9 via npx, images from Docker Hub (SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io; public.ecr.aws pulls return 403 here): postgres 15.8.1.085, gotrue v2.177.0, storage-api v1.26.0, realtime v2.41.11 (locally patched, see recipe). Excluded: studio, imgproxy, vector, logflare, edge-runtime, supavisor. Next.js `npm run dev` with gitignored .env.development.local pointing at 127.0.0.1:54321. Synthetic dev user only; remote project untouched (paused).",
+  "environment_recipe": [
+    "Kernel has no IPv6: realtime v2.41.11 hardcodes an :inet6 HTTP listener (runtime.exs line 151) and exits with eafnosupport; rebuilt the image locally with that line set to [:inet]. Container-only workaround, not for the repo.",
+    "Clean `supabase start` cannot apply repo migrations (see finding F1). Workaround used: start with migrations moved aside, then apply each migration with psql as `postgres`, re-running only the 3 failing files as `supabase_admin`.",
+    "Dev mode needs auth user id 37770da5-4fdb-4b75-9dc2-3bf9b2f90ed8 (see F2); created via local admin API with email dev@properbooky.com and the app's default dev password."
+  ],
+  "findings": [
+    {"id": "F1", "issue_key": "PBK-1/PBK-30", "severity": "high (blocks clean local setup)", "status": "Reproduced",
+     "summary": "Migrations 20240324000000_add_storage_bucket.sql (CREATE INDEX on storage.objects), 20240325000000_enhance_storage_security.sql (CREATE INDEX + CREATE TRIGGER on storage.objects) and 20240329000000_setup_default_books.sql (CREATE INDEX on storage.objects) fail as `postgres` with 'must be owner of table objects' on current local images. `supabase start` aborts at 20240324. The other 11 migrations apply as `postgres`.",
+     "evidence": "psql per-file apply log (scratch migrate.log); supabase-start5.log"},
+    {"id": "F2", "issue_key": "PBK-30/PBK-1", "severity": "high (dev mode unusable on a fresh stack)", "status": "Reproduced",
+     "summary": "lib/hooks/use-auth.ts dev bootstrap signs in or signs up dev@properbooky.com, but sign-up creates a random user id while the client uses hardcoded FLAGS.DEV_USER_ID. Every default-book insert is rejected by RLS (42501, HTTP 403 x30 on POST /rest/v1/books) and the library stays empty. Works only if the auth user already has that fixed id.",
+     "evidence": "probe1 run before fixture: 30x 'new row violates row-level security policy for table books'"},
+    {"id": "F3", "issue_key": "PBK-30", "severity": "medium (data integrity, duplicate rows)", "status": "Reproduced",
+     "summary": "Default-book provisioning races. Several mounted hook instances each check-then-insert, so a fresh dev user received 8 identical 'Sample PDF Book' rows.",
+     "evidence": "SELECT on books after first successful load: 8 rows, same title/user"},
+    {"id": "F4", "issue_key": "PBK-31", "severity": "low-medium (reachable error)", "status": "Reproduced (API level)",
+     "summary": "Dashboard `/` widgets ActivityFeed and ReadingStats query public.reading_activities and public.reading_statistics. Both are dropped by 20240321000000_fix_stats_cleanup.sql, so PostgREST returns 404 42P01. The UI shows empty cards or 'No reading statistics available' and the console shows a 404.",
+     "evidence": "curl /rest/v1/reading_activities and /rest/v1/reading_statistics -> 404 42P01; missions/challenges -> 200"},
+    {"id": "F5", "issue_key": "PBK-30", "severity": "low (noise)", "status": "Reproduced",
+     "summary": "lib/utils/default-books.ts queries books before the dev session exists, so the anon role gets 401 'permission denied for table books' with a console error on every load.",
+     "evidence": "probe2: HTTP 401 GET books?select=id... before the authenticated 200"}
+  ],
+  "suspected_not_yet_reproduced": [
+    "Reset page (app/auth/reset-password/page.tsx) calls updateUser with no explicit code exchange or session check. Needs a run against `next build && next start` with Inbucket email capture; dev mode forces the auth bypass.",
+    "Metadata sliders persist on every onValueChange tick, and `|| 0.5` / `|| 2.5` render a stored 0 as the default.",
+    "updateBook: a key passed as undefined overwrites the stored value and is then dropped by the JSON round-trip."
+  ],
+  "criteria": [
+    {"issue_key": "PBK-30", "criterion": "1. Isolated local stack + current app at real entrypoints, synthetic data, remote paused, record commit/config", "action": "stack up, app up, probes on / and /library", "expected": "stack + app usable from a clean checkout", "observed": "usable only after the three workarounds in environment_recipe (F1, F2 + IPv6 patch)", "verdict": "Fail", "platform": "Linux container, Chromium 1194 headless", "evidence": ["this report"]},
+    {"issue_key": "PBK-30", "criterion": "2-5 (metadata/annotations, uploads/CSV, auth, restart persistence)", "action": "not executed — awaiting dispatch", "expected": "-", "observed": "-", "verdict": "Blocked", "platform": "-", "evidence": []}
+  ],
+  "checks": [
+    {"command": "supabase start (repo migrations, realtime patched)", "exit_code": 1, "result": "ERROR: must be owner of table objects at 20240324", "evidence": "scratch supabase-start5.log"},
+    {"command": "supabase start (migrations aside) + per-file psql", "exit_code": 0, "result": "14/14 applied; 3 needed supabase_admin", "evidence": "scratch migrate.log"},
+    {"command": "node probe1.mjs / probe2.mjs (scratch Playwright, not committed)", "exit_code": 0, "result": "F2, F3, F4, F5 observed", "evidence": "scratch probe/*.png"}
+  ],
+  "ci": {"run_url": null, "head_sha": null, "conclusion": "n/a (no product change)"},
+  "artifacts": [],
+  "local_verification_required": ["Owner machine: confirm whether the existing local stack was created with older images or manual steps (explains why PBK-1 recorded 13/14 clean applies)."],
+  "review_walkthrough": [],
+  "known_risks": ["Assessment used workarounds that change role ownership of 3 storage indexes/trigger. Acceptable for a disposable stack, not a release fix."],
+  "next_eligible_batch": ["pbk30-web-local-supabase-verification, with F1-F3 fixes as prerequisites (needs dispatch + coordinator decision on editing historical migrations)"]
+}

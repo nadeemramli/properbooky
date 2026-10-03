@@ -38,6 +38,11 @@ sync, PBK-10 research, PBK-12 phases 2-3 (embeddings, groups, chat), public dist
 - Rollback: drop the `desktop-e2e` job; no product code changes.
 
 ### Batch 2 — `pbk30-web-local-supabase-verification` (PBK-30)
+- **Preflight (done, see `batches/pbk30-preflight-assessment/report.json`)**: the clean local setup is not reproducible today. Three findings have to be fixed first, inside this batch:
+  - F1: migrations 20240324/20240325/20240329 run `CREATE INDEX` / `CREATE TRIGGER` on `storage.objects`, which `postgres` may not do on current images, so `supabase start` aborts. These are perf indexes plus an `updated_at` trigger that storage already maintains. **Coordinator decision needed** because AGENTS.md forbids editing applied migrations. Options: (a) wrap those statements in `DO` blocks that skip on `insufficient_privilege`. This is idempotent and a no-op where already applied. (b) Pin older local images. (c) Ship a documented setup script that applies those three statements as `supabase_admin`. Recommended: (a).
+  - F2: dev-mode bootstrap signs up a random-id user but uses the hardcoded `DEV_USER_ID`, so RLS rejects every write. Fix by seeding the dev user with the fixed id (local `seed.sql`) or by using the session user id. Recommended: seed.
+  - F3: concurrent default-book provisioning creates duplicates. Make it single-flight and idempotent.
+  - F4 (PBK-31 overlap): the `/` dashboard queries dropped relations. Handle it in PBK-31 or as the minimum fix here.
 - Isolated local Supabase in the container (Docker Hub images, `SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io`; ECR pulls are 403 here), synthetic users/books/files only, remote stays paused.
 - Criterion → test: Playwright specs under `e2e/local-supabase/` gated on a local stack env, seeding via service-role against **127.0.0.1 only** (guard refuses non-local URLs).
   1. metadata edit → reload → highlights/bookmarks/toc/recommendations intact (DB assertion + UI); sliders/wishlist persist; second recommendation appends.
