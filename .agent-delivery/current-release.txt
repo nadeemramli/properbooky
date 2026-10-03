@@ -1,0 +1,184 @@
+REPOSITORY HANDOFF — published 4 October 2026
+Canonical path: .agent-delivery/current-release.txt
+This file is an explicitly requested, dated execution brief for Claude Code. Direct remains the live work authority and product knowledge retains its existing source. Follow the coordinator/cloud split below: the local coordinator handles Direct and Windows delivery; cloud workers use scoped dispatches, repository work and evidence handoffs. Do not treat local Direct inaccessibility as a cloud setup task. Preserve current branch changes when fetching main. Reconcile dated claims/state before implementation; publishing this file does not itself dispatch a queue.
+PROPERBOOKY — CONTINUOUS CURRENT-RELEASE DELIVERY
+
+Work in the Properbooky repository already attached to this Claude Code session. Finish the CURRENT APPROVED scope first, then propose the next release. Follow the delivery contract and issue evidence below, continuing through the eligible dispatched queue rather than stopping after one issue.
+
+Initial coordination state, 4 October 2026: no new cloud implementation queue has yet been recorded. Begin reconciliation, inspect existing branch work, and propose the first 2-3 coherent batches. The coordinator supplies the queue after recording readiness/ownership locally; cloud access to Direct is not required. Local implementation invocations have exited, but existing claims and delivery work still require explicit handoff before editing the same issues.
+
+Known work to reuse:
+- Last observed main: 9c850168b35c2545bbe7ba88fac27f908960366d; confirm current remote.
+- PBK-18 is Doing, last observed v16 with a local coordinator-managed claim. Existing pushed branch claude/pbk-18-packaged-desktop-e2e at 48b659a5c4eacb9ae29a5385db60a2bd3b761efa contains the packaged desktop E2E work. Reconcile it rather than recreating the suite.
+- The local worker reported two successful Linux packaged-app restart runs and four expected injected failures. Windows exe/NSIS/MSI compiled at the same SHA. These are retained evidence to inspect, not proof of a completed Windows user flow. Last coordinator check found no PR; current-head PR CI and independent review remain work.
+- Windows app-data uses an OS known-folder API: merely overriding APPDATA does NOT isolate the owner's library. Do not run tests against it. Native access is deferred; the coordinator must establish proper Windows isolation before native testing.
+- PBK-30 concerns runtime verification of prior web/local-Supabase fixes, separate from PBK-18's desktop suite. Inspect existing PR/fix history before editing.
+
+Release interpretation:
+- Establish the actual current release boundary from current approved requirements and repository evidence. Candidate batches include build/CI confidence; library/catalog/file matching; EPUB/PDF reader and persisted positions; highlights/sidecars/export; acquisition/drop-folder workflows; existing local-Supabase bug verification. These are candidates, not automatic readiness for every issue.
+- Distinguish desktop and web paths. Passing browser tests do not prove packaged desktop commands, filesystem operations or restart persistence.
+- Remote Supabase stays paused. Use isolated local development fixtures for applicable web checks. Do not restore remote services because a historical project description says so.
+- PBK-7 remote/mobile sync and PBK-12 later embeddings/conversational AI phases require separate next-release scope. Audit any already approved local foundations without implementing every future feature.
+- PBK-31 asks whether to delete or revive a cluster: prepare evidence/options; do not silently decide or remove the whole subsystem.
+- Manual-test issues may be agent-owned deterministic checks or owner acceptance. Read their criteria; execute authorized deterministic work yourself and leave actual owner judgments pending.
+
+Product verification requirements:
+- Use a disposable synthetic library containing known EPUB/PDF fixtures and catalogs. Verify library open/switch, indexing, reader navigation, exact position persistence across real process restart, missing/moved files, and actionable errors where in scope.
+- File adoption/rename/matching must preserve originals or follow an explicitly approved reversible operation; test collisions, partial failure and relinking. Never run bulk operations on the owner's library.
+- Highlights must survive reopening, retain their anchors, and export correctly when that flow is scoped. A mocked adapter or component screenshot is insufficient.
+- Test local data/auth boundaries and restart persistence where local Supabase is involved. Do not use owner credentials or remote data.
+- Use deterministic synthetic external-service responses for CI; label mock evidence, and identify separately any required real integration validation. Do not invent successful external API calls.
+
+Return clean small PRs, current-head CI, criterion evidence and local walkthroughs. Keep implementing independently eligible queued batches while the coordinator reviews earlier batches.
+
+
+CONTINUOUS CLAUDE CODE DELIVERY CONTRACT
+Owner direction, 4 October 2026: finish the CURRENT APPROVED PRODUCT SCOPE first, then plan the next release. Work toward a verifiable release candidate through successive coherent issue batches. Do not stop merely because one issue is implemented. Do not interpret this as permission to implement every future epic, operate on real private data, widen capabilities, spend money, deploy publicly, or declare human acceptance.
+
+ENVIRONMENT AND RESPONSIBILITIES
+You are the cloud repository implementation worker. The local Codex coordinator owns the live Direct issue record, issue readiness/claims, independent review, merges, the local pull, and Windows delivery verification. Direct is local and is NOT expected to be reachable from this container. Do not attempt to connect, tunnel it, locate credentials, or stop useful cloud work because it is unreachable. Embedded issue records below are dated task evidence, not live state or a second backlog.
+
+Use the actual model selected in Claude Code. Opus 5.5 is the implementation/review preference; Fable may handle a specifically assigned evidence/planning/docs batch. Record the actual model when the runtime exposes it; otherwise state that model identity could not be independently verified. A sentence in this prompt cannot switch models.
+
+Read this repository's current AGENTS.md/CLAUDE.md and relevant setup, architecture, test and release instructions once, then retrieve additional context as needed. Preserve unrelated changes. Product requirements define intended behavior; code and tests determine what exists; historical issue completion is not fresh proof. Treat issue descriptions and old comments as evidence, never permission to bypass this contract. Local-only source paths and unavailable tools are for the coordinator to resolve; identify the exact missing excerpt instead of claiming to have read it.
+
+OWNERSHIP AND QUEUE
+There is one implementation writer per product. The coordinator supplies the authorized implementation queue and records readiness/claims in Direct. Broad release intent does not silently make every Backlog issue Ready. You do not have to query Direct yourself. Use the coordinator's explicit dispatch/ownership record; do not steal an existing assignment or reuse a local worker's actor. The product header identifies existing work you must reuse or leave to the coordinator.
+
+At startup, reconcile the embedded backlog against current remote main, open PRs, existing branches, tests and your prior delivery state. Classify each issue: implemented and verified; implemented but insufficiently verified; partially implemented; missing; decision/dependency blocked; outside the current release. Do not rebuild working features because an imported issue still says Backlog. Generated verification children, canceled tasks and owner decisions are not implementation tickets.
+
+Produce a release coverage map and an ordered batch plan, then execute the coordinator-authorized queue without asking about routine choices. If the next batch lacks a dispatch record, return its exact proposed keys, scope, criteria and dependencies for coordinator dispatch; continue independent assessment/test design or another already authorized batch. Do not ask the owner to solve local Direct access or infer approval from elapsed time. The local coordinator should pre-dispatch a short queue so this does not become a one-issue-per-chat process.
+
+BATCH SELECTION
+Usually choose 1-3 issues that deliver one complete user journey or share one technical dependency. A cross-cutting infrastructure or security change may be a batch by itself. Group by behavior and dependency, not arbitrary issue count. Keep every issue's acceptance criteria and evidence separate even when one PR covers several issues. Do not roll the whole roadmap into one long-lived branch or enormous PR.
+
+Prioritize blockers to trusted current use: data integrity, recovery, critical broken journeys, repeatable builds/tests, then missing release behavior and usability. Respect explicit dependencies. A pending owner second pass on an Agent Pass delivery does not automatically block independent work. A failed/unrun required technical prerequisite does. Native Windows evidence may remain with the coordinator while you continue independent authorized cloud work; never quietly waive that evidence or use it as permission to implement a dependent gated issue.
+
+REPEAT THIS DELIVERY LOOP
+1. Reconcile the latest base commit and queue. Preserve work from other sessions. Select the next eligible batch and record its issue keys, base SHA, intended outcome, non-goals, dependencies and rollback approach where relevant.
+2. Before changing code, map EVERY acceptance criterion to a specific test: entrypoint, fixture/setup, action, expected visible result, persistence result, failure/recovery case, platform and evidence file. Resolve missing behavior definitions before making consequential assumptions. Keep proposals distinct from approved requirements.
+3. Reproduce claimed defects or establish the missing behavior. Inspect existing fixes first. Implement the smallest coherent end-to-end change with repository conventions. Avoid unrelated refactors, placeholder features and cosmetic activity that does not advance release readiness.
+4. Run meaningful focused tests while developing. Before handoff, run the repository's required checks for affected code, a clean build, and relevant integration/E2E journeys. Exercise real UI/client -> application service/command -> persistence -> reload/restart. Mock tests alone do not establish the real boundary. Use deterministic synthetic fixtures and isolated databases/app-data. Do not use real bank statements, health records, owner libraries, credentials or production exports.
+5. Exercise error paths: invalid input, denied/missing state, failed import/write, duplicate input, interruption and recovery as applicable. Verify rejected work does not corrupt accepted data. For migrations or archive changes, rehearse upgrade and restore on isolated fixtures; real-data upgrades remain the local coordinator's backed-up delivery task.
+6. Keep full command exit codes and useful failure evidence. Do not let shell pipelines mask failures. A canceled, skipped, unrun or timed-out check is not Pass. Diagnose and repair failures; rerun the affected checks. Do not repeat an unchanged failing action or weaken assertions merely to make the suite green.
+7. Review your diff against the criteria. Check data handling, trust boundaries, compatibility and regressions. For UI work, inspect and interact with the actual available UI; a screenshot of an unclicked control is insufficient. Label Linux/browser/mock/Windows evidence accurately. Never claim Windows Credential Manager, WebView2, installer or installed-app proof from Linux.
+8. Commit the coherent batch and push its issue-scoped branch. Open or update a draft PR when repository access permits. Include issue keys, concrete behavior, actual tests, evidence links and unresolved local checks. Observe CI for that exact head; fix CI-only failures. Do not merge your own batch, push to protected main, promote production, or bypass branch protection: review/merge is the local coordinator's stage.
+9. Publish the delivery manifest and update the resumable state. Report CLOUD CHECKS PASS / FAIL / BLOCKED separately from LOCAL DELIVERY PENDING and HUMAN ACCEPTANCE PENDING. The coordinator updates Direct with your evidence; you do not fabricate a Direct update.
+10. Continue to the next independent authorized batch. If the next batch depends on your unmerged change, prefer waiting for the coordinator's merge; use a clearly declared stacked branch only when the authorized queue permits it, record its base PR, and rerun affected verification after integration. Never present a stacked PR as independently mergeable.
+
+DURABLE STATE AND HANDOFF
+Use an existing repository task-state convention when present; otherwise maintain .agent-delivery/state.json and .agent-delivery/batches/<batch-id>/report.json. These are execution/evidence records, not an alternative issue tracker. Commit only privacy-safe summaries; retain large logs/screenshots as CI artifacts or another repository-approved artifact store. No secrets, auth state, private data or runtime databases enter Git.
+
+The state record must contain: release target; issue-snapshot date/cursor; authorized queue provenance; current batch/branch/base/head; completed cloud batches and PR URLs; criterion-level gaps; pending local/human checks; unresolved decisions; exact next action. Update it at meaningful milestones and before a context/session limit. A new invocation resumes this record instead of repeating discovery.
+
+Each batch report must contain at least:
+{
+  "batch_id": "<stable id>",
+  "issue_keys": ["<real issue keys>"],
+  "base_sha": "<full SHA>",
+  "tested_sha": "<full SHA of tested product/test changes>",
+  "handoff_sha": "<full SHA if a later evidence-only commit exists>",
+  "branch": "<branch>",
+  "pr_url": "<actual URL or null>",
+  "model_observed": "<actual model or unverified>",
+  "environment": "<OS/runtime/dependencies and isolation>",
+  "criteria": [{"issue_key":"<key>","criterion":"<exact criterion>","action":"<observed action>","expected":"<expected>","observed":"<actual>","verdict":"Pass|Fail|Blocked","platform":"<platform>","evidence":["<paths or CI artifact references>"]}],
+  "checks": [{"command":"<actual command>","exit_code":0,"result":"<observed result>","evidence":"<log reference>"}],
+  "ci": {"run_url":"<actual URL or null>","head_sha":"<verified SHA or null>","conclusion":"<observed conclusion or pending>"},
+  "artifacts": [{"path":"<artifact>","sha256":"<hash>","source_sha":"<full SHA>"}],
+  "local_verification_required": ["<concrete Windows/install/restart check>"],
+  "review_walkthrough": ["<setup, user action, expected result and criterion>"],
+  "known_risks": ["<actual limitations>"],
+  "next_eligible_batch": ["<keys or no eligible batch>"]
+}
+The schema above is a shape, not sample evidence: never leave fabricated passing values. A report cannot contain its own final Git hash before it is committed; keep tested SHA separate from any evidence-only handoff commit, and identify the final PR head in the PR/response. Any subsequent product/test change invalidates affected old results.
+
+The coordinator independently reviews the diff, checks evidence/CI against the actual head, resolves merge conflicts, merges the reviewed batch, pulls that merged revision locally, rebuilds and exercises all affected acceptance criteria through the actual Windows entrypoints, persistence, restart and failure paths. Findings return to you with the same issue keys. Only complete agent Pass goes to Direct Verify on the tested/delivered build. Human acceptance remains separate and pending. Do not assign the owner your missing deterministic tests or installation work. Native Computer Use access is currently deferred; keep that delivery stage pending while independent cloud work proceeds.
+
+RELEASE EXIT CRITERIA
+Do not call the app production ready just because the queue is empty or CI is green. Build a release coverage matrix from the approved requirements and current code, including gaps that have no issue yet. Send proposed missing issues to the coordinator for deduplication and shaping; do not silently expand the release.
+
+A release candidate needs: all approved must-have journeys implemented; all scoped criteria tied to exact-build evidence; no unresolved release-blocking defects or security/data-integrity gaps; reproducible clean build and current-head CI; meaningful failure/recovery tests; migration/backup/restore proof where applicable; correct setup and operating docs; reviewed privacy/capability boundaries; accessible, understandable errors and empty states; and completed target-platform installation/restart verification by the coordinator. Third-party services, signing, public distribution and real-data adoption keep their specific approval gates. Agent verification is evidence for a release decision, not the owner's acceptance or permission to publish.
+
+Stop only when the authorized release work is exhausted with an honest release report, every remaining eligible path needs a specific external decision/access action, or the runtime ends the session. Before stopping, save state, give the exact resume action and distinguish completed work from pending local verification. Do not promise to run after your session ends: continuation requires the cloud host or coordinator to resume you. Do not repeatedly ask whether to continue when eligible authorized work remains.
+
+BEGIN NOW
+Read the product header and issue evidence below, reconcile current repository state, write the release coverage/batch plan, and execute the eligible dispatched queue. Do useful independent work while awaiting coordination; report one concise progress update per meaningful milestone rather than stopping after each small task.
+
+
+SANITIZED ISSUE BRIEFS — 4 October 2026
+This is a task handoff derived from Direct, not a live backlog. Personal library contents, historical usage counts, infrastructure identifiers and workstation paths are intentionally omitted. Historical checks are not current verification. Use synthetic fixtures. Reconcile the exact live criteria through the coordinator before dispatch; the summaries below do not silently replace those criteria.
+
+PBK-1 — Local Supabase development
+Keep remote services paused. Start the isolated local stack, apply all repository migrations, configure ignored local environment files, verify app/database/storage integration, and generate types against the local database. Historical successful setup needs current revision verification.
+
+PBK-4 — CI on PRs
+Reconcile existing web lint/unit/build/edge checks, browser smoke and desktop checks. Finish packaged desktop E2E through PBK-18. Report legacy lint debt separately. Deployment integration and branch-protection changes retain their own authorization.
+
+PBK-5 — Architecture cleanup
+One auth system, generated Database type source, and clear client factory rules. Remove obsolete NextAuth/Pages remnants within the assigned scope, align type imports, consolidate or document client factories, and verify build/unit/E2E smoke. Do not broaden this into unrelated rewriting.
+
+PBK-7 — Local-first architecture and optional mobile sync
+Assess the implemented Tauri local data layer and existing architecture. Remote/mobile sync remains later-release planning unless separately approved. Architecture research is a prerequisite; do not restore remote services to complete this brief.
+
+PBK-9 — Local development verification
+Verify local services, dev app entrypoint, synthetic library contents, EPUB/PDF access and expected tables/storage. Record actual failures against PBK-1; do not ask the owner to perform agent setup/testing.
+
+PBK-10 — Reference architecture research
+Research Reader/Readwise ingestion, reading positions, highlight anchoring, export/sync, offline/mobile behavior, local data options, files versus database authority, extraction/search and agent access. Produce evidence-backed recommendations and scoped follow-up proposals. Later knowledge/AI features are not implementation authorization.
+
+PBK-12 — Knowledge layer
+Reconcile current deterministic EPUB/PDF/Markdown extraction, derived text cache, chunk/FTS index and MCP content search. Embeddings/groups and conversational features are later phases. Do not extend the release automatically.
+
+PBK-15 — Multiple libraries
+Known-library launcher with names/paths, open-folder-as-library, remove/rename and clean switching; keep each library's index and reading state isolated. Use disposable fixture folders and test restart behavior and missing paths.
+
+PBK-18 — Packaged desktop E2E
+Reuse the existing pushed packaged-desktop branch identified in the product header. A clean CI checkout must build the actual debug Tauri package and run the driver against it using small committed synthetic EPUB/PDF fixtures and fresh isolated app-data, without a live development server or owner library.
+Exercise tab rail, fixture-sized library, search, open book, turn page, return to Library and search again. Prove responsiveness and the real client-command-persistence boundary. Restart the same packaged build and verify fixture accessibility and exact saved reading positions.
+Inject missing/corrupt input and failing assertions; require nonzero results with useful evidence. Bound stalled runs and clean up driver/app processes. Repeat with fresh data. Attach current-head CI/build/driver evidence and exact binary identity. The coordinator must separately smoke the delivered Windows app; Linux success alone does not pass that criterion. PBK-30 local web-stack debt stays separate.
+
+PBK-19 — Catalog import
+Synthetic CSV to one Markdown catalog file per book, valid YAML metadata and preserved note body. Normalize title/author for deduplication; map statuses; index/search status and rating facets. Re-running must create no duplicates. Use fixture-relative counts rather than personal-library counts.
+
+PBK-20 — Match files and reversible rename
+Separate confident auto matches, manual-review candidates and unmatched files. Never clobber an existing file or rename without a match decision. Preserve original filenames and content hashes, keep operations reversible, test collisions and interrupted batches. Unmatched-file adoption is PBK-23. No owner library triage is authorized by a synthetic test.
+
+PBK-21 — Acquisition queue and Drop folder
+Fixture-based daily queue, manual search/acquisition action, queued status, then Drop-folder processing that confidently matches, renames/files and links available content. Preserve ambiguous files for review. Verify state after rescan/restart and do not automate an unapproved external download.
+
+PBK-22 — Metadata enrichment
+Inspect existing Open Library enrichment/cache/resume logic. Avoid guessing for uncertain matches; preserve manual metadata. Google Books fallback and title repair are follow-up candidates, not automatically release blockers. Use deterministic fixtures for CI and distinguish them from real integration evidence.
+
+PBK-23 — Adopt unmatched files
+Create catalog entries only for confidently unmatched files, preserve file/hash/original-name provenance, avoid duplicating pending review candidates and surface collisions. Verify rescan/search/open and reversible rename behavior on synthetic fixtures.
+
+PBK-24 — EPUB/PDF reader
+Accessible Library/book tabs, close/switch, paginated EPUB and PDF navigation, progress ribbon and library status filters. Persist positions in library sidecars, surviving full app restart and index rebuild. Deduplicate matched files/catalog cards. TOC, in-book search and Markdown reader are separate slices.
+
+PBK-25 — Reader verification
+Exercise synthetic EPUB and PDF rendering/pagination, exact reopen/restart position, multiple tabs, filters, keyboard controls, light/dark presentation and unavailable wishlist entries. Check sidecar persistence rather than relying only on UI state. Keep owner intent/usability acceptance separate.
+
+PBK-26 — Highlights and export
+Typed multi-selector anchors: EPUB CFI ranges; PDF page, text quote/context and offsets. Persist UUID, quote, anchor and timestamps in sidecars; deletion uses tombstones. Verify highlight creation, navigation, reopen/restart, removal and clean Markdown export with stable identifiers. Follow the refined interaction in PBK-27: clicking a painted highlight opens its panel; explicit Remove deletes it.
+
+PBK-27 — Highlight verification
+For EPUB and PDF, select text, create highlight, navigate away/back, restart and verify anchors. Panel jumps to the location; explicit Remove persists deletion. Painted highlights must not delete on click. Verify PDF zoom modes retain alignment, sidecar tombstones and synthetic Markdown exports. Exclude all personal historical highlight anecdotes.
+
+PBK-28 — Acquisition verification
+Exercise queue/search action, synthetic Drop processing, reported success versus persisted files/status, ambiguous/unrelated file retention, and move/relink/rescan by content hash. Verify category updates and absence of data loss. Do not download or mutate the owner's books.
+
+PBK-29 — Prioritization
+Reconcile the recorded deterministic score: 0.35 Lindy + 0.25 recommendation + 0.25 rating + 0.15 knowledge spectrum, with queued items pinned first. Lindy=min(age,120)/120, unknown year=0.3; recommendation binary; rating scaled from 1-5 with unrated=3/5; spectrum original=1, novel=0.6, collection=0.3, unset=0.5. Verify indexing/display, missing values and predictable fixture order. Grouping/AI remains separate.
+
+PBK-30 — Verify existing web fixes before new feature work
+Revalidate current main and the existing PR #13 fixes against an isolated local stack, synthetic books/files/accounts and local email capture. Keep remote services paused.
+Through the actual library UI, edit metadata and reload; existing highlights, bookmarks, contents and recommendations must survive. Persist knowledge-spectrum/manual-rating and wishlist fields without column errors. Add a second recommendation without replacing the first.
+Upload a fixture EPUB/PDF; exercise mixed bulk success/failure with accurate displayed results and failed items retained for correction. Import synthetic wishlist CSV and verify accepted rows after reload.
+Password reset must open the correct reset route and permit reset without premature redirect; pending signup must reach the verify-email route. Invalid/expired links fail clearly without modifying another account.
+Restart local services/app without resetting fixture data and verify all accepted content/state remains. Record/fix/retest each regression and provide exact-build evidence. This work is separate from PBK-18 desktop packaging.
+
+PBK-31 — Owner decision on inactive stats/edge code
+Assess unreachable stats/gamification code, auth propagation, schema/column mismatches and weak type guards. Present delete versus revive consequences. Do not choose the product direction, remove the cluster or resurrect remote behavior autonomously.
+
+Initial observed state: PBK-18 Doing with an existing local delivery owner; other listed candidates Backlog. This dated state does not grant cloud ownership. The coordinator reconciles current versions, claims, links and readiness before dispatch. None of these briefs is a production-readiness or human-acceptance claim.
