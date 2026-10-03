@@ -11,7 +11,7 @@
 //   E2E_ARTIFACTS   directory for report.json, logs and failure screenshots
 //   E2E_TIMEOUT_MS  hard watchdog for the whole run (default 240000)
 //   E2E_FAULT       disposable failure injection: assert | missing-fixture |
-//                   corrupt-fixture | stall
+//                   corrupt-fixture | stall | wrong-restore
 //   E2E_KEEP=1      keep the temporary app-data/library after the run
 //
 // Exit codes: 0 pass, 1 failed assertion/setup, 124 watchdog timeout.
@@ -86,7 +86,8 @@ let browser = null;
 let tempRoot = null;
 let finishing = false;
 let epubTurnedPosition = null;
-let epubStartPosition = null;
+let epubWrongPosition = null;
+const RESTORE_SENTINEL = -18.18;
 
 async function step(name, fn) {
   const t0 = Date.now();
@@ -129,7 +130,15 @@ function markedProcesses() {
 }
 
 async function cleanup() {
-  const result = { session_closed: false, signalled: [], leftover: [] };
+  const result = {
+    run_marker: RUN_ID,
+    marked_before: markedProcesses().length,
+    session_closed: false,
+    driver_started: Boolean(driver),
+    driver_exited: null,
+    signalled: [],
+    leftover: [],
+  };
   if (browser) {
     result.session_closed = await Promise.race([
       browser.deleteSession().then(() => true, () => false),
@@ -153,6 +162,8 @@ async function cleanup() {
   }
   await new Promise((r) => setTimeout(r, 300));
   result.leftover = markedProcesses();
+  if (driver) result.driver_exited = driver.exitCode !== null || driver.signalCode !== null;
+  result.checked_at = new Date().toISOString();
   return result;
 }
 
@@ -504,8 +515,15 @@ try {
     await browser.$('.reader-bar button[aria-label="Next page"]').click();
     const position = await sidecarPosition(epubPath, (p) => isCfi(p) && p !== opened, "EPUB CFI advanced after Next");
     epubTurnedPosition = position;
-    epubStartPosition = opened;
-    return { opened, position };
+    if (FAULT === "wrong-restore") {
+      // Capture a later, non-initial location to feed the reader in session 2,
+      // then put the recorded position back so the stored contract is unchanged.
+      await browser.$('.reader-bar button[aria-label="Next page"]').click();
+      epubWrongPosition = await sidecarPosition(epubPath, (p) => isCfi(p) && p !== position && p !== opened, "later EPUB CFI");
+      await invoke("save_progress", { path: epubPath, position, percent: null });
+      await sidecarPosition(epubPath, (p) => p === position, "recorded EPUB CFI restored");
+    }
+    return { opened, position, ...(epubWrongPosition ? { wrong: epubWrongPosition } : {}) };
   });
 
   await step("Library search clears back to the full fixture library", () => backToLibraryAndSearch("", EXPECTED_TITLES));
@@ -537,6 +555,13 @@ try {
       (p) => p === epubTurnedPosition,
       `EPUB CFI ${epubTurnedPosition} after restart`,
     );
+    // Mark the stored record with an impossible percent; wrong-restore feeds
+    // the reader a different, later location instead of the recorded one.
+    await invoke("save_progress", {
+      path: epubPath,
+      position: FAULT === "wrong-restore" ? epubWrongPosition : position,
+      percent: RESTORE_SENTINEL,
+    });
     await backToLibraryAndSearch("zephyr", [EPUB_TITLE]);
     await openCard(EPUB_TITLE);
     await waitFor(
@@ -548,11 +573,18 @@ try {
       },
       45000,
     );
-    // Reopening relocates and saves again; a restore that fell back to the
-    // beginning would overwrite the recorded CFI with the chapter start.
-    await new Promise((r) => setTimeout(r, 1500));
-    const reopened = (await invoke("get_sidecar", { path: epubPath }))?.position;
-    check(reopened && reopened !== epubStartPosition, `EPUB reopened at the start (${reopened}), not ${position}`);
+    // The reader saves its actual location (rendition "relocated") through
+    // save_progress once it has displayed. The sentinel percent proves the
+    // value read below came from that fresh write, not the pre-restart file.
+    const reopened = await waitFor(
+      "reopened reader reported its location",
+      async () => {
+        const sidecar = await invoke("get_sidecar", { path: epubPath });
+        return sidecar?.percent !== RESTORE_SENTINEL ? sidecar.position : null;
+      },
+      15000,
+    );
+    check(reopened === position, `EPUB restored at ${reopened}, expected the recorded ${position}`);
     return { position, reopened };
   });
 
