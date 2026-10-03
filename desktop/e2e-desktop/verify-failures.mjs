@@ -38,6 +38,7 @@ const SETUP = [...DRIVER, "launch packaged app: tab rail visible", "embedded fro
 const INDEXED = [...SETUP, "fresh app-data has no configured library"];
 
 const stallExpectation = {
+  env: { E2E_FAULT: "stall" },
   expectCode: 124,
   expectResult: "stall-timeout",
   mustPass: SETUP,
