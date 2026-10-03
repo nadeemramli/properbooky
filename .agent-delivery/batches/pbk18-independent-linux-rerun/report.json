@@ -1,0 +1,85 @@
+{
+  "batch_id": "pbk18-independent-linux-rerun",
+  "kind": "independent pre-review verification of another actor's branch (no code changes, nothing pushed to that branch)",
+  "issue_keys": ["PBK-18"],
+  "base_sha": "9c850168b35c2545bbe7ba88fac27f908960366d",
+  "tested_sha": "48b659a5c4eacb9ae29a5385db60a2bd3b761efa",
+  "handoff_sha": null,
+  "branch": "claude/pbk-18-packaged-desktop-e2e",
+  "pr_url": null,
+  "model_observed": "reported to the coordinator in the session handoff, not recorded in Git",
+  "environment": "Cloud container: Ubuntu 24.04.4 LTS, kernel 6.18.44, rustc 1.97.0, node v22.22.0 (CI uses node 20), webkit2gtk-driver 2.52.6-0ubuntu0.24.04.1, tauri-driver from `cargo install tauri-driver --locked`, webdriverio 9.29.1, xvfb-run. Fresh per-run app-data via XDG_* temp dirs created by the runner; library = copy of committed synthetic fixtures. No owner library, no dev server, no network services.",
+  "criteria": [
+    {
+      "issue_key": "PBK-18",
+      "criterion": "1. Clean checkout builds the actual debug Tauri package and runs the desktop driver against that binary with committed synthetic EPUB/PDF fixtures and fresh isolated app-data; no owner library or dev server.",
+      "action": "git worktree of 48b659a; npm ci; npm run fixtures:check; npx tauri build --debug --bundles deb; dpkg-deb -x; ran run-packaged.mjs against pkg/usr/bin/desktop",
+      "expected": "deb builds; runner uses the packaged binary; webview origin is not a localhost dev server",
+      "observed": "build exit 0; deb sha256 59d9ff27…a730, binary sha256 819cb540…b5d0; webview_origin tauri://localhost; fixtures:check exit 0",
+      "verdict": "Pass",
+      "platform": "Linux (cloud container, Xvfb)",
+      "evidence": ["scratch ev/build-identity.txt (not committed; reproduced in CI artifact once PR CI runs)"]
+    },
+    {
+      "issue_key": "PBK-18",
+      "criterion": "2. Tab rail + fixture-sized library, search a known fixture, open it, turn a page, return to Library and search again; responsive; restart the same packaged build and verify library + recorded positions restore.",
+      "action": "run-1 and run-2: 20 steps each incl. first-run form indexing, search 'quillfeather', open PDF p1→p2, sidecar position 2 via get_sidecar, back to Library + search 'zephyr', open EPUB + Next (CFI advanced), close app, relaunch same binary on same app-data",
+      "expected": "3 fixture cards; PDF reopens at page 2; EPUB reopens at the saved CFI; library_path persisted without re-selecting folder",
+      "observed": "run-1 pass 20/20 in 8.7s, run-2 pass 20/20 in 8.1s; PDF restored page 2; EPUB position and reopened both epubcfi(/6/2!/4/14/1:0); library re-listed in 105ms/4ms",
+      "verdict": "Pass",
+      "platform": "Linux (cloud container, Xvfb)",
+      "evidence": ["scratch ev/run-1/report.json sha256 fd42828d…92e1", "scratch ev/run-2/report.json sha256 4366752d…cbc9"]
+    },
+    {
+      "issue_key": "PBK-18",
+      "criterion": "3. Missing/corrupt fixture or failing assertion → nonzero result with useful evidence; stalled run bounded; driver/app processes cleaned; rerun with clean app-data is repeatable.",
+      "action": "npm run test:e2e:packaged:failures (assert, missing-fixture, corrupt-fixture, stall) + two independent clean runs above",
+      "expected": "exit 1 for assert/missing/corrupt with named failing step; exit 124 for stall; 0 leftover processes",
+      "observed": "assert→1 (expected 4 cards saw 3); missing-fixture→1 (EPUB card absent); corrupt-fixture→1 (reader error InvalidPDFException); stall→124 after 30.8s; leftover_processes 0 for all; verifier exit 0",
+      "verdict": "Pass",
+      "platform": "Linux (cloud container, Xvfb)",
+      "evidence": ["scratch ev/failures/failures-summary.json sha256 b236fef1…04cb"]
+    },
+    {
+      "issue_key": "PBK-18",
+      "criterion": "4. Current-head CI/build/driver evidence and exact binary identity; agent smokes the delivered Windows application at its actual entrypoint.",
+      "action": "none possible from this worker: no PR exists, so no PR CI run for 48b659a; Windows is coordinator-owned",
+      "expected": "green desktop-e2e job on the PR head with uploaded desktop-e2e-evidence artifact; Windows smoke",
+      "observed": "not run",
+      "verdict": "Blocked",
+      "platform": "GitHub Actions / Windows",
+      "evidence": []
+    }
+  ],
+  "checks": [
+    {"command": "npm ci (desktop)", "exit_code": 0, "result": "installed", "evidence": "scratch npmci-desktop.log"},
+    {"command": "npm run fixtures:check", "exit_code": 0, "result": "committed fixtures match generator", "evidence": "background task output"},
+    {"command": "npx tauri build --debug --bundles deb", "exit_code": 0, "result": "ProperBooky_0.1.0_amd64.deb", "evidence": "scratch tauri-build.log"},
+    {"command": "E2E_ARTIFACTS=…/run-1 xvfb-run -a npm run test:e2e:packaged", "exit_code": 0, "result": "PASS 20/20", "evidence": "scratch ev/run-1"},
+    {"command": "E2E_ARTIFACTS=…/run-2 xvfb-run -a npm run test:e2e:packaged", "exit_code": 0, "result": "PASS 20/20", "evidence": "scratch ev/run-2"},
+    {"command": "E2E_ARTIFACTS=…/failures xvfb-run -a npm run test:e2e:packaged:failures", "exit_code": 0, "result": "FAILURE-PATH VERIFICATION: PASS (4/4 expected failures)", "evidence": "scratch ev/failures"}
+  ],
+  "ci": {"run_url": null, "head_sha": null, "conclusion": "not run: CI triggers on pull_request/main push only and no PR exists for this branch"},
+  "artifacts": [
+    {"path": "desktop/src-tauri/target/debug/bundle/deb/ProperBooky_0.1.0_amd64.deb (scratch, not retained)", "sha256": "59d9ff2788bbb7543720a1c756dbec21108bfb814ad5867c8e0da58bd6e6a730", "source_sha": "48b659a5c4eacb9ae29a5385db60a2bd3b761efa"},
+    {"path": "pkg/usr/bin/desktop (extracted from the deb)", "sha256": "819cb54027a647f9c4018e008a23d75929d347fc3f905fc001c57766401fb5d0", "source_sha": "48b659a5c4eacb9ae29a5385db60a2bd3b761efa"}
+  ],
+  "review_notes": [
+    "EPUB restart assertion accepts any reopened CFI different from the opening CFI; observed values were exactly equal, so tightening to equality (or same-section) would be stricter without flakiness evidence. Optional.",
+    "desktop-e2e job runs `cargo install tauri-driver --locked` uncached on every run (adds build minutes); optional cache.",
+    "Debug binary hash is not reproducible across machines; identity is tied to the CI artifact, so the coordinator should compare against the CI build-identity.txt, not this container's hash."
+  ],
+  "local_verification_required": [
+    "Windows: build exe/NSIS/MSI from the merged SHA and smoke the installed app at its real entrypoint with a library + app-data isolated via a separate Windows user profile or VM (APPDATA override does NOT isolate the known-folder app-data path).",
+    "Windows: open fixture EPUB + PDF, turn page, quit, relaunch, confirm positions restore."
+  ],
+  "review_walkthrough": [
+    "Open the PR's desktop-e2e job → download desktop-e2e-evidence → run-1/report.json shows 20 ok steps and webview_origin tauri://localhost (criterion 1-2).",
+    "failures/failures-summary.json shows exit 1/1/1/124 with leftover_processes 0 (criterion 3)."
+  ],
+  "known_risks": [
+    "Linux WebKitWebDriver evidence only; says nothing about WebView2/Windows.",
+    "Container node 22 vs CI node 20."
+  ],
+  "next_eligible_batch": ["pbk18 PR + CI (needs handoff)", "pbk30-web-local-supabase-verification (needs dispatch)", "desktop-file-ops-integrity (needs dispatch + new issue)"]
+}

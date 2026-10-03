@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "updated_at": "2026-10-03T19:30:00Z",
+  "worker": "cloud Claude Code session (branch claude/funny-dirac-xv8791)",
+  "model_observed": "reported to the coordinator in the session handoff, not recorded in Git",
+  "release_target": "Current approved release: desktop local-first reader (library, catalog/matching integrity, EPUB/PDF reader + positions, highlights/export, acquisition) + PBK-30 web runtime verification on local Supabase. Excludes PBK-7 sync/mobile, PBK-10, PBK-12 phases 2-3.",
+  "issue_snapshot": {"date": "2026-10-04 MYT", "direct_cursor": 1029},
+  "authorized_queue": {
+    "provenance": "None recorded. Coordinator prompt of 4 Oct 2026: 'no new cloud implementation queue has yet been recorded'.",
+    "dispatched_batches": []
+  },
+  "remote_main": "9c850168b35c2545bbe7ba88fac27f908960366d",
+  "existing_work": {
+    "PBK-18": {
+      "branch": "claude/pbk-18-packaged-desktop-e2e",
+      "head": "48b659a5c4eacb9ae29a5385db60a2bd3b761efa",
+      "claim": "claude-pipeline-properbooky-20261004 (Direct v16 at snapshot) — needs explicit handoff before this worker pushes or opens its PR",
+      "pr": null,
+      "ci_on_head": "none (CI runs on pull_request/main push only)",
+      "independent_evidence": ".agent-delivery/batches/pbk18-independent-linux-rerun/report.json (Linux Pass for criteria 1-3; criterion 4 Blocked)"
+    }
+  },
+  "current_batch": null,
+  "completed_cloud_batches": [
+    {"batch_id": "pbk18-independent-linux-rerun", "kind": "verification only", "pr_url": null}
+  ],
+  "proposals": ".agent-delivery/release-plan.md",
+  "criterion_gaps": [
+    "PBK-18 c4: no PR/current-head CI; Windows smoke pending (coordinator, needs proper known-folder isolation)",
+    "PBK-30: all 5 criteria unverified; local Supabase in this container: Docker Hub pulls OK (ECR 403), realtime container fails with eafnosupport (no IPv6 in kernel) and schema init still exits 1 with realtime excluded — under investigation",
+    "PBK-20/23/21: file-op partial-failure integrity gaps, no apply/adopt/relink/collision tests",
+    "PBK-26: no UI-level highlight restart/remove/export E2E",
+    "PBK-19: no import_catalog idempotency test"
+  ],
+  "pending_local_checks": [
+    "PBK-18 Windows packaged smoke + restart at the real entrypoint with isolated profile/VM"
+  ],
+  "pending_human_checks": [
+    "PBK-18 owner focused check: reader-to-library responsiveness (after agent Pass)"
+  ],
+  "unresolved_decisions": [
+    "PBK-31 delete vs revive (.agent-delivery/pbk-31-options.md)",
+    "PBK-15 multi-library picker in or out of current release",
+    "New issue needed for desktop file-op integrity (Batch 3)",
+    "PBK-4 branch protection / Vercel integration (repo settings)"
+  ],
+  "next_action": "Coordinator: hand off or keep PBK-18 (open PR from 48b659a, watch desktop-e2e CI) and dispatch Batch 2 (PBK-30) and/or Batch 3. Worker meanwhile: get local Supabase running in-container for PBK-30 assessment and write the PBK-30 Playwright test design without product changes."
+}
