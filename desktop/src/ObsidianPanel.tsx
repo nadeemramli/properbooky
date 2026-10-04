@@ -6,6 +6,8 @@ interface ExportReport {
   books: number;
   highlights: number;
   target: string;
+  written: number;
+  skipped: string[];
 }
 
 export default function ObsidianPanel({ onClose }: { onClose: () => void }) {
@@ -69,9 +71,9 @@ export default function ObsidianPanel({ onClose }: { onClose: () => void }) {
       <div className="acquire-drop">
         <p className="acquire-hint">
           Highlights export as one note per book into{" "}
-          <code>&lt;vault&gt;/Properbooky/</code>. That folder is regenerated on
-          every sync — keep your own notes outside it and link to the{" "}
-          <code>^pb-…</code> block ids.
+          <code>&lt;vault&gt;/Properbooky/</code>. Each note's highlights block is
+          regenerated on every sync; anything you write outside that block is
+          kept. Link to highlights with their <code>^pb-…</code> block ids.
         </p>
         <p className="acquire-hint">
           {exportFolder ? (
@@ -101,8 +103,15 @@ export default function ObsidianPanel({ onClose }: { onClose: () => void }) {
         {report && (
           <p className="acquire-report">
             Exported {report.highlights} highlights across {report.books}{" "}
-            {report.books === 1 ? "note" : "notes"}.
+            {report.books === 1 ? "note" : "notes"} ({report.written} updated).
           </p>
+        )}
+        {report && report.skipped.length > 0 && (
+          <ul className="status" aria-label="Not exported">
+            {report.skipped.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
         )}
         {status && <p className="status">{status}</p>}
       </div>

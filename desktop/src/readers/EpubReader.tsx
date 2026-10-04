@@ -3,6 +3,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { useLibrary } from "../library";
 import ePub, { Rendition } from "epubjs";
 import HighlightsPanel from "./HighlightsPanel";
+import { captureRange, rangeForQuote } from "./quote";
 import { pageTurn, useReadingState, validPercent } from "./readingState";
 import type { Highlight } from "../types";
 
@@ -33,6 +34,40 @@ const COZY_DARK = {
 interface PendingSelection {
   cfiRange: string;
   text: string;
+  /** Multi-selector fallbacks, in the section's own text space. */
+  quote: { exact: string; prefix: string; suffix: string };
+  position: { start: number; end: number };
+  href: string | null;
+}
+
+type EpubBook = ReturnType<typeof ePub>;
+
+const collapse = (s: string) => s.replace(/\s+/g, " ").trim();
+
+/** The CFI to paint for a stored highlight: its own CFI when that still
+ * covers the quoted text, otherwise the quote found again in its section
+ * (TextQuote + TextPosition fallback), otherwise null. */
+async function resolveCfi(book: EpubBook, highlight: Highlight): Promise<string | null> {
+  const { cfi, quote, position, href } = highlight.anchor;
+  if (cfi) {
+    try {
+      const range = await (book as any).getRange(cfi);
+      if (range && (!quote || collapse(range.toString()) === collapse(quote.exact))) return cfi;
+    } catch {
+      /* unparsable or stale CFI: try the quote */
+    }
+  }
+  // Older highlights carry only a CFI: paint it as before.
+  if (!quote || !href) return cfi ?? null;
+  try {
+    const section: any = book.spine.get(href);
+    if (!section) return null;
+    await section.load((book as any).load.bind(book));
+    const range = rangeForQuote(section.document.body, quote.exact, { quote, position });
+    return range ? section.cfiFromRange(range) : null;
+  } catch {
+    return null;
+  }
 }
 
 export default function EpubReader({
@@ -51,7 +86,10 @@ export default function EpubReader({
   const [pending, setPending] = useState<PendingSelection | null>(null);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [showPanel, setShowPanel] = useState(false);
-  const { load, save, notices } = useReadingState(path);
+  const { load, save, attempt, notices } = useReadingState(path);
+  const bookRef = useRef<EpubBook | null>(null);
+  // Highlight id -> CFI actually painted (its own, or the quote fallback).
+  const paintedRef = useRef(new Map<string, string>());
 
   // Keep the latest callback out of the load effect's dependencies —
   // a changing identity there re-loads the whole book (reload loop).
@@ -65,49 +103,59 @@ export default function EpubReader({
   // on the text you just highlighted must never destroy it).
   const removeHighlight = useCallback(
     async (highlight: Highlight) => {
-      const rendition = renditionRef.current;
-      if (!rendition || !highlight.anchor.cfi) return;
-      await invoke("remove_highlight", { path, id: highlight.id }).catch(
-        () => {}
+      const done = await attempt("remove the highlight", () =>
+        invoke<boolean>("remove_highlight", { path, id: highlight.id }),
       );
-      (rendition.annotations as any).remove(highlight.anchor.cfi, "highlight");
+      if (done === undefined) return;
+      const painted = paintedRef.current.get(highlight.id);
+      if (painted) (renditionRef.current?.annotations as any)?.remove(painted, "highlight");
+      paintedRef.current.delete(highlight.id);
       setHighlights((current) => current.filter((h) => h.id !== highlight.id));
     },
-    [path]
+    [path, attempt]
   );
 
   const noteHighlight = useCallback(
     async (highlight: Highlight, note: string) => {
-      await invoke("set_highlight_note", {
-        path,
-        id: highlight.id,
-        note: note || null,
-      }).catch(() => {});
+      const done = await attempt("save the note", () =>
+        invoke<boolean>("set_highlight_note", {
+          path,
+          id: highlight.id,
+          note: note || null,
+        }),
+      );
+      if (done === undefined) return;
       setHighlights((current) =>
         current.map((h) =>
           h.id === highlight.id ? { ...h, note: note || null } : h
         )
       );
     },
-    [path]
+    [path, attempt]
   );
 
 
-  const paintHighlight = useCallback((highlight: Highlight) => {
-    const rendition = renditionRef.current;
-    if (!rendition || !highlight.anchor.cfi) return;
-    (rendition.annotations as any).add(
-      "highlight",
-      highlight.anchor.cfi,
-      {},
-      () => setShowPanel(true),
-      "pb-highlight",
-      { fill: HIGHLIGHT_FILL, "fill-opacity": "1", "mix-blend-mode": "multiply" }
-    );
+  const paintHighlight = useCallback(async (highlight: Highlight) => {
+    // Listed even if it can't be painted, so it can still be removed.
     setHighlights((current) =>
       current.some((h) => h.id === highlight.id)
         ? current
         : [...current, highlight]
+    );
+    const book = bookRef.current;
+    if (!book) return;
+    const cfi = await resolveCfi(book, highlight);
+    const rendition = renditionRef.current;
+    if (!cfi || !rendition || bookRef.current !== book) return;
+    paintedRef.current.set(highlight.id, cfi);
+    (rendition.annotations as any).add(
+      "highlight",
+      cfi,
+      { id: highlight.id },
+      // A click on painted text opens the panel; it never deletes.
+      () => setShowPanel(true),
+      "pb-highlight",
+      { fill: HIGHLIGHT_FILL, "fill-opacity": "1", "mix-blend-mode": "multiply" }
     );
   }, []);
   const paintHighlightRef = useRef(paintHighlight);
@@ -118,6 +166,7 @@ export default function EpubReader({
   useEffect(() => {
     let disposed = false;
     let book: ReturnType<typeof ePub> | null = null;
+    let selectionPoll = 0;
     // Resolves once epub.js has finished its own background loading.
     let settled: Promise<unknown> = Promise.resolve();
 
@@ -137,6 +186,7 @@ export default function EpubReader({
         book = opened;
         await opened.open(buffer, "binary");
         settled = opened.ready;
+        bookRef.current = opened;
         if (disposed || !containerRef.current) return;
 
         // Until locations are generated epub.js reports no percentage; keep
@@ -170,10 +220,50 @@ export default function EpubReader({
           onProgressRef.current(path, known);
           if (cfi) save(cfi, known);
         });
-        rendition.on("selected", (cfiRange: string, contents: any) => {
-          const text = contents?.window?.getSelection()?.toString() ?? "";
-          if (text.trim()) setPending({ cfiRange, text: text.trim() });
-        });
+        // Book content renders in a sandboxed iframe without scripts (book
+        // JavaScript must never reach the app). WebKit then runs no event
+        // listeners for that document at all, so epub.js's "selected" event
+        // (selectionchange) never fires on Linux. The app reads the
+        // selection from its own side instead; "selected" stays for engines
+        // where it works.
+        const captureSelection = (contents: any) => {
+          if (disposed) return;
+          const selection = contents?.window?.getSelection();
+          if (!selection || selection.isCollapsed || !selection.rangeCount) return;
+          const range = selection.getRangeAt(0);
+          const captured = captureRange(contents.document.body, range);
+          if (!captured) return;
+          let cfiRange: string;
+          try {
+            cfiRange = contents.cfiFromRange(range);
+          } catch {
+            return;
+          }
+          const href = opened.spine.get(contents.sectionIndex)?.href ?? null;
+          setPending({
+            cfiRange,
+            text: captured.exact,
+            quote: { exact: captured.exact, prefix: captured.prefix, suffix: captured.suffix },
+            position: { start: captured.start, end: captured.end },
+            href,
+          });
+        };
+        rendition.on("selected", (_cfiRange: string, contents: any) => captureSelection(contents));
+        let lastSelection: unknown[] = [];
+        selectionPoll = window.setInterval(() => {
+          for (const contents of (rendition.getContents() as unknown as any[]) ?? []) {
+            const selection = contents?.window?.getSelection();
+            if (!selection || selection.isCollapsed || !selection.rangeCount) {
+              lastSelection = [];
+              continue;
+            }
+            const r = selection.getRangeAt(0);
+            const key = [r.startContainer, r.startOffset, r.endContainer, r.endOffset];
+            if (key.every((part, i) => part === lastSelection[i])) continue;
+            lastSelection = key;
+            captureSelection(contents);
+          }
+        }, 250);
         rendition.on("keydown", (e: KeyboardEvent) => {
           const direction = pageTurn(e);
           if (direction === "next") rendition.next();
@@ -212,7 +302,10 @@ export default function EpubReader({
 
     return () => {
       disposed = true;
+      window.clearInterval(selectionPoll);
       renditionRef.current = null;
+      bookRef.current = null;
+      paintedRef.current = new Map();
       // epub.js throws when destroyed mid-open/display, and an exception in
       // an effect cleanup unmounts the whole app; tear down once it settles.
       loading
@@ -230,21 +323,40 @@ export default function EpubReader({
 
   const saveHighlight = useCallback(async () => {
     if (!pending) return;
-    try {
-      const highlight = await invoke<Highlight>("add_highlight", {
+    const book = bookRef.current;
+    const chapter = pending.href
+      ? collapse((book?.navigation as any)?.get(pending.href)?.label ?? "") || null
+      : null;
+    const fraction =
+      book && book.locations.length() > 0
+        ? validPercent(book.locations.percentageFromCfi(pending.cfiRange))
+        : null;
+    const highlight = await attempt("save the highlight", () =>
+      invoke<Highlight>("add_highlight", {
         path,
         text: pending.text,
         note: null,
         color: null,
-        anchor: { type: "epub-cfi", cfi: pending.cfiRange },
-      });
-      paintHighlight(highlight);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setPending(null);
-    }
-  }, [pending, path, paintHighlight]);
+        // One multi-selector envelope: CFI range primary, quote + position
+        // (section text space) as fallbacks, plus labels for export.
+        anchor: {
+          type: "epub-cfi",
+          cfi: pending.cfiRange,
+          quote: pending.quote,
+          position: pending.position,
+          ...(pending.href ? { href: pending.href } : {}),
+          ...(chapter ? { chapter } : {}),
+          ...(fraction !== null ? { percent: fraction } : {}),
+        },
+      }),
+    );
+    setPending(null);
+    if (!highlight) return;
+    (renditionRef.current?.getContents() as unknown as any[] | undefined)?.forEach((c) =>
+      c.window?.getSelection()?.removeAllRanges(),
+    );
+    paintHighlight(highlight);
+  }, [pending, path, paintHighlight, attempt]);
 
   const turn = useCallback((direction: "prev" | "next") => {
     setPending(null);
@@ -297,7 +409,8 @@ export default function EpubReader({
         <HighlightsPanel
           highlights={highlights}
           onJump={(h) => {
-            if (h.anchor.cfi) renditionRef.current?.display(h.anchor.cfi);
+            const cfi = paintedRef.current.get(h.id) ?? h.anchor.cfi;
+            if (cfi) renditionRef.current?.display(cfi);
           }}
           onDelete={removeHighlight}
           onNote={noteHighlight}

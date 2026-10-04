@@ -149,3 +149,28 @@ fn unwritable_sidecar_reports_an_error_and_keeps_existing_state() {
     assert!(annotations::set_position(&nested, "6".into(), None).is_err());
     assert_eq!(fs::read(&sidecar).unwrap(), before);
 }
+
+#[test]
+fn highlights_are_uuid_keyed_with_lww_timestamps_and_durable_tombstones() {
+    let dir = tempfile::tempdir().unwrap();
+    let sidecar = dir.path().join("asset.json");
+    let anchor = json!({"type": "epub-cfi", "cfi": "epubcfi(/6/4!/4/2,/1:0,/1:5)",
+        "quote": {"exact": "quiet", "prefix": "and ", "suffix": " weather"},
+        "position": {"start": 120, "end": 125}, "href": "ch2.xhtml", "chapter": "Second Watch"});
+    let h =
+        annotations::add_highlight(&sidecar, "quiet".into(), None, None, anchor.clone()).unwrap();
+    assert!(uuid::Uuid::parse_str(&h.id).is_ok());
+    assert_eq!(h.created_at, h.updated_at);
+    // The whole multi-selector envelope round-trips unchanged.
+    assert_eq!(annotations::live_highlights(&sidecar)[0].anchor, anchor);
+    assert!(annotations::set_note(&sidecar, &h.id, Some("n".into())).unwrap());
+    assert!(annotations::remove_highlight(&sidecar, &h.id).unwrap());
+    let stored = &annotations::load(&sidecar).highlights[0];
+    assert!(stored.deleted && stored.updated_at >= stored.created_at);
+    // A position write later keeps the tombstone (reload from disk).
+    annotations::set_position(&sidecar, "epubcfi(/6/2!/4/2/1:0)".into(), Some(0.1)).unwrap();
+    let reloaded = annotations::load(&sidecar);
+    assert_eq!(reloaded.highlights.len(), 1);
+    assert!(reloaded.highlights[0].deleted);
+    assert!(annotations::live_highlights(&sidecar).is_empty());
+}

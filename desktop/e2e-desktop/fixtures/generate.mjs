@@ -11,6 +11,7 @@ import path from "node:path";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const libraryDir = path.join(here, "library");
 const catalogDir = path.join(here, "catalog");
+const highlightsDir = path.join(here, "highlights");
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
   let c = n;
@@ -120,7 +121,8 @@ function epub({ title, author, id, chapters }) {
   ]);
 }
 
-// Minimal PDF 1.4 with one Helvetica text line per page and a valid xref.
+// Minimal PDF 1.4 with Helvetica text and a valid xref. Each page is one
+// line, or an array of lines set 28pt apart.
 function pdf(pageLines) {
   const objects = [];
   const pageIds = pageLines.map((_, i) => 4 + i * 2);
@@ -129,7 +131,9 @@ function pdf(pageLines) {
   objects[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
   pageLines.forEach((line, i) => {
     const pageId = pageIds[i];
-    const stream = `BT /F1 24 Tf 72 720 Td (${line}) Tj ET`;
+    const stream = Array.isArray(line)
+      ? `BT /F1 14 Tf 72 720 Td ${line.map((text) => `(${text}) Tj`).join(" 0 -28 Td ")} ET`
+      : `BT /F1 24 Tf 72 720 Td (${line}) Tj ET`;
     objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${pageId + 1} 0 R >>`;
     objects[pageId + 1] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
   });
@@ -198,14 +202,44 @@ export const CATALOG = {
   ]),
 };
 
+// PBK-26 highlight journey: the same phrase on several lines of a page and
+// on more than one page, so anchoring must pick the exact occurrence.
+const ECHO = "the tide returns the ledger";
+export const HIGHLIGHTS = {
+  "tidewater-echo-ledger.pdf": pdf([
+    [
+      "Tidewater Echo Ledger - page 1",
+      `Morning entry: ${ECHO} at first light.`,
+      "A plain line between the echoes.",
+      `Evening entry: ${ECHO} at last light.`,
+    ],
+    [
+      "Tidewater Echo Ledger - page 2",
+      `North pier: ${ECHO} before the storm.`,
+      "Another plain line between the echoes.",
+      `South pier: ${ECHO} after the storm.`,
+      `Harbor office: ${ECHO} once more.`,
+    ],
+    ["Tidewater Echo Ledger - page 3", `Final entry: ${ECHO} for good.`],
+  ]),
+  "catalog/Tidewater Echo Ledger.md": profile([
+    "title: Tidewater Echo Ledger",
+    "author: Synthetic Harbormaster",
+    "status: reading",
+    "file: tidewater-echo-ledger.pdf",
+  ]),
+};
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const check = process.argv.includes("--check");
   mkdirSync(libraryDir, { recursive: true });
   mkdirSync(catalogDir, { recursive: true });
+  mkdirSync(path.join(highlightsDir, "catalog"), { recursive: true });
   let stale = 0;
   for (const [file, bytes] of [
     ...Object.entries(FIXTURES).map(([name, bytes]) => [path.join(libraryDir, name), bytes]),
     ...Object.entries(CATALOG).map(([name, bytes]) => [path.join(catalogDir, name), bytes]),
+    ...Object.entries(HIGHLIGHTS).map(([name, bytes]) => [path.join(highlightsDir, name), bytes]),
   ]) {
     const name = path.relative(here, file);
     if (check) {
