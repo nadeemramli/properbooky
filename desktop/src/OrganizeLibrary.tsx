@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useLibrary } from "./library";
 import type { Book, Organisation, OrganisationView } from "./types";
 
 const labelKey = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
@@ -25,6 +25,7 @@ export default function OrganizeLibrary({
   onSaved: () => Promise<void>;
   onOpen: (book: Book) => void;
 }) {
+  const { invoke } = useLibrary();
   const dialog = useRef<HTMLDialogElement>(null);
   const [saved, setSaved] = useState<OrganisationView | null>(null);
   const [value, setValue] = useState<Organisation | null>(null);

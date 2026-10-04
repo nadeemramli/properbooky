@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useLibrary } from "./library";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { bookEdit } from "./bookMetadata";
 import type { Book } from "./types";
@@ -28,6 +28,7 @@ export default function AcquirePanel({
   onClose: () => void;
   onLibraryChanged: () => void;
 }) {
+  const { invoke } = useLibrary();
   const [queue, setQueue] = useState<Book[]>([]);
   const [report, setReport] = useState<DropReport | null>(null);
   const [processing, setProcessing] = useState(false);

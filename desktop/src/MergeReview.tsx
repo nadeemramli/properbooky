@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useLibrary } from "./library";
 import { bookEdit, combinedTopics } from "./bookMetadata";
 import SourceProfiles from "./SourceProfiles";
 import type { Book, BookEdit } from "./types";
@@ -15,6 +15,7 @@ export default function MergeReview({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const { invoke } = useLibrary();
   const dialog = useRef<HTMLDialogElement>(null);
   const [edit, setEdit] = useState<BookEdit>(() => ({
     ...bookEdit(primary),

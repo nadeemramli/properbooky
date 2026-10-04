@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { useLibrary } from "../library";
 import ePub, { Rendition } from "epubjs";
 import HighlightsPanel from "./HighlightsPanel";
 import { pageTurn, useReadingState, validPercent } from "./readingState";
@@ -41,6 +42,7 @@ export default function EpubReader({
   path: string;
   onProgress: (path: string, percent: number | null) => void;
 }) {
+  const { invoke } = useLibrary();
   const containerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
   const [error, setError] = useState<string | null>(null);

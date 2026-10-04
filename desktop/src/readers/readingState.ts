@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useLibrary } from "../library";
 import type { Sidecar } from "../types";
 
 /** A stored fraction is only trusted when it is a real 0..1 value. */
@@ -29,6 +29,7 @@ export function pageTurn(e: KeyboardEvent): "next" | "prev" | null {
  * that fails is reported until a later save succeeds — never swallowed.
  */
 export function useReadingState(path: string) {
+  const { invoke } = useLibrary();
   const [loadNotice, setLoadNotice] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 

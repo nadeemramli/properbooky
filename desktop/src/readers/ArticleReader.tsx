@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { useLibrary } from "../library";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import HighlightsPanel from "./HighlightsPanel";
@@ -21,6 +22,7 @@ export default function ArticleReader({
   path: string;
   onProgress: (path: string, percent: number | null) => void;
 }) {
+  const { invoke } = useLibrary();
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);

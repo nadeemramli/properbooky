@@ -100,8 +100,13 @@ export type BookEdit = Pick<
 >;
 
 export interface LibraryState {
+  library_id: string | null;
+  library_name: string | null;
   library_path: string | null;
+  status: "available" | "missing" | "inaccessible" | "not_folder" | null;
   book_count: number;
+  /** Recovery notices for the open library, e.g. a rebuilt index. */
+  notices: string[];
 }
 
 export interface ScanResult {

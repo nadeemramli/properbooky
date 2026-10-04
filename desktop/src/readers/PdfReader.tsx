@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { useLibrary } from "../library";
 import * as pdfjs from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { TextLayer } from "pdfjs-dist";
@@ -27,6 +28,7 @@ export default function PdfReader({
   path: string;
   onProgress: (path: string, percent: number | null) => void;
 }) {
+  const { invoke } = useLibrary();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const textDivRef = useRef<HTMLDivElement>(null);
