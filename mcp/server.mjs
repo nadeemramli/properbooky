@@ -12,13 +12,34 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-const DB_PATH =
-  process.env.PROPERBOOKY_DB ??
-  path.join(os.homedir(), ".local/share/com.nadeemramli.properbooky/library.db");
+const APP_DATA =
+  process.env.PROPERBOOKY_APP_DATA ??
+  path.join(os.homedir(), ".local/share/com.nadeemramli.properbooky");
+
+// PBK-15: the app keeps a list of libraries and one index per library; the
+// open library is served. Installs from before that keep library.db.
+function openLibrary() {
+  let settings;
+  try {
+    settings = JSON.parse(fs.readFileSync(path.join(APP_DATA, "settings.json"), "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw new Error(`ProperBooky library list is unreadable: ${error.message}`);
+  }
+  const entry = settings.libraries?.find((l) => l.id === settings.active && !l.removed_at);
+  if (!entry) throw new Error("No ProperBooky library is open; open one in the app first.");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entry.id))
+    throw new Error("ProperBooky library list has an invalid library id.");
+  return { db: path.join(APP_DATA, "libraries", entry.id, "library.db"), root: entry.path };
+}
+
+const OPEN = process.env.PROPERBOOKY_DB ? null : openLibrary();
+const DB_PATH = process.env.PROPERBOOKY_DB ?? OPEN?.db ?? path.join(APP_DATA, "library.db");
 
 const db = new Database(DB_PATH, { readonly: true, fileMustExist: true });
 const LIBRARY_ROOT =
   process.env.PROPERBOOKY_LIBRARY ??
+  OPEN?.root ??
   db.prepare("SELECT value FROM settings WHERE key = 'library_path'").get()?.value;
 
 const HAS_IDENTITIES = db.prepare("PRAGMA table_info(books)").all().some((c) => c.name === "stable_id");

@@ -16,8 +16,13 @@ clients, register: `command: node`, `args: [<repo>/mcp/server.mjs]`.
 
 Configuration (optional env):
 
-- `PROPERBOOKY_DB` — SQLite index path (default: the app's data dir)
-- `PROPERBOOKY_LIBRARY` — library root (default: read from the index settings)
+- `PROPERBOOKY_APP_DATA` — the app's data dir (default:
+  `~/.local/share/com.nadeemramli.properbooky`). The server serves the library
+  that is open in the app: its entry in `settings.json` and its own index under
+  `libraries/<id>/library.db`. Installs from before multiple libraries
+  (PBK-15) fall back to `library.db`.
+- `PROPERBOOKY_DB` — SQLite index path (overrides the above)
+- `PROPERBOOKY_LIBRARY` — library root (default: from the library list or the index settings)
 
 ## Tools
 
