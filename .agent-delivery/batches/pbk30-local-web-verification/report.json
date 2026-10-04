@@ -1,8 +1,13 @@
 {
   "batch_id": "pbk30-local-web-verification",
   "dispatch_id": "pbk-20261004-1242",
-  "issue_keys": ["PBK-30"],
-  "related_findings_for_other_keys": ["PBK-1 (local stack reproducibility)", "PBK-31 (dashboard queries dropped relations; untouched)"],
+  "issue_keys": [
+    "PBK-30"
+  ],
+  "related_findings_for_other_keys": [
+    "PBK-1 (local stack reproducibility)",
+    "PBK-31 (dashboard queries dropped relations; untouched)"
+  ],
   "base_sha": "40d8e7698483b39e56c944508e47f8d8894f1276",
   "tested_sha": "a483199ec18e38007f01b71faa51fe0e8a23879f",
   "tested_sha_note": "Product code is final at 8a54d131d4f1532c69737630974f9bd019bb9519; 7f6e99e and a483199 change only CI, docs and evidence paths. Local full clean-stack runs: 8a54d13 (pass) and a483199 (see checks). The CI run on a483199 is in the ci block.",
@@ -20,61 +25,195 @@
     "e2e/local-supabase/fixtures/not-a-book.txt": "7a3a9d3804ac3a982558b7ff1d5353f2e50e6fd1ee532d80aa4e5fcee72966cf"
   },
   "defects_reproduced_and_fixed": [
-    {"id": "D1", "area": "local setup", "evidence": "fresh `supabase start` aborted at 20240324: must be owner of table objects (Supabase 2025-04-21 restriction, images 15.8.1.084+)", "fix": "620e462 pin 15.8.1.069 via supabase/.temp/postgres-version in scripts/local-supabase.sh; applied migrations untouched"},
-    {"id": "D2", "area": "dev mode identity", "evidence": "30x HTTP 403 RLS on POST /rest/v1/books with a dev account whose id != FLAGS.DEV_USER_ID; 401 reads before the session", "fix": "9369869 single shared dev sign-in, real session id"},
-    {"id": "D3", "area": "default books", "evidence": "8 duplicate 'Sample PDF Book' rows after one load", "fix": "9369869 single-flight + deterministic id + ignore-duplicates; jest 5/5"},
-    {"id": "D4", "area": "feedback", "evidence": "baseline: 'Book added successfully', 'Recommendation added successfully', CSV/bulk toasts never visible (only sonner Toaster mounted)", "fix": "3f43c9a mount shadcn Toaster"},
-    {"id": "D5", "area": "details dialog", "evidence": "baseline: slider aria-valuenow 0.5 after reload (expected 0.8); stored 0 shows 0.5; wishlist notes '' after reload; Save Changes outside viewport (test timeout)", "fix": "3f43c9a keep saved copy, serialise saves, commit sliders on release, debounced notes, ??, scrollable"},
-    {"id": "D6", "area": "uploads", "evidence": "orphaned storage object when insert refused; rejected .txt silently dropped; success unmarked; queue controls clipped (screenshot c3-bulk-partial before fix); CSV toast counted every parsed row", "fix": "e74fd7f cleanup, rejection toast, Uploaded mark, Retry N failed, wrapping rows, Imported X of N rows"},
-    {"id": "D7", "area": "reset link", "evidence": "baseline: spent/tampered link renders a reset form with no explanation", "fix": "87a82bf explain invalid/expired link, form only with a session"},
-    {"id": "D8", "area": "test infra", "evidence": "ts-jest could not compile any TS test (verbatimModuleSyntax)", "fix": "9369869 jest config"}
+    {
+      "id": "D1",
+      "area": "local setup",
+      "evidence": "fresh `supabase start` aborted at 20240324: must be owner of table objects (Supabase 2025-04-21 restriction, images 15.8.1.084+)",
+      "fix": "620e462 pin 15.8.1.069 via supabase/.temp/postgres-version in scripts/local-supabase.sh; applied migrations untouched"
+    },
+    {
+      "id": "D2",
+      "area": "dev mode identity",
+      "evidence": "30x HTTP 403 RLS on POST /rest/v1/books with a dev account whose id != FLAGS.DEV_USER_ID; 401 reads before the session",
+      "fix": "9369869 single shared dev sign-in, real session id"
+    },
+    {
+      "id": "D3",
+      "area": "default books",
+      "evidence": "8 duplicate 'Sample PDF Book' rows after one load",
+      "fix": "9369869 single-flight + deterministic id + ignore-duplicates; jest 5/5"
+    },
+    {
+      "id": "D4",
+      "area": "feedback",
+      "evidence": "baseline: 'Book added successfully', 'Recommendation added successfully', CSV/bulk toasts never visible (only sonner Toaster mounted)",
+      "fix": "3f43c9a mount shadcn Toaster"
+    },
+    {
+      "id": "D5",
+      "area": "details dialog",
+      "evidence": "baseline: slider aria-valuenow 0.5 after reload (expected 0.8); stored 0 shows 0.5; wishlist notes '' after reload; Save Changes outside viewport (test timeout)",
+      "fix": "3f43c9a keep saved copy, serialise saves, commit sliders on release, debounced notes, ??, scrollable"
+    },
+    {
+      "id": "D6",
+      "area": "uploads",
+      "evidence": "orphaned storage object when insert refused; rejected .txt silently dropped; success unmarked; queue controls clipped (screenshot c3-bulk-partial before fix); CSV toast counted every parsed row",
+      "fix": "e74fd7f cleanup, rejection toast, Uploaded mark, Retry N failed, wrapping rows, Imported X of N rows"
+    },
+    {
+      "id": "D7",
+      "area": "reset link",
+      "evidence": "baseline: spent/tampered link renders a reset form with no explanation",
+      "fix": "87a82bf explain invalid/expired link, form only with a session"
+    },
+    {
+      "id": "D8",
+      "area": "test infra",
+      "evidence": "ts-jest could not compile any TS test (verbatimModuleSyntax)",
+      "fix": "9369869 jest config"
+    }
   ],
   "criteria": [
-    {"issue_key": "PBK-30", "criterion": "1. Isolated local stack and current app at the real library/auth web entrypoints, synthetic data; remote paused; exact commit/build and config recorded without credentials",
-     "action": "scripts/local-supabase.sh reset (CLI 2.33.9, postgres 15.8.1.069, 14/14 migrations + seed) then scripts/pbk30-verify.sh all: next build/next start for /auth, /auth/signup, /auth/forgot-password, /auth/reset-password, /library; next dev for dev mode",
-     "expected": "clean reproducible stack; all repo migrations apply unmodified; app reachable at real entrypoints",
-     "observed": "reset exit 0; 'database image: supabase/postgres:15.8.1.069'; 'migrations applied: 14 / 14'; app served from the production build; dev mode passes after D2/D3 fixes",
-     "verdict": "Pass", "platform": "Linux cloud container + GitHub Actions ubuntu-latest (CI job web-local-supabase)",
-     "evidence": [".pbk30/next-build.log", "CI artifact pbk30-local-supabase-evidence", "scratch final-reset.log"],
-     "limitations": ["Clean reproducibility relies on the documented image pin, not on editing applied migrations; see docs/local-supabase.md", "In this container realtime needed a local IPv4 rebuild (kernel has no IPv6); GitHub runners do not"]},
-    {"issue_key": "PBK-30", "criterion": "2. Change one metadata field and reload: highlights, bookmarks, TOC, recommendations intact; spectrum/rating/wishlist persist without column errors; a second recommendation keeps the first",
-     "action": "e2e/local-supabase/c2-metadata.spec.ts: UI edit Publisher -> reload; DB deep-equality of metadata arrays and highlights-table rows; keyboard slider steps; Home -> 0; wishlist priority + typed notes; add recommendation",
-     "expected": "UI shows the edit after reload and the DB arrays/rows are unchanged; 0.8/1.5, 0, priority 4 and the note persist; recommendations [One, Two]",
-     "observed": "5/5 pass on 8a54d13 and a483199; baseline (unfixed product code) 0/5",
-     "verdict": "Pass", "platform": "Linux, Chromium, production build",
-     "evidence": [".pbk30/screens/c2-*.png", ".pbk30/results-before-restart.json"]},
-    {"issue_key": "PBK-30", "criterion": "3. Upload one EPUB/PDF; mixed bulk queue with a controlled failing file: retrievable books, displayed outcomes match persisted successes/failures, failed items recoverable; wishlist CSV rows persist after reload",
-     "action": "c3-uploads.spec.ts: manual EPUB (SHA-256 of the downloaded file); bulk queue of 2 PDFs + duplicate-title EPUB + .txt with a single injected storage 500 (Playwright route, labelled fault injection); retry; remove the duplicate; CSV with 3 valid rows + 1 without a title",
-     "expected": ".txt rejected with a message; toast '1 uploaded, 2 failed'; DB rows and storage objects match; failures listed with reasons; retry -> '1 uploaded, 1 failed'; no orphans; CSV toast 'Imported 3 of 4 rows' and 3 wishlist rows after reload",
-     "observed": "3/3 pass on 8a54d13 and a483199; baseline 0/3",
-     "verdict": "Pass", "platform": "Linux, Chromium, production build",
-     "evidence": [".pbk30/screens/c3-*.png", ".pbk30/results-before-restart.json"]},
-    {"issue_key": "PBK-30", "criterion": "4. Local synthetic accounts + email capture under next build/next start: reset link reaches /auth/reset-password and resets; pending sign-up lands at /auth/verify-email; invalid/expired link fails intelligibly without changing another account",
-     "action": "c4-auth.spec.ts with Mailpit: sign-up -> verify-email -> emailed confirm link; forgot-password -> emailed link -> reset form -> new password; spent and tampered links opened while another account is signed in",
-     "expected": "verify-email page, unconfirmed account cannot sign in until confirmed; reset page stays (no /library redirect), new password works, old one fails, bystander unchanged; invalid link shows 'invalid or has expired' and no password changes",
-     "observed": "3/3 pass on 8a54d13 and a483199; baseline: sign-up and valid reset passed (PR #13 fixes verified), invalid link failed (no explanation, D7). Separate repro: submitting the form after a spent link did NOT change the signed-in account (auth-js drops the session on URL errors)",
-     "verdict": "Pass", "platform": "Linux, Chromium, production build, local GoTrue + Mailpit",
-     "evidence": [".pbk30/screens/c4-*.png", ".pbk30/results-before-restart.json"]},
-    {"issue_key": "PBK-30", "criterion": "5. Restart local app/services without resetting data; metadata, annotations, recommendations, uploaded content and CSV rows intact",
-     "action": "pbk30-verify.sh restart: stop next start, `supabase stop` (volumes kept), local-supabase.sh start, restart Next; c5-restart.spec.ts compares DB with the recorded pre-restart state, downloads file bytes and checks the UI",
-     "expected": "new container ids; identical metadata, highlight rows, book rows and file hashes; UI shows the edits",
-     "observed": "2/2 pass; restart.txt shows supabase_db_properbooky cc861627bae2 -> fc0be454c623 (8a54d13 run)",
-     "verdict": "Pass", "platform": "Linux, Chromium, production build",
-     "evidence": [".pbk30/restart.txt", ".pbk30/results-after-restart.json", ".pbk30/screens/c5-*.png"]}
+    {
+      "issue_key": "PBK-30",
+      "criterion": "1. Isolated local stack and current app at the real library/auth web entrypoints, synthetic data; remote paused; exact commit/build and config recorded without credentials",
+      "action": "scripts/local-supabase.sh reset (CLI 2.33.9, postgres 15.8.1.069, 14/14 migrations + seed) then scripts/pbk30-verify.sh all: next build/next start for /auth, /auth/signup, /auth/forgot-password, /auth/reset-password, /library; next dev for dev mode",
+      "expected": "clean reproducible stack; all repo migrations apply unmodified; app reachable at real entrypoints",
+      "observed": "reset exit 0; 'database image: supabase/postgres:15.8.1.069'; 'migrations applied: 14 / 14'; app served from the production build; dev mode passes after D2/D3 fixes",
+      "verdict": "Pass",
+      "platform": "Linux cloud container + GitHub Actions ubuntu-latest (CI job web-local-supabase)",
+      "evidence": [
+        ".pbk30/next-build.log",
+        "CI artifact pbk30-local-supabase-evidence",
+        "scratch final-reset.log"
+      ],
+      "limitations": [
+        "Clean reproducibility relies on the documented image pin, not on editing applied migrations; see docs/local-supabase.md",
+        "In this container realtime needed a local IPv4 rebuild (kernel has no IPv6); GitHub runners do not"
+      ]
+    },
+    {
+      "issue_key": "PBK-30",
+      "criterion": "2. Change one metadata field and reload: highlights, bookmarks, TOC, recommendations intact; spectrum/rating/wishlist persist without column errors; a second recommendation keeps the first",
+      "action": "e2e/local-supabase/c2-metadata.spec.ts: UI edit Publisher -> reload; DB deep-equality of metadata arrays and highlights-table rows; keyboard slider steps; Home -> 0; wishlist priority + typed notes; add recommendation",
+      "expected": "UI shows the edit after reload and the DB arrays/rows are unchanged; 0.8/1.5, 0, priority 4 and the note persist; recommendations [One, Two]",
+      "observed": "5/5 pass on 8a54d13 and a483199; baseline (unfixed product code) 0/5",
+      "verdict": "Pass",
+      "platform": "Linux, Chromium, production build",
+      "evidence": [
+        ".pbk30/screens/c2-*.png",
+        ".pbk30/results-before-restart.json"
+      ]
+    },
+    {
+      "issue_key": "PBK-30",
+      "criterion": "3. Upload one EPUB/PDF; mixed bulk queue with a controlled failing file: retrievable books, displayed outcomes match persisted successes/failures, failed items recoverable; wishlist CSV rows persist after reload",
+      "action": "c3-uploads.spec.ts: manual EPUB (SHA-256 of the downloaded file); bulk queue of 2 PDFs + duplicate-title EPUB + .txt with a single injected storage 500 (Playwright route, labelled fault injection); retry; remove the duplicate; CSV with 3 valid rows + 1 without a title",
+      "expected": ".txt rejected with a message; toast '1 uploaded, 2 failed'; DB rows and storage objects match; failures listed with reasons; retry -> '1 uploaded, 1 failed'; no orphans; CSV toast 'Imported 3 of 4 rows' and 3 wishlist rows after reload",
+      "observed": "3/3 pass on 8a54d13 and a483199; baseline 0/3",
+      "verdict": "Pass",
+      "platform": "Linux, Chromium, production build",
+      "evidence": [
+        ".pbk30/screens/c3-*.png",
+        ".pbk30/results-before-restart.json"
+      ]
+    },
+    {
+      "issue_key": "PBK-30",
+      "criterion": "4. Local synthetic accounts + email capture under next build/next start: reset link reaches /auth/reset-password and resets; pending sign-up lands at /auth/verify-email; invalid/expired link fails intelligibly without changing another account",
+      "action": "c4-auth.spec.ts with Mailpit: sign-up -> verify-email -> emailed confirm link; forgot-password -> emailed link -> reset form -> new password; spent and tampered links opened while another account is signed in",
+      "expected": "verify-email page, unconfirmed account cannot sign in until confirmed; reset page stays (no /library redirect), new password works, old one fails, bystander unchanged; invalid link shows 'invalid or has expired' and no password changes",
+      "observed": "3/3 pass on 8a54d13 and a483199; baseline: sign-up and valid reset passed (PR #13 fixes verified), invalid link failed (no explanation, D7). Separate repro: submitting the form after a spent link did NOT change the signed-in account (auth-js drops the session on URL errors)",
+      "verdict": "Pass",
+      "platform": "Linux, Chromium, production build, local GoTrue + Mailpit",
+      "evidence": [
+        ".pbk30/screens/c4-*.png",
+        ".pbk30/results-before-restart.json"
+      ]
+    },
+    {
+      "issue_key": "PBK-30",
+      "criterion": "5. Restart local app/services without resetting data; metadata, annotations, recommendations, uploaded content and CSV rows intact",
+      "action": "pbk30-verify.sh restart: stop next start, `supabase stop` (volumes kept), local-supabase.sh start, restart Next; c5-restart.spec.ts compares DB with the recorded pre-restart state, downloads file bytes and checks the UI",
+      "expected": "new container ids; identical metadata, highlight rows, book rows and file hashes; UI shows the edits",
+      "observed": "2/2 pass; restart.txt: supabase_db_properbooky cc861627bae2 -> fc0be454c623 (8a54d13 run) and d426ecd1ceab -> 3d6e8e4fdca7 (a483199 run)",
+      "verdict": "Pass",
+      "platform": "Linux, Chromium, production build",
+      "evidence": [
+        ".pbk30/restart.txt",
+        ".pbk30/results-after-restart.json",
+        ".pbk30/screens/c5-*.png"
+      ]
+    }
   ],
   "checks": [
-    {"command": "scripts/local-supabase.sh reset", "exit_code": 0, "result": "15.8.1.069; 14/14 migrations; seed applied", "evidence": "scratch final-reset.log"},
-    {"command": "PBK30_DISPOSABLE=1 scripts/pbk30-verify.sh all (at 8a54d13, clean stack)", "exit_code": 0, "result": "c2-c4 11/11, c5 2/2, dev-mode 1/1", "evidence": "scratch full-all.log (local .pbk30 artifacts of that run were deleted by a later default-suite run; fixed in a483199)"},
-    {"command": "same specs vs base product code (separate worktree)", "exit_code": 1, "result": "9 failed / 2 passed (expected: demonstrates the defects)", "evidence": "scratch pbk30-baseline/results-before-restart.json"},
-    {"command": "npx jest --testPathIgnorePatterns supabase.test.ts /e2e/ /desktop/ /node_modules/ --passWithNoTests", "exit_code": 0, "result": "1 suite, 5 tests passed", "evidence": "session log"},
-    {"command": "npx tsc --noEmit -p .", "exit_code": 0, "result": "clean", "evidence": "session log"},
-    {"command": "npx next build (CI dummy env)", "exit_code": 0, "result": "built", "evidence": "scratch ci-build.log"},
-    {"command": "npm run test:e2e (default smoke)", "exit_code": 1, "result": "BLOCKED locally: container lacks the Playwright 1.61 browser revision (not installed per environment rules); runs in CI web-e2e", "evidence": "session log"},
-    {"command": "eslint on changed files", "exit_code": 1, "result": "non-blocking legacy rules; no new violations in product files (use-auth 15->11, dialog 56->42, default-books 10->10); 27 in the new test files", "evidence": "session log"}
+    {
+      "command": "scripts/local-supabase.sh reset",
+      "exit_code": 0,
+      "result": "15.8.1.069; 14/14 migrations; seed applied",
+      "evidence": "scratch final-reset.log"
+    },
+    {
+      "command": "PBK30_DISPOSABLE=1 scripts/pbk30-verify.sh all (at 8a54d13, clean stack)",
+      "exit_code": 0,
+      "result": "c2-c4 11/11, c5 2/2, dev-mode 1/1",
+      "evidence": "scratch full-all.log (local .pbk30 artifacts of that run were deleted by a later default-suite run; fixed in a483199)"
+    },
+    {
+      "command": "scripts/local-supabase.sh reset && PBK30_DISPOSABLE=1 scripts/pbk30-verify.sh all (at a483199, clean stack)",
+      "exit_code": 0,
+      "result": "c2-c4 11/11, c5 2/2 (supabase_db_properbooky d426ecd1ceab -> 3d6e8e4fdca7), dev-mode 1/1; 15 screenshots",
+      "evidence": "local .pbk30/ (not committed; same layout as the CI artifact)"
+    },
+    {
+      "command": "same specs vs base product code (separate worktree)",
+      "exit_code": 1,
+      "result": "9 failed / 2 passed (expected: demonstrates the defects)",
+      "evidence": "scratch pbk30-baseline/results-before-restart.json"
+    },
+    {
+      "command": "npx jest --testPathIgnorePatterns supabase.test.ts /e2e/ /desktop/ /node_modules/ --passWithNoTests",
+      "exit_code": 0,
+      "result": "1 suite, 5 tests passed",
+      "evidence": "session log"
+    },
+    {
+      "command": "npx tsc --noEmit -p .",
+      "exit_code": 0,
+      "result": "clean",
+      "evidence": "session log"
+    },
+    {
+      "command": "npx next build (CI dummy env)",
+      "exit_code": 0,
+      "result": "built",
+      "evidence": "scratch ci-build.log"
+    },
+    {
+      "command": "npm run test:e2e (default smoke)",
+      "exit_code": 1,
+      "result": "BLOCKED locally: container lacks the Playwright 1.61 browser revision (not installed per environment rules); runs in CI web-e2e",
+      "evidence": "session log"
+    },
+    {
+      "command": "eslint on changed files",
+      "exit_code": 1,
+      "result": "non-blocking legacy rules; no new violations in product files (use-auth 15->11, dialog 56->42, default-books 10->10); 27 in the new test files",
+      "evidence": "session log"
+    }
   ],
-  "ci": {"run_url": "https://github.com/nadeemramli/properbooky/actions/runs/37180300499", "head_sha": "a483199ec18e38007f01b71faa51fe0e8a23879f", "conclusion": "pending at time of writing; see PR #18 checks"},
+  "ci": {
+    "run_url": "https://github.com/nadeemramli/properbooky/actions/runs/37180300499",
+    "head_sha": "a483199ec18e38007f01b71faa51fe0e8a23879f",
+    "conclusion": "pending at time of writing; see PR #18 checks"
+  },
   "artifacts": [
-    {"path": "CI artifact pbk30-local-supabase-evidence (run 37180300499)", "sha256": "n/a (GitHub artifact)", "source_sha": "a483199ec18e38007f01b71faa51fe0e8a23879f"}
+    {
+      "path": "CI artifact pbk30-local-supabase-evidence (run 37180300499)",
+      "sha256": "n/a (GitHub artifact)",
+      "source_sha": "a483199ec18e38007f01b71faa51fe0e8a23879f"
+    }
   ],
   "local_verification_required": [
     "Coordinator (Windows/WSL): scripts/local-supabase.sh reset on a disposable stack, then PBK30_DISPOSABLE=1 scripts/pbk30-verify.sh all; expect the same 11 + 2 + 1 passes.",
@@ -95,5 +234,7 @@
     "updateBook is still read-merge-write (not atomic across tabs); serialised only within one dialog.",
     "Linux/Chromium only; no Windows or mobile-browser run of this suite."
   ],
-  "next_eligible_batch": ["Proposals for dispatch: (a) desktop file-ops integrity (PBK-20/23/21 + new issue); (b) PBK-24/26 highlight restart/export E2E on the PBK-18 runner; (c) PBK-31 decision then minimal dashboard fix; (d) PBK-5 cleanup incl. the unused books columns"]
+  "next_eligible_batch": [
+    "Proposals for dispatch: (a) desktop file-ops integrity (PBK-20/23/21 + new issue); (b) PBK-24/26 highlight restart/export E2E on the PBK-18 runner; (c) PBK-31 decision then minimal dashboard fix; (d) PBK-5 cleanup incl. the unused books columns"
+  ]
 }
