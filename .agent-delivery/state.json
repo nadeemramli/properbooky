@@ -1,38 +1,37 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-04T16:45:00Z",
-  "worker": "cloud Claude Code session https://claude.ai/code/session_01VwUGjwXZJw5HhspdBBzDgB (sole product writer, new chat for the PBK-26 legacy export review repair; previous session_01RNsLigHcU5SWHvzXzLoNx3 stopped at cap 2 after PR #22)",
-  "model_observed": "claude-opus-5-5 (runtime get_session: configured_model, session_context.model, last_served_model)",
+  "updated_at": "2026-10-04T20:00:00Z",
+  "worker": "cloud Claude Code session https://claude.ai/code/session_01JbygKhhQHafSKbabnod2K8 (sole product writer, new chat for PBK-19; previous session_01VwUGjwXZJw5HhspdBBzDgB stopped at cap 2/2 after PR #23)",
+  "model_observed": "claude-opus-5-5 (runtime get_session: configured_model, session_context.model, last_served_model; re-verified after a worker restart)",
   "release_target": "Current approved release: desktop local-first reader plus PBK-30 web runtime verification on a local Supabase stack. Excludes PBK-7 sync/mobile, PBK-10 research, PBK-12 phases 2-3.",
   "issue_snapshot": {
     "date": "2026-10-04 MYT",
     "direct_cursor": 1029
   },
   "authorized_queue": {
-    "provenance": "Task 1: PBK-26 legacy export preservation review repair (Direct PBK-26 v11). Task 2: PBK-26 frontmatter preservation, coordinator-confirmed escalation (Direct PBK-26 v13). Chat lifetime cap 2/2 reached; no further scope.",
+    "provenance": "Objective 1: PBK-19 catalog CSV import (Direct PBK-19 Doing v7, coordinator claim codex-product-coordinator). Chat cap 3 (2 if review feedback enters); 1 used. No queue continuation.",
     "dispatched_batches": [
-      "pbk26-legacy-export-repair",
-      "pbk26-frontmatter-repair"
+      "pbk19-catalog-import"
     ],
     "previous_chat": {
-      "session": "session_01RNsLigHcU5SWHvzXzLoNx3",
+      "session": "session_01VwUGjwXZJw5HhspdBBzDgB",
       "batches": [
-        "pbk15-multi-library",
-        "pbk15-pbk26-integration"
+        "pbk26-legacy-export-repair",
+        "pbk26-frontmatter-repair"
       ],
-      "status": "stopped at cap 2"
+      "status": "stopped at cap 2/2"
     }
   },
   "remote_main": "44e96b67d05213b53185d97d740f7d392e0c0c3f",
   "current_batch": {
-    "batch_id": "pbk26-frontmatter-repair",
-    "branch": "claude/sharp-archimedes-s3rdeu",
-    "base": "e20d8664fe9fc95a03834b3c1d04948a298ebe97 (task-1 handoff; stack PR #22 cfb40a5 -> task 1 -> task 2)",
-    "tested_head": "2f9a850843573c482d0dcd82dae7f2f155338d0d",
-    "pr": "https://github.com/nadeemramli/properbooky/pull/23 (draft, base claude/pbk15-pbk26-integration)",
-    "report": ".agent-delivery/batches/pbk26-frontmatter-repair/report.json",
-    "plan": ".agent-delivery/batches/pbk26-frontmatter-repair/plan.md",
-    "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37216424582: success on tested head 2f9a850 (all 6 jobs)"
+    "batch_id": "pbk19-catalog-import",
+    "branch": "claude/gallant-darwin-bbt4jb",
+    "base": "94faa40b50104380bc942dad3b45fc50c7601673 (PR #23 head; stack PR #20/#21 -> #22 -> #23 -> #24)",
+    "tested_head": "58aebe4e91e8985a7313ca3c1f1f8d06059beeb7",
+    "pr": "https://github.com/nadeemramli/properbooky/pull/24 (draft, base claude/sharp-archimedes-s3rdeu)",
+    "report": ".agent-delivery/batches/pbk19-catalog-import/report.json",
+    "plan": ".agent-delivery/batches/pbk19-catalog-import/plan.md",
+    "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37228706900 (tested head; see report ci)"
   },
   "completed_cloud_batches": [
     {
@@ -88,20 +87,23 @@
       "batch_id": "pbk26-frontmatter-repair",
       "kind": "review repair + packaged E2E (same PR #23)",
       "pr_url": "https://github.com/nadeemramli/properbooky/pull/23",
-      "status": "tested 2f9a850; awaiting coordinator review"
+      "status": "tested 2f9a850, CI 37216424582 success; awaiting coordinator review (PR #23 head 94faa40 is the base of PR #24)"
     }
   ],
   "criterion_gaps": [
+    "PBK-19: C1-C5 and shaping checks pass on synthetic CSVs with the Linux packaged build (tested 58aebe4); real ~1700-row export reconciliation and Windows are local pending; contradictions D1-D6 in the PBK-19 report.",
     "PBK-26 legacy export and frontmatter preservation: repaired and verified on the Linux packaged build (tested 2f9a850); Windows/WebView2 unverified (coordinator, deferred).",
     "PBK-15/PBK-26 other criteria: as in the integration report (tested 5d8be40); affected journeys re-run on 2f9a850."
   ],
   "pending_local_checks": [
+    "PBK-19: dry run of the real export on a COPY of the Catalog folder (report D1-D4), then Windows walkthrough; coordinator review of PR #24 after the stack beneath it",
     "Coordinator independent review of PR #23 at its final head (and PR #22 beneath it), then the merge path",
     "Coordinator Windows walkthroughs in both PBK-26 repair reports (legacy note and frontmatter)"
   ],
   "pending_human_checks": [
     "PBK-15 owner acceptance",
-    "PBK-26 owner acceptance (PBK-27 interaction intent)"
+    "PBK-26 owner acceptance (PBK-27 interaction intent)",
+    "PBK-19 owner acceptance"
   ],
   "unresolved_decisions": [
     "Long-term fix for the three storage.objects migrations (keep the image pin, squash a baseline, or approve a privilege-tolerant edit)",
@@ -110,9 +112,11 @@
     "PBK-24 interpretation: Continue reading includes unread books with saved progress > 0 (opening a PDF counts as started) - owner may prefer another rule",
     "PBK-15: nested libraries are refused by design; owner may prefer allowing them",
     "Narrow assetProtocol.scope ['**'] to open library folders (security-sensitive capability change; not made)",
-    "PBK-26 repair design choice: strict proof requires the generated blank line after each legacy entry; text typed directly under a highlight is refused (no write) rather than migrated. Coordinator may prefer accepting a missing blank line."
+    "PBK-26 repair design choice: strict proof requires the generated blank line after each legacy entry; text typed directly under a highlight is refused (no write) rather than migrated. Coordinator may prefer accepting a missing blank line.",
+    "PBK-19 D1: strict import identity creates profiles for rows the earlier importer merged by punctuation-blind key (recommend dry run + review, option A)",
+    "PBK-19 D2-D4: blank-author rows and non-integer ratings rejected and named; exact status spellings (verify on the real export)"
   ],
-  "next_action": "Coordinator: review PR #23 (tested 2f9a850 + evidence), confirm CI, decide merge path for #22/#23, Windows walkthrough. This chat reached cap 2/2 and stopped; no subscriptions or reminders remain.",
+  "next_action": "Coordinator: review PR #24 (tested 58aebe4 + evidence) after PR #23/#22, decide D1-D6, run the real-export dry run on a copy, Windows walkthrough. This chat stopped after objective 1 (cap 3); no subscriptions or reminders remain.",
   "pbk26_record_from_pr20": {
     "current_batch": {
       "batch_id": "pbk26-highlights-export",

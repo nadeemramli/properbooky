@@ -1,0 +1,359 @@
+{
+ "batch_id": "pbk19-catalog-import",
+ "dispatch": "Coordinator dispatch: Direct PBK-19 Doing v7 (coordinator claim codex-product-coordinator; owner Ready before claim). New chat, objective 1 of cap 3, no review feedback yet. Coordinator manages Direct; no Direct access from cloud.",
+ "issue_keys": [
+  "PBK-19"
+ ],
+ "base_sha": "94faa40b50104380bc942dad3b45fc50c7601673",
+ "base_note": "PR #23 head (claude/sharp-archimedes-s3rdeu), successful CI per coordinator. Explicitly stacked: carries unmerged PR #20/#21/#22/#23 ancestry; those branches untouched (no merge, no force push). Not independently mergeable; main (44e96b6) does not contain the stack.",
+ "tested_sha": "58aebe4e91e8985a7313ca3c1f1f8d06059beeb7",
+ "handoff_sha": "evidence-only commit(s) after the tested SHA (see PR #24 head); no product/test change after tested_sha",
+ "branch": "claude/gallant-darwin-bbt4jb",
+ "pr_url": "https://github.com/nadeemramli/properbooky/pull/24 (draft, base claude/sharp-archimedes-s3rdeu)",
+ "model_observed": "claude-opus-5-5 (get_session at start and after a worker restart: configured_model, session_context.model, external_metadata.last_served_model all claude-opus-5-5)",
+ "environment": "Anthropic cloud container, Ubuntu 24.04, rustc/cargo 1.97.0, Node 22.22.0, tauri-driver 2.1.0, webkit2gtk-driver, Xvfb, xdotool, capsh; packaged debug .deb built from the clean tested head; per-run temp XDG dirs and temp libraries; synthetic CSVs and fixtures only; no owner data, no owner library, no Windows.",
+ "existing_behaviour_found": {
+  "importer": "examples/import_catalog.rs (dev-only, not packaged): dedupe by catalog::normalize_key (punctuation dropped), existing detected by generated filename only, substring status matching, `?` on a malformed record aborted after earlier writes, author-less rows imported, non-integer rating silently dropped, empty topics kept, non-atomic fs::write, leading-dot titles produced hidden files the scanner skips, 120-char names could exceed 255 bytes.",
+  "ui": "PBK-19 status badges (6b9464c) were replaced by file availability in 0740bce; no status or rating filter ever existed; shelf chips are reading shelves.",
+  "kept_unchanged": "catalog::entry_filename (Obsidian export note names, matcher) and catalog::normalize_key (Library cleanup duplicate candidates, human-reviewed) are not changed; scanner/library search unchanged."
+ },
+ "identity_convention": "Import identity = title and author each trimmed, whitespace collapsed, Unicode-lowercased (Rust mirror of the frontend authorKey); punctuation, subtitles and name order kept. Rows matching only under the old loose key are imported separately and listed as 'Similar titles to review'.",
+ "criteria": [
+  {
+   "issue_key": "PBK-19",
+   "criterion": "C1 CSV -> Catalog/*.md, one per unique normalized title+author, all YAML valid",
+   "action": "catalog_import_test imports_each_book_once_with_every_field (14 unique of 20 rows; every file parsed as a YAML mapping + catalog::parse); packaged journey C1-C3 (8 unique of 13 rows, exact file list, every profile indexed by the app; CLI dry run over the app-written folder reads all 8)",
+   "expected": "one file per identity; all parse",
+   "observed": "pass; real ~1700-row export NOT exercised (local pending)",
+   "verdict": "Pass (synthetic)",
+   "platform": "Linux cargo test + packaged .deb",
+   "evidence": [
+    "final/cargo-test.log",
+    "final/catalog-import-1/report.json",
+    "final/catalog-import-2/report.json"
+   ]
+  },
+  {
+   "issue_key": "PBK-19",
+   "criterion": "C2 title, author, date, type, topics, recommendation, rating, status match the row; Latticework body complete",
+   "action": "field-by-field roundtrip incl. multiline/quoted/'---'/YAML-special/Unicode/BOM/CRLF/column order/missing optionals; journey asserts frontmatter prefix and exact body bytes; CLI and app write identical bytes",
+   "expected": "exact equality",
+   "observed": "pass",
+   "verdict": "Pass (synthetic)",
+   "platform": "Linux",
+   "evidence": [
+    "final/cargo-test.log",
+    "final/catalog-import-1/report.json"
+   ]
+  },
+  {
+   "issue_key": "PBK-19",
+   "criterion": "C3 Downloaded->available, Need to read now->queued, other/empty->wishlist",
+   "action": "sheet_status_maps_exactly (incl. 'Not downloaded', 'Need to read', \"Don't need to read now\" -> wishlist); journey status table in the panel and indexed statuses; MCP catalog_by_status",
+   "expected": "exact mapping; raw value kept as source_status",
+   "observed": "pass",
+   "verdict": "Pass (synthetic)",
+   "platform": "Linux",
+   "evidence": [
+    "final/cargo-test.log",
+    "final/catalog-import-1/report.json"
+   ]
+  },
+  {
+   "issue_key": "PBK-19",
+   "criterion": "C4 normalized duplicate detection; second import creates no files; existing files unchanged",
+   "action": "same-run case/space duplicates -> one file; second/changed-sheet/dry-run imports: 0 created, bytes+mtime identical, differing fields reported; earlier-importer files and renamed/moved profiles recognised; name collisions (incl. case-insensitive) get ' (2)'; journey repeats after owner edit and after restart",
+   "expected": "0 created; byte-identical",
+   "observed": "pass (only the app-owned .properbooky identity registry records an owner-edited profile's new hash on rescan; no profile/user file changes)",
+   "verdict": "Pass (synthetic)",
+   "platform": "Linux",
+   "evidence": [
+    "final/cargo-test.log",
+    "final/catalog-import-1/report.json"
+   ]
+  },
+  {
+   "issue_key": "PBK-19",
+   "criterion": "C5 rescan indexes catalog beside files; status/rating filters; title/author search; correct visible status badges",
+   "action": "rescan_indexes_imported_profiles_beside_files_for_search_and_filters; packaged journey: badges ['availability','status'] per card, Status options 'Wishlist (4) / Queued (2) / Available (2)', Rating '★5 (2) / ★4 (1) / ★3 (1) / Unrated (4)', combined filters, search by title/author/Unicode, persistence after restart, MCP library_stats/search_library",
+   "expected": "as listed",
+   "observed": "pass",
+   "verdict": "Pass (synthetic)",
+   "platform": "Linux packaged .deb",
+   "evidence": [
+    "final/catalog-import-1/report.json",
+    "final/catalog-import-2/report.json"
+   ]
+  },
+  {
+   "issue_key": "PBK-19",
+   "criterion": "S1 rejected input: no partial or destructive write",
+   "action": "refused CSVs (no Title/Author header, other CSV, empty, duplicate header, non-UTF-8 header, missing file, directory) leave the catalog byte-identical; bad rows (blank title/author, rating 4.5, short row, cut-off quoted last field) named by line while valid rows import; journey: refused CSV and preview write nothing; app quit mid-import of 4000 rows",
+   "expected": "no writes on refusal; only complete profiles after quit; rerun completes without duplicates",
+   "observed": "pass; quit interrupted both final runs (128 and 99 complete profiles + 1 unpublished temp file each); relaunch import created the rest, removed the temp file, 4000 total",
+   "verdict": "Pass",
+   "platform": "Linux",
+   "evidence": [
+    "final/catalog-import-1/report.json",
+    "final/catalog-import-2/report.json"
+   ]
+  },
+  {
+   "issue_key": "PBK-19",
+   "criterion": "S2 collision-safe, confined filenames",
+   "action": "filenames_are_one_safe_plain_file (traversal, leading dots, control chars, reserved names, 200-byte bound with CJK); Catalog symlink refused (unit + journey: gamma -> alpha, alpha untouched)",
+   "expected": "one plain file inside Catalog",
+   "observed": "pass",
+   "verdict": "Pass",
+   "platform": "Linux",
+   "evidence": [
+    "final/cargo-test.log",
+    "final/catalog-import-1/report.json"
+   ]
+  },
+  {
+   "issue_key": "PBK-19",
+   "criterion": "S3 cross-library boundary",
+   "action": "journey: import bound to a non-open library refused both ways ('not open any more'); beta import lands only in beta; alpha digest unchanged throughout",
+   "expected": "isolation",
+   "observed": "pass",
+   "verdict": "Pass",
+   "platform": "Linux packaged",
+   "evidence": [
+    "final/catalog-import-1/report.json"
+   ]
+  },
+  {
+   "issue_key": "PBK-19",
+   "criterion": "S4 deliberate covered break fails",
+   "action": "negative control: identity_key -> old normalize_key and map_status -> old substring match (patched build, then reverted)",
+   "expected": "fail",
+   "observed": "catalog_import_test exit 101 (6 of 12 failed); packaged journey exit 1 at preview ('would create 7 profiles · ... 2 duplicate rows'); restored tree clean",
+   "verdict": "Pass",
+   "platform": "Linux",
+   "evidence": [
+    "negctl-cargo.log, negctl-journey.log (scratch); patched app sha256 8e0fb26acf7cd506e9baac1be8a62fbb19bfd92046ceb8dad3278acb08f00531"
+   ]
+  },
+  {
+   "issue_key": "PBK-19",
+   "criterion": "S5 no regression on the same build",
+   "action": "cargo test, tsc, fixtures:check, mcp test, smoke x2, reading, highlights, libraries, upgrade (seeded), injected failures",
+   "expected": "all exit 0",
+   "observed": "all exit 0 (libraries under capsh, see check_notes)",
+   "verdict": "Pass",
+   "platform": "Linux",
+   "evidence": [
+    "final/summary.txt"
+   ]
+  }
+ ],
+ "checks": [
+  {
+   "command": "cd desktop/src-tauri && cargo test",
+   "exit_code": 0,
+   "result": "96 passed, 0 failed, 1 ignored (pre-existing); includes 12 new catalog_import_test"
+  },
+  {
+   "command": "cd desktop && npx tsc --noEmit -p .",
+   "exit_code": 0,
+   "result": "clean"
+  },
+  {
+   "command": "cd desktop && npm run fixtures:check",
+   "exit_code": 0,
+   "result": "current"
+  },
+  {
+   "command": "cd mcp && npm test",
+   "exit_code": 0,
+   "result": "pass 4, fail 0"
+  },
+  {
+   "command": "cd desktop && npx tauri build --debug --bundles deb",
+   "exit_code": 0,
+   "result": "built",
+   "evidence": "final/build-identity.txt"
+  },
+  {
+   "command": "cd desktop/src-tauri && cargo build --example seed_index --example import_catalog",
+   "exit_code": 0,
+   "result": "built"
+  },
+  {
+   "command": "E2E_IMPORT_CLI=<import_catalog> xvfb-run -a npm run test:e2e:catalog-import (x2)",
+   "exit_code": 0,
+   "result": "PASS x2, 25 steps each (quit mid-import interrupted in both)"
+  },
+  {
+   "command": "xvfb-run -a npm run test:e2e:packaged (run-1, run-2)",
+   "exit_code": 0,
+   "result": "PASS x2"
+  },
+  {
+   "command": "xvfb-run -a npm run test:e2e:reading",
+   "exit_code": 0,
+   "result": "PASS"
+  },
+  {
+   "command": "xvfb-run -a npm run test:e2e:highlights",
+   "exit_code": 0,
+   "result": "PASS"
+  },
+  {
+   "command": "xvfb-run -a -s '-screen 0 1280x900x24' npm run test:e2e:libraries (as root)",
+   "exit_code": 1,
+   "result": "refused by its own precondition: folder permissions not enforced for root (DAC override); not a product failure"
+  },
+  {
+   "command": "capsh --drop=cap_dac_override,cap_dac_read_search -- -c '... npm run test:e2e:libraries'",
+   "exit_code": 0,
+   "result": "PASS"
+  },
+  {
+   "command": "E2E_SEED_INDEX=<seed_index> xvfb-run -a npm run test:e2e:library-upgrade",
+   "exit_code": 0,
+   "result": "PASS"
+  },
+  {
+   "command": "xvfb-run -a npm run test:e2e:packaged:failures",
+   "exit_code": 0,
+   "result": "injected failures exit nonzero, bounded, cleaned up"
+  },
+  {
+   "command": "negative control: cargo test --test catalog_import_test (patched)",
+   "exit_code": 101,
+   "result": "6 failed, 6 passed"
+  },
+  {
+   "command": "negative control: packaged catalog-import journey (patched build)",
+   "exit_code": 1,
+   "result": "FAIL at C1 preview"
+  }
+ ],
+ "check_notes": [
+  "Final checks ran sequentially from one script on HEAD 58aebe4 with a clean tree (git status empty before and after); evidence held outside the repo (scratch final/).",
+  "The container runs as root; the libraries journey requires enforced folder permissions and was rerun under capsh with DAC capabilities dropped (same binary, same head), as in earlier batches.",
+  "Web jobs (lint/jest/next build, Playwright, local Supabase) were not rerun locally: the change does not touch web code; CI runs them on the tested head."
+ ],
+ "ci": {
+  "run_url": "https://github.com/nadeemramli/properbooky/actions/runs/37228706900",
+  "head_sha": "58aebe4e91e8985a7313ca3c1f1f8d06059beeb7",
+  "conclusion": "PENDING"
+ },
+ "artifacts": [
+  {
+   "path": "desktop/src-tauri/target/debug/bundle/deb/ProperBooky_0.1.0_amd64.deb",
+   "sha256": "0e2660be6744a67de0ddce6ec8a1163803631f005ad60c22c40728885e665984",
+   "source_sha": "58aebe4e91e8985a7313ca3c1f1f8d06059beeb7"
+  },
+  {
+   "path": "usr/bin/desktop (extracted from that deb)",
+   "sha256": "536c28c9f1dcb29abbb04c76e23cc2dd3d545066b06f2e0a189efa36bc213e13",
+   "source_sha": "58aebe4e91e8985a7313ca3c1f1f8d06059beeb7"
+  },
+  {
+   "path": "target/debug/examples/import_catalog (CLI)",
+   "sha256": "4683993c3f2db94888afb7a5968974f7d000bf6646b3d83c30d65f3857d47216",
+   "source_sha": "58aebe4e91e8985a7313ca3c1f1f8d06059beeb7"
+  },
+  {
+   "path": "negative-control usr/bin/desktop (not delivered)",
+   "sha256": "8e0fb26acf7cd506e9baac1be8a62fbb19bfd92046ceb8dad3278acb08f00531",
+   "source_sha": "58aebe4 + reverted test patch"
+  }
+ ],
+ "contradictions_for_coordinator": [
+  {
+   "id": "D1",
+   "criterion": "C4 'second import creates no new files' vs the owner's existing ~1700 profiles written by the earlier importer",
+   "source": "earlier importer deduped in-run with catalog::normalize_key (punctuation-blind) and silently dropped the second row; coordinator shaping requires avoiding false merges",
+   "repro": "tests/catalog_import_test.rs identity_keeps_punctuation_and_order and the near-duplicate assertions; journey C1-C3 'Similar titles to review'",
+   "checks": "new importer: second run of itself creates 0 (verified); against an old-importer catalog the FIRST new run may create profiles for rows the old importer dropped (e.g. 'C++ Primer' vs 'C Primer', 'Thinking, Fast and Slow' vs 'Thinking Fast and Slow')",
+   "options": [
+    "A keep strict identity; run `import_catalog --dry-run <export> <copy of Catalog>` first and review 'would create' + 'Similar titles to review'",
+    "B treat loose-only matches against existing files as existing (skip, report) — no new files from an old catalog, but reintroduces false merges for those rows",
+    "C A plus owner decides per listed row"
+   ],
+   "recommendation": "A (or C); never run the real import before the dry run on a copy"
+  },
+  {
+   "id": "D2",
+   "criterion": "blank author",
+   "source": "earlier importer imported author-less rows; coordinator shaping: blank required title/author named and skipped",
+   "repro": "journey line 20 'the Author is blank'",
+   "options": [
+    "keep (owner fills the sheet)",
+    "allow title-only identity for author-less rows"
+   ],
+   "recommendation": "keep, per shaping; the dry run lists the lines"
+  },
+  {
+   "id": "D3",
+   "criterion": "C2 rating matches source",
+   "source": "earlier importer silently dropped non-integer ratings",
+   "repro": "line 21 'the Rating \"4.5\" is not a whole number'",
+   "options": [
+    "keep rejecting the row",
+    "import without rating plus a warning",
+    "store non-integer ratings as text (frontmatter schema change)"
+   ],
+   "recommendation": "keep rejecting (no silent field loss); revisit if the real export has fractional ratings"
+  },
+  {
+   "id": "D4",
+   "criterion": "C3 status mapping",
+   "source": "real sheet status spellings unknown in cloud",
+   "repro": "sheet_status_maps_exactly",
+   "options": [
+    "exact match (current; report lists every distinct raw value and its mapping)",
+    "an alias list once the real values are seen"
+   ],
+   "recommendation": "read the dry run's Status table on the real export before importing"
+  },
+  {
+   "id": "D5",
+   "criterion": "fields",
+   "source": "importer adds source_status (raw sheet status) beyond the listed fields so no source information is lost",
+   "options": [
+    "keep",
+    "drop"
+   ],
+   "recommendation": "keep"
+  },
+  {
+   "id": "D6",
+   "criterion": "C5 visible badges",
+   "source": "existing availability badge shows 'File missing' for available profiles with no linked file (file linking is the matcher's job, out of scope)",
+   "options": [
+    "keep both badges (current)",
+    "hide availability for catalog profiles"
+   ],
+   "recommendation": "keep"
+  }
+ ],
+ "criterion_gaps": [
+  "Real owner export (~1700 rows/files) reconciliation: local pending (coordinator; synthetic only here, no count or compatibility claimed).",
+  "Windows: no-clobber publish (MoveFileExW), case-insensitive collisions, long paths, native picker and junction Catalog folders unverified on Windows.",
+  "Owner acceptance and Agent Pass/Direct submit: not done here."
+ ],
+ "local_verification_required": [
+  "On a COPY of the real Catalog folder: `cargo run --example import_catalog -- --dry-run <export.csv> <copy>/Catalog`; review would-create, Similar titles, Not imported and the Status table (D1-D4).",
+  "Windows installed app on a disposable library: Import catalog -> Preview -> Import; repeat import; Status/Rating filters; restart."
+ ],
+ "review_walkthrough": [
+  "Import catalog -> choose the CSV -> Preview: nothing written; Import: summary and named skipped rows.",
+  "Status and Rating filters narrow the grid; each catalog card shows its status beside availability.",
+  "Import the same CSV again: 'Created 0 profiles'; an edited profile stays exactly as edited."
+ ],
+ "known_risks": [
+  "Strict identity can leave near-duplicates (listed; reviewable in Library cleanup) instead of merging them.",
+  "An existing profile whose frontmatter title/author was edited substantially is no longer recognised; the row is then imported as a new profile (under ' (2)' if the name is taken).",
+  "Unreadable existing catalog files are reported; their books may be imported again.",
+  "Linux-only evidence."
+ ],
+ "stack_dependency": "PR #24 -> PR #23 (94faa40) -> PR #22 -> PR #20/#21; merge only after the stack beneath it.",
+ "next_eligible_batch": [
+  "none: stop after this objective's evidence handoff (objective 1 of cap 3, no queue continuation)"
+ ]
+}
