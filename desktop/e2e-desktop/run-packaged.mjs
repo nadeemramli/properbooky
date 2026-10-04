@@ -587,10 +587,13 @@ try {
   await step("relaunch same packaged binary", launchApp);
 
   await step("library persisted without re-selecting a folder", async () => {
-    check(!(await browser.$(".path-form").isExisting()), "first-run form shown again after restart");
+    // LibraryView renders the first-run form until get_library_state resolves,
+    // so only assert its absence once the persisted library has loaded.
     const state = await invoke("get_library_state");
     check(state.library_path === libraryDir, `library_path=${state.library_path}`);
-    return waitTitles(EXPECTED_TITLES, 30000);
+    const loaded = await waitTitles(EXPECTED_TITLES, 30000);
+    check(!(await browser.$(".path-form").isExisting()), "first-run form still shown after the library loaded");
+    return loaded;
   });
 
   await step("PDF reopens at the recorded page", async () => {
