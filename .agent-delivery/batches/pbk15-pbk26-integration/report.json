@@ -181,6 +181,18 @@
       "evidence": [
         "checks[]"
       ]
+    },
+    {
+      "issue_key": "PBK-15+PBK-26",
+      "criterion": "I13 Final-head CI and retained evidence",
+      "action": "CI on the tested head; evidence committed under .agent-delivery and in the PR.",
+      "expected": "All jobs success.",
+      "observed": "Run 37207972150 at 5d8be40: all 6 jobs success, every desktop-e2e suite from both PRs green.",
+      "verdict": "Pass",
+      "platform": "GitHub Actions ubuntu-24.04 / ubuntu-latest",
+      "evidence": [
+        "https://github.com/nadeemramli/properbooky/actions/runs/37207972150"
+      ]
     }
   ],
   "checks": [
@@ -276,9 +288,10 @@
     }
   ],
   "ci": {
-    "run_url": null,
+    "run_url": "https://github.com/nadeemramli/properbooky/actions/runs/37207972150",
     "head_sha": "5d8be402f9b105c4d594af2b140795abdbe7eae8",
-    "conclusion": "pending"
+    "conclusion": "success: all 6 jobs (desktop: tsc + cargo test; web; web-e2e; web-local-supabase; library-mcp; desktop-e2e: smoke x2, PBK-24 reading, PBK-26 highlights, PBK-15 libraries, PBK-15 seeded upgrade, injected failures, artifact desktop-e2e-evidence; non-root runner)",
+    "handoff_runs": "evidence-only commits after 5d8be40 re-run the same workflow; see PR #22 checks for the final head"
   },
   "artifacts": [
     {
