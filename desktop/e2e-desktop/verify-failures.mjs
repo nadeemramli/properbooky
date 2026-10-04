@@ -135,6 +135,23 @@ const cases = [
     failMessage: /PDF restored at page 1, expected 2/,
   },
   {
+    // PBK-26 highlights journey: a tombstone lost between sessions must fail
+    // the "removal stays removed" assertion after restart.
+    name: "highlights-lost-tombstone",
+    script: "highlights.e2e.mjs",
+    env: { E2E_FAULT: "lost-tombstone", E2E_TIMEOUT_MS: "300000" },
+    expectCode: 1,
+    mustPass: [
+      ...SETUP,
+      "E1 EPUB: drag-select a repeated phrase in paragraph 3 -> pill -> painted there",
+      "X2 export rerun is idempotent and keeps the user's own text",
+      "close app (session 1)",
+      "relaunch same packaged binary",
+    ],
+    failStep: "E2 after restart: EPUB repaints the live highlight; the removed one stays removed",
+    failMessage: /removal did not stay removed/,
+  },
+  {
     // A hung launch fails as setup with its own bound.
     name: "launch-timeout",
     env: { E2E_LAUNCH_TIMEOUT_MS: "1" },
