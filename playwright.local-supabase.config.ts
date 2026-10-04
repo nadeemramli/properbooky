@@ -5,7 +5,7 @@ import { defineConfig, devices } from "@playwright/test";
 // which builds the app against the local stack and restarts it for the
 // criterion-5 phase. Production mode is required: `next dev` forces the
 // dev-mode auth bypass.
-const artifacts = process.env.PBK30_ARTIFACTS ?? "test-results/pbk30";
+const artifacts = process.env.PBK30_ARTIFACTS ?? ".pbk30";
 
 export default defineConfig({
   testDir: "./e2e/local-supabase",

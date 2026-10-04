@@ -35,7 +35,7 @@ scripts/local-supabase.sh reset
 PBK30_DISPOSABLE=1 scripts/pbk30-verify.sh all
 ```
 
-The suite builds the app in production mode against the local stack, because `next dev` forces the dev-mode auth bypass. It then runs `e2e/local-supabase/c2-c4`, stops the server and the containers while keeping the volumes, starts both again, runs `c5`, and finally runs the dev-mode check under `next dev`. Evidence goes to `test-results/pbk30/` (or `PBK30_ARTIFACTS`).
+The suite builds the app in production mode against the local stack, because `next dev` forces the dev-mode auth bypass. It then runs `e2e/local-supabase/c2-c4`, stops the server and the containers while keeping the volumes, starts both again, runs `c5`, and finally runs the dev-mode check under `next dev`. Evidence goes to `.pbk30/` (or `PBK30_ARTIFACTS`).
 
 `PBK30_DISPOSABLE=1` lets the dev-mode check delete and recreate the dev account, which cascades to its books, so only set it on a disposable stack. CI runs the same sequence in the `web-local-supabase` job.
 

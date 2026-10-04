@@ -77,7 +77,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      PBK30_ARTIFACTS: ${{ github.workspace }}/test-results/pbk30
+      PBK30_ARTIFACTS: ${{ github.workspace }}/.pbk30
       PBK30_DISPOSABLE: "1"
     steps:
       - uses: actions/checkout@v4
@@ -98,7 +98,8 @@ jobs:
         if: always()
         with:
           name: pbk30-local-supabase-evidence
-          path: test-results/pbk30/
+          path: .pbk30/
+          include-hidden-files: true
           retention-days: 14
 
   desktop:

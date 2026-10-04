@@ -18,7 +18,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-export PBK30_ARTIFACTS=${PBK30_ARTIFACTS:-"$PWD/test-results/pbk30"}
+export PBK30_ARTIFACTS=${PBK30_ARTIFACTS:-"$PWD/.pbk30"}
 export PBK30_RUN_ID=${PBK30_RUN_ID:-"run$(date +%s)"}
 CLI=${SUPABASE_CLI:-"npx --yes supabase@2.33.9"}
 mkdir -p "$PBK30_ARTIFACTS"

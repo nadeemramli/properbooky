@@ -40,3 +40,6 @@ next-env.d.ts
 /blob-report/
 /playwright/.cache/
 mcp/node_modules/
+
+# PBK-30 local-stack runtime evidence (scripts/pbk30-verify.sh)
+/.pbk30/

@@ -128,7 +128,7 @@ export const newId = () => randomUUID();
 
 // --- cross-phase state (criterion 5 re-checks after restart) ----------------
 
-const STATE_FILE = path.resolve(process.env.PBK30_ARTIFACTS ?? "test-results/pbk30", "state.json");
+const STATE_FILE = path.resolve(process.env.PBK30_ARTIFACTS ?? ".pbk30", "state.json");
 
 export type RestartExpectations = Record<string, unknown>;
 
@@ -145,7 +145,7 @@ export function readRestartState(): RestartExpectations {
 }
 
 export async function shot(page: Page, name: string) {
-  const dir = path.resolve(process.env.PBK30_ARTIFACTS ?? "test-results/pbk30", "screens");
+  const dir = path.resolve(process.env.PBK30_ARTIFACTS ?? ".pbk30", "screens");
   mkdirSync(dir, { recursive: true });
   await page.screenshot({ path: path.join(dir, `${name}.png`), fullPage: true });
 }
