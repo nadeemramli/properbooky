@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { User } from "@supabase/auth-helpers-nextjs";
 import type { Database } from "@/types/database";
 import { setupDefaultBooks } from "@/lib/utils/default-books";
-import { isDev, getDevUser } from "@/lib/config/development";
+import { isDev, DEV_CONFIG } from "@/lib/config/development";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 interface AuthUser extends User {
@@ -19,6 +19,47 @@ interface AuthResponse {
   signOut: () => Promise<void>;
 }
 
+type BrowserClient = ReturnType<typeof createClientComponentClient<Database>>;
+
+// Every component calling useAuth shares one dev sign-in per page load, so
+// concurrent mounts cannot race each other into duplicate sign-ups.
+let devSession: Promise<User | null> | null = null;
+
+function ensureDevSession(supabase: BrowserClient): Promise<User | null> {
+  devSession ??= (async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) return session.user;
+
+    const credentials = {
+      email: DEV_CONFIG.DEV_USER.email,
+      password: process.env.NEXT_PUBLIC_DEV_PASSWORD || "development",
+    };
+    const signedIn = await supabase.auth.signInWithPassword(credentials);
+    if (!signedIn.error) return signedIn.data.user;
+
+    // First run against an empty local stack: create the dev account.
+    const signedUp = await supabase.auth.signUp(credentials);
+    if (signedUp.error || !signedUp.data.session) {
+      console.error(
+        "Failed to create dev session:",
+        signedUp.error ?? "sign-up needs email confirmation; seed the dev user"
+      );
+      return null;
+    }
+    return signedUp.data.user;
+  })().then(
+    (user) => {
+      if (!user) devSession = null; // allow a retry on the next mount
+      return user;
+    },
+    (error) => {
+      devSession = null;
+      throw error;
+    }
+  );
+  return devSession;
+}
+
 export function useAuth(): AuthResponse {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -26,110 +67,66 @@ export function useAuth(): AuthResponse {
   
   const supabase = createClientComponentClient<Database>();
 
-  // Immediate development mode initialization
+  // Resolve the signed-in user once per mount. Dev mode signs in the dev
+  // account first; either way the identity used for data is the real session
+  // user, so row-level security sees the same id the client writes.
   useEffect(() => {
-    if (isDev()) {
-      const devUser = getDevUser();
-      if (devUser) {
-        // Create a development session
-        const setupDevSession = async () => {
-          try {
-            const { data, error } = await supabase.auth.signInWithPassword({
-              email: devUser.email,
-              password: process.env.NEXT_PUBLIC_DEV_PASSWORD || 'development'
-            });
-            
-            if (error) {
-              console.error("Failed to create dev session:", error);
-              // Fallback to creating user if it doesn't exist
-              const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-                email: devUser.email,
-                password: process.env.NEXT_PUBLIC_DEV_PASSWORD || 'development'
-              });
-              
-              if (signUpError) {
-                console.error("Failed to create dev user:", signUpError);
-                return;
-              }
-            }
-            
-            setUser(devUser as AuthUser);
-            setIsAuthenticated(true);
-            setLoading(false);
-          } catch (error) {
-            console.error("Dev session setup error:", error);
-          }
-        };
-        
-        setupDevSession();
-      }
-    }
-  }, [supabase.auth]); // Add supabase.auth as dependency
+    let active = true;
 
-  // Main auth initialization
-  useEffect(() => {
     const initAuth = async () => {
       try {
-        // Skip if already initialized in dev mode
-        if (isDev()) {
-          const devUser = getDevUser();
-          if (devUser) {
-            try {
-              await setupDefaultBooks(devUser.id);
-            } catch (error) {
-              console.error("Error setting up default books:", error);
-            }
-            return;
-          }
-        }
+        const sessionUser = isDev()
+          ? await ensureDevSession(supabase)
+          : (await supabase.auth.getSession()).data.session?.user ?? null;
+        if (!active) return;
 
-        // Handle production mode
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          setUser(session.user as AuthUser);
+        if (sessionUser) {
+          setUser(sessionUser as AuthUser);
           setIsAuthenticated(true);
-          await setupDefaultBooks(session.user.id);
+          await setupDefaultBooks(sessionUser.id, supabase);
         }
       } catch (error) {
         console.error("Auth error:", error);
-        setUser(null);
-        setIsAuthenticated(false);
+        if (active) {
+          setUser(null);
+          setIsAuthenticated(false);
+        }
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     initAuth();
 
-    // Only set up auth listener in production
-    if (!isDev()) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (event, session) => {
-          if (session?.user) {
-            setUser(session.user as AuthUser);
-            setIsAuthenticated(true);
-          } else {
-            setUser(null);
-            setIsAuthenticated(false);
-          }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (!active) return;
+        if (session?.user) {
+          setUser(session.user as AuthUser);
+          setIsAuthenticated(true);
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
         }
-      );
+      }
+    );
 
-      return () => {
-        subscription.unsubscribe();
-      };
-    }
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
-    return () => {}; // Empty cleanup for dev mode
-  }, [supabase.auth]);
+  const adoptDevSession = async () => {
+    const devUser = await ensureDevSession(supabase);
+    setUser(devUser as AuthUser | null);
+    setIsAuthenticated(Boolean(devUser));
+  };
 
   // Simplified auth methods for development mode
   const signIn = async (email: string, password: string) => {
     if (isDev()) {
-      const devUser = getDevUser();
-      setUser(devUser as AuthUser);
-      setIsAuthenticated(true);
+      await adoptDevSession();
       return;
     }
 
@@ -142,9 +139,7 @@ export function useAuth(): AuthResponse {
 
   const signUp = async (email: string, password: string) => {
     if (isDev()) {
-      const devUser = getDevUser();
-      setUser(devUser as AuthUser);
-      setIsAuthenticated(true);
+      await adoptDevSession();
       return;
     }
 
@@ -168,9 +163,7 @@ export function useAuth(): AuthResponse {
 
   const signInWithGoogle = async () => {
     if (isDev()) {
-      const devUser = getDevUser();
-      setUser(devUser as AuthUser);
-      setIsAuthenticated(true);
+      await adoptDevSession();
       return;
     }
 

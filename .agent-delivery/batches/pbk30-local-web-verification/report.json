@@ -1,0 +1,316 @@
+{
+  "batch_id": "pbk30-local-web-verification",
+  "dispatch_id": "pbk-20261004-1242",
+  "issue_keys": [
+    "PBK-30"
+  ],
+  "related_findings_for_other_keys": [
+    "PBK-1 (local stack reproducibility)",
+    "PBK-31 (dashboard queries dropped relations; untouched)"
+  ],
+  "base_sha": "40d8e7698483b39e56c944508e47f8d8894f1276",
+  "tested_sha": "38c74fdff26b2fb0b540ba9138f79f05d5e977cf",
+  "tested_sha_note": "Product code unchanged since 8a54d13. 0a7a7ef (isolation tooling, docs, CI), 987421d (test lint), 91c4d48 (guard targets the fixture API explicitly; CI-only failure: workflow-wide placeholder URL) and 38c74fd (docker template portable to the runner; CI-only failure) were re-verified end to end at 38c74fd locally with CI's workflow env and in CI run 46. The commit adding this report is evidence-only.",
+  "handoff_sha": "the evidence-only commit adding this text (see PR head)",
+  "branch": "claude/pbk-30-local-web-verification",
+  "pr_url": "https://github.com/nadeemramli/properbooky/pull/18",
+  "session": "https://claude.ai/code/session_015RzJS52EF3Dk2Rb5pEiDHJ",
+  "model_observed": "reported in the session handoff from the runtime's get_session (session_context.model and last_served_model); not written to Git by environment policy",
+  "environment": "Cloud container: Ubuntu 24.04, kernel 6.18 (no IPv6), Docker 29.6.2, Node 22.22 (CI uses 20), Supabase CLI 2.33.9 via npx, local images from Docker Hub (SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io because public.ecr.aws returns 403 here). Database pinned to supabase/postgres:15.8.1.069 by scripts/local-supabase.sh. Chromium 1194 headless via PLAYWRIGHT_CHROMIUM_PATH. Next 13 production build (next build && next start) for c2-c5 and next dev for the dev-mode check. Synthetic accounts @example.test, committed synthetic EPUB/PDF/CSV fixtures. The remote Supabase project was not contacted. Container-only workaround: realtime v2.41.11 was rebuilt locally with an IPv4 listener (kernel lacks IPv6); it is not in the repo and is not needed on GitHub runners. Isolation run: an ordinary 'properbooky' stack (stand-in for a developer's own data) ran beside the fixture throughout.",
+  "fixtures": {
+    "desktop/e2e-desktop/fixtures/library/Zephyr Lantern Field Notes.epub": "5367dbd4615e17ad73e20147199dba34470ee7215ee473a4ec0b465f98d34347",
+    "desktop/e2e-desktop/fixtures/library/basalt-ledger-handbook.pdf": "5f0fc1f7d63e678edf01d2624acb3a3b1b7998c3cf8b85a40e52f39fa621409c",
+    "desktop/e2e-desktop/fixtures/library/quillfeather-orbit-atlas.pdf": "97bcdad515c193a42d7b6b05de6eb308b1b59980fb14dc95f619ff17fc640a13",
+    "e2e/local-supabase/fixtures/wishlist.csv": "054669b3560ecd40b1430a3e7bd1fa045f55c894027f7f177e370176cfa228d5",
+    "e2e/local-supabase/fixtures/not-a-book.txt": "7a3a9d3804ac3a982558b7ff1d5353f2e50e6fd1ee532d80aa4e5fcee72966cf"
+  },
+  "defects_reproduced_and_fixed": [
+    {
+      "id": "D1",
+      "area": "local setup",
+      "evidence": "fresh `supabase start` aborted at 20240324: must be owner of table objects (Supabase 2025-04-21 restriction, images 15.8.1.084+)",
+      "fix": "620e462 pin 15.8.1.069 via supabase/.temp/postgres-version in scripts/local-supabase.sh; applied migrations untouched"
+    },
+    {
+      "id": "D2",
+      "area": "dev mode identity",
+      "evidence": "30x HTTP 403 RLS on POST /rest/v1/books with a dev account whose id != FLAGS.DEV_USER_ID; 401 reads before the session",
+      "fix": "9369869 single shared dev sign-in, real session id"
+    },
+    {
+      "id": "D3",
+      "area": "default books",
+      "evidence": "8 duplicate 'Sample PDF Book' rows after one load",
+      "fix": "9369869 single-flight + deterministic id + ignore-duplicates; jest 5/5"
+    },
+    {
+      "id": "D4",
+      "area": "feedback",
+      "evidence": "baseline: 'Book added successfully', 'Recommendation added successfully', CSV/bulk toasts never visible (only sonner Toaster mounted)",
+      "fix": "3f43c9a mount shadcn Toaster"
+    },
+    {
+      "id": "D5",
+      "area": "details dialog",
+      "evidence": "baseline: slider aria-valuenow 0.5 after reload (expected 0.8); stored 0 shows 0.5; wishlist notes '' after reload; Save Changes outside viewport (test timeout)",
+      "fix": "3f43c9a keep saved copy, serialise saves, commit sliders on release, debounced notes, ??, scrollable"
+    },
+    {
+      "id": "D6",
+      "area": "uploads",
+      "evidence": "orphaned storage object when insert refused; rejected .txt silently dropped; success unmarked; queue controls clipped (screenshot c3-bulk-partial before fix); CSV toast counted every parsed row",
+      "fix": "e74fd7f cleanup, rejection toast, Uploaded mark, Retry N failed, wrapping rows, Imported X of N rows"
+    },
+    {
+      "id": "D7",
+      "area": "reset link",
+      "evidence": "baseline: spent/tampered link renders a reset form with no explanation",
+      "fix": "87a82bf explain invalid/expired link, form only with a session"
+    },
+    {
+      "id": "D8",
+      "area": "test infra",
+      "evidence": "ts-jest could not compile any TS test (verbatimModuleSyntax)",
+      "fix": "9369869 jest config"
+    }
+  ],
+  "criteria": [
+    {
+      "issue_key": "PBK-30",
+      "criterion": "1. Isolated local stack and current app at the real library/auth web entrypoints, synthetic data; remote paused; exact commit/build and config recorded without credentials",
+      "action": "CI and local: development stack started (scripts/local-supabase.sh start) beside a new marked fixture (scripts/pbk30-stack.sh create: project pbk30-fixture, CLI 2.33.9, postgres 15.8.1.069, ports 554xx); exact migration version|name list compared; then pbk30-verify.sh all against the fixture only",
+      "expected": "clean reproducible stack; all repo migrations apply unmodified; app reachable at real entrypoints",
+      "observed": "create exit 0; guard ok; identity.txt: supabase/postgres:15.8.1.069 sha256:bfcc409f...a9c; 14/14 versions identical in order; app reachable on :3130; development stack fingerprint unchanged",
+      "verdict": "Pass",
+      "platform": "Linux cloud container + GitHub Actions ubuntu-latest (CI job web-local-supabase)",
+      "evidence": [
+        ".pbk30/next-build.log",
+        "CI artifact pbk30-local-supabase-evidence",
+        "scratch final-reset.log"
+      ],
+      "limitations": [
+        "Pinned-image workaround (documented) instead of editing applied migrations",
+        "This container needed a locally rebuilt IPv4 realtime image and docker.io images; GitHub runners use stock ECR images (see ci)"
+      ]
+    },
+    {
+      "issue_key": "PBK-30",
+      "criterion": "2. Change one metadata field and reload: highlights, bookmarks, TOC, recommendations intact; spectrum/rating/wishlist persist without column errors; a second recommendation keeps the first",
+      "action": "e2e/local-supabase/c2-metadata.spec.ts: UI edit Publisher -> reload; DB deep-equality of metadata arrays and highlights-table rows; keyboard slider steps; Home -> 0; wishlist priority + typed notes; add recommendation",
+      "expected": "UI shows the edit after reload and the DB arrays/rows are unchanged; 0.8/1.5, 0, priority 4 and the note persist; recommendations [One, Two]",
+      "observed": "5/5 pass on 38c74fd (local fixture run with CI env and CI run 46); baseline (unfixed product code) results unchanged from the first round",
+      "verdict": "Pass",
+      "platform": "Linux, Chromium, production build",
+      "evidence": [
+        ".pbk30/screens/c2-*.png",
+        ".pbk30/results-before-restart.json"
+      ]
+    },
+    {
+      "issue_key": "PBK-30",
+      "criterion": "3. Upload one EPUB/PDF; mixed bulk queue with a controlled failing file: retrievable books, displayed outcomes match persisted successes/failures, failed items recoverable; wishlist CSV rows persist after reload",
+      "action": "c3-uploads.spec.ts: manual EPUB (SHA-256 of the downloaded file); bulk queue of 2 PDFs + duplicate-title EPUB + .txt with a single injected storage 500 (Playwright route, labelled fault injection); retry; remove the duplicate; CSV with 3 valid rows + 1 without a title",
+      "expected": ".txt rejected with a message; toast '1 uploaded, 2 failed'; DB rows and storage objects match; failures listed with reasons; retry -> '1 uploaded, 1 failed'; no orphans; CSV toast 'Imported 3 of 4 rows' and 3 wishlist rows after reload",
+      "observed": "3/3 pass on 38c74fd (local fixture run with CI env and CI run 46); baseline (unfixed product code) results unchanged from the first round",
+      "verdict": "Pass",
+      "platform": "Linux, Chromium, production build",
+      "evidence": [
+        ".pbk30/screens/c3-*.png",
+        ".pbk30/results-before-restart.json"
+      ]
+    },
+    {
+      "issue_key": "PBK-30",
+      "criterion": "4. Local synthetic accounts + email capture under next build/next start: reset link reaches /auth/reset-password and resets; pending sign-up lands at /auth/verify-email; invalid/expired link fails intelligibly without changing another account",
+      "action": "c4-auth.spec.ts with Mailpit: sign-up -> verify-email -> emailed confirm link; forgot-password -> emailed link -> reset form -> new password; spent and tampered links opened while another account is signed in",
+      "expected": "verify-email page, unconfirmed account cannot sign in until confirmed; reset page stays (no /library redirect), new password works, old one fails, bystander unchanged; invalid link shows 'invalid or has expired' and no password changes",
+      "observed": "3/3 pass on 38c74fd (local fixture run with CI env and CI run 46); baseline (unfixed product code) results unchanged from the first round",
+      "verdict": "Pass",
+      "platform": "Linux, Chromium, production build, local GoTrue + Mailpit",
+      "evidence": [
+        ".pbk30/screens/c4-*.png",
+        ".pbk30/results-before-restart.json"
+      ]
+    },
+    {
+      "issue_key": "PBK-30",
+      "criterion": "5. Restart local app/services without resetting data; metadata, annotations, recommendations, uploaded content and CSV rows intact",
+      "action": "pbk30-verify.sh restart: stop next start, `supabase stop` (volumes kept), local-supabase.sh start, restart Next; c5-restart.spec.ts compares DB with the recorded pre-restart state, downloads file bytes and checks the UI",
+      "expected": "new container ids; identical metadata, highlight rows, book rows and file hashes; UI shows the edits",
+      "observed": "2/2 pass at 38c74fd; restart.txt: supabase_db_pbk30-fixture dd99ecd04ad4 -> bd97236d8189 (local); CI artifact has its own ids",
+      "verdict": "Pass",
+      "platform": "Linux, Chromium, production build",
+      "evidence": [
+        ".pbk30/restart.txt",
+        ".pbk30/results-after-restart.json",
+        ".pbk30/screens/c5-*.png"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "command": "node --test scripts/pbk30-fixture-guard.test.mjs",
+      "exit_code": 0,
+      "result": "12/12",
+      "evidence": "CI step + scratch ci-sequence-38c74fd.log"
+    },
+    {
+      "command": "scripts/local-supabase.sh start (development stand-in)",
+      "exit_code": 0,
+      "result": "started; status read-only",
+      "evidence": "ci-sequence log"
+    },
+    {
+      "command": "scripts/pbk30-isolation-check.sh negatives-before-create",
+      "exit_code": 0,
+      "result": "4/4 refused",
+      "evidence": ".pbk30/isolation-before-create.tsv sha256 bdc860b7...bebd"
+    },
+    {
+      "command": "scripts/pbk30-stack.sh create",
+      "exit_code": 0,
+      "result": "marked fixture; exact migration versions; pinned image digest",
+      "evidence": ".pbk30-stack/identity.txt"
+    },
+    {
+      "command": "scripts/pbk30-isolation-check.sh negatives-with-fixture",
+      "exit_code": 0,
+      "result": "5/5 refused",
+      "evidence": ".pbk30/isolation-with-fixture.tsv sha256 43a86322...2725"
+    },
+    {
+      "command": "PBK30_DISPOSABLE=1 scripts/pbk30-verify.sh all",
+      "exit_code": 0,
+      "result": "c2-c4 11/11, c5 2/2, dev-mode 1/1",
+      "evidence": ".pbk30/results-before-restart.json 9564579c..., results-after-restart.json c3f71632..., results-dev-mode.json 7715db65..."
+    },
+    {
+      "command": "PBK30_DISPOSABLE=1 scripts/pbk30-stack.sh destroy",
+      "exit_code": 0,
+      "result": "guard ok (destructive); fixture volumes 0; workdir removed",
+      "evidence": "ci-sequence log"
+    },
+    {
+      "command": "fingerprint before/after diff",
+      "exit_code": 0,
+      "result": "identical",
+      "evidence": ".pbk30/ordinary-fingerprint-{before,after}.txt"
+    },
+    {
+      "command": "npx jest (CI command)",
+      "exit_code": 0,
+      "result": "5/5",
+      "evidence": "session"
+    },
+    {
+      "command": "npx tsc --noEmit -p .",
+      "exit_code": 0,
+      "result": "clean",
+      "evidence": "session"
+    },
+    {
+      "command": "npx eslint e2e/local-supabase playwright.local-supabase.config.ts __tests__/default-books.test.ts",
+      "exit_code": 0,
+      "result": "0 findings (was 27)",
+      "evidence": "session"
+    },
+    {
+      "command": "npm run test:e2e (default smoke) in this container",
+      "exit_code": 1,
+      "result": "BLOCKED locally (browser revision not installed per environment rules); passes in CI web-e2e",
+      "evidence": "CI"
+    }
+  ],
+  "ci": {
+    "run_url": "https://github.com/nadeemramli/properbooky/actions/runs/37182222358",
+    "head_sha": "38c74fdff26b2fb0b540ba9138f79f05d5e977cf",
+    "conclusion": "success",
+    "jobs": "library-mcp, web, web-e2e, web-local-supabase (all 14 steps incl. guard unit, development-stack fingerprint, 4+5 refusals, fixture create, full suite, guarded destroy, unchanged diff), desktop, desktop-e2e: success",
+    "note": "web-local-supabase on a stock GitHub runner (ECR images, no container patches) runs the same isolation sequence; the earlier non-isolated suite also passed on 7f6e99e (run 37180268516).",
+    "earlier_red_runs_on_this_branch": [
+      {
+        "run": "https://github.com/nadeemramli/properbooky/actions/runs/37181450532",
+        "head": "987421d",
+        "cause": "guard compared CI's workflow-wide placeholder NEXT_PUBLIC_SUPABASE_URL with the fixture API and refused (fixed in 91c4d48)"
+      },
+      {
+        "run": "https://github.com/nadeemramli/properbooky/actions/runs/37181875243",
+        "head": "91c4d48",
+        "cause": "runner Docker rejected {{join .RepoDigests}} (fixed in 38c74fd)"
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "CI artifact pbk30-local-supabase-evidence (run 37180300499)",
+      "sha256": "n/a (GitHub artifact)",
+      "source_sha": "a483199ec18e38007f01b71faa51fe0e8a23879f"
+    }
+  ],
+  "local_verification_required": [
+    "Coordinator (Windows/WSL) may run the fixture sequence beside the owner's development stack: node --test scripts/pbk30-fixture-guard.test.mjs; scripts/pbk30-isolation-check.sh fingerprint before.txt; negatives-before-create; scripts/pbk30-stack.sh create; negatives-with-fixture; PBK30_DISPOSABLE=1 scripts/pbk30-verify.sh all; PBK30_DISPOSABLE=1 scripts/pbk30-stack.sh destroy; fingerprint after.txt; diff. The owner's stack is only read (fingerprint) and must be idle during the run; ports 554xx and 3130 must be free.",
+    "Owner entrypoint smoke: scripts/local-supabase.sh status (read-only) then npm run dev; an existing stack keeps its image/data. No reset is advised."
+  ],
+  "review_walkthrough": [
+    "scripts/local-supabase.sh: no destructive subcommand; `status` prints image id and 'all 14 repository versions applied, in order'.",
+    "scripts/pbk30-stack.sh create -> .pbk30-stack/marker.json + identity.txt; docker ps shows supabase_*_pbk30-fixture beside supabase_*_properbooky.",
+    "scripts/pbk30-isolation-check.sh negatives-* -> each line 'refused (exit 3)'; .pbk30/isolation-*.log show the guard reason.",
+    "PBK30_DISPOSABLE=1 scripts/pbk30-verify.sh all -> 11 + 2 + 1 passed; destroy; fingerprint diff empty."
+  ],
+  "known_risks": [
+    "books has real knowledge_spectrum/manual_rating/wishlist_* columns that the app ignores (it stores them in metadata since PR #13); data model duplication remains.",
+    "Dashboard widgets still query dropped/forbidden relations (PBK-31; out of scope).",
+    "updateBook is still read-merge-write (not atomic across tabs); serialised only within one dialog.",
+    "Linux/Chromium only; no Windows or mobile-browser run of this suite.",
+    "Image pin remains a documented workaround for NEW stacks; an existing development stack on a newer image cannot apply 20240324/25/29 from scratch, but its data is never reset by these scripts.",
+    "The fixture build writes .next in the checkout; do not run the suite beside a dev server from the same checkout.",
+    "Fingerprint covers volumes, auth.users, books, highlights and storage.objects (not every table)."
+  ],
+  "next_eligible_batch": [
+    "Proposals for dispatch: (a) desktop file-ops integrity (PBK-20/23/21 + new issue); (b) PBK-24/26 highlight restart/export E2E on the PBK-18 runner; (c) PBK-31 decision then minimal dashboard fix; (d) PBK-5 cleanup incl. the unused books columns"
+  ],
+  "review_round": {
+    "dispatch_id": "pbk-20261004-0551-isolation",
+    "reviewed_head": "388021b35000855bb576a4000f7da02d91a2f170",
+    "finding": "local-supabase.sh reset ran `supabase stop --no-backup` for the ordinary project id properbooky with only a linked-project check; the dev-mode spec could delete the dev account on any loopback stack given PBK30_DISPOSABLE=1.",
+    "repair": [
+      "scripts/local-supabase.sh: no reset; image pin only when creating a new stack; status is read-only (image id + exact migration version|name list); stop names --project-id properbooky.",
+      "scripts/pbk30-stack.sh: separate fixture (project id pbk30-fixture, workdir .pbk30-stack/, ports 554xx, app 3130); random nonce stored in the fixture DB (pbk30_fixture.marker) and .pbk30-stack/marker.json; refuses unmarked leftovers/workdirs; destroy runs the destructive guard and passes --project-id explicitly.",
+      "scripts/pbk30-fixture-guard.mjs: marker, workdir project id, container label, DB nonce, target URL + published gateway port, PBK30_DISPOSABLE=1 for destructive steps; used by Playwright global setup, every service-role client, the dev-account deletion, every pbk30-verify.sh step and destroy.",
+      "Lint: e2e/local-supabase + config 27 -> 0 findings (no rules disabled)."
+    ],
+    "cli_and_docs_verified": [
+      "Supabase CLI 2.33.9 pkg/config/config.go reads supabase/.temp/postgres-version (builder.PostgresVersionPath) and replaces the db image tag when major_version > 14.",
+      "internal/utils/config.go: container/volume names are supabase_<service>_<project_id>; internal/utils/docker.go CliProjectFilter('') matches every project's resources, so destroy always passes --project-id.",
+      "`supabase stop --help`: --no-backup deletes all data volumes; --project-id; global --workdir.",
+      "Supabase discussion 34270: April 21, 2025 restriction (no creating indexes on existing auth/storage/realtime tables); local images 15.8.1.084+ enforce; 15.8.1.069 named as the pre-restriction workaround."
+    ]
+  },
+  "isolation_evidence": {
+    "ordinary_stack_fingerprint_before_and_after_identical": true,
+    "fingerprint": [
+      "supabase_config_properbooky/db/storage volumes (names + CreatedAt)",
+      "auth.users|10|f092c6ae230ae5472420ebc326984917",
+      "public.books|16|a2bd74654333bec87947482600a2e137",
+      "public.highlights|4|ddd534a213d912ea75a8a498a1df61bb",
+      "storage.objects|3|da22de4e39feddd5714fda1571a048dd"
+    ],
+    "refusals": {
+      "destroy-without-marker": "exit 3: no fixture marker",
+      "guard-forged-ordinary-marker": "exit 3: marker names properbooky / ordinary project refused / no nonce table",
+      "destroy-forged-ordinary-marker": "exit 3 (same reasons)",
+      "create-with-unmarked-leftover": "exit 3: unmarked pbk30-fixture volume not adopted",
+      "guard-fixture-marker-ordinary-target": "exit 3: target 127.0.0.1:54321 is not fixture API 127.0.0.1:55421",
+      "guard-wrong-nonce": "exit 3: fixture DB does not hold this marker's nonce",
+      "destroy-wrong-nonce": "exit 3 (same)",
+      "destroy-without-disposable": "exit 3: needs PBK30_DISPOSABLE=1",
+      "devmode-spec-on-ordinary-stack": "exit 1: Playwright global setup refused (target is not the fixture API); no test ran"
+    },
+    "unit": "node --test scripts/pbk30-fixture-guard.test.mjs: 12/12",
+    "fixture_identity": {
+      "image": "supabase/postgres:15.8.1.069",
+      "image_id": "sha256:bfcc409fb3d4b46ac4a224bbd969e74224a408a7d42a572990567d4a88147a9c",
+      "migrations": "14 version|name pairs identical to supabase/migrations, in order (20240201000000|books_schema ... 20240329000000|setup_default_books)"
+    }
+  }
+}

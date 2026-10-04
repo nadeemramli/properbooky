@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -35,9 +36,37 @@ const formSchema = z
 
 type FormData = z.infer<typeof formSchema>;
 
+// Supabase reports a spent, expired or tampered link by redirecting here with
+// error parameters (in the fragment, sometimes the query string).
+function linkError(): string | null {
+  const params = new URLSearchParams(
+    `${window.location.search.slice(1)}&${window.location.hash.slice(1)}`
+  );
+  if (!params.get("error") && !params.get("error_code")) return null;
+  return params.get("error_description") ?? params.get("error_code") ?? params.get("error");
+}
+
 export default function ResetPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
+  // Only offer the form once the link has produced a session to reset.
+  const [link, setLink] = useState<{ state: "checking" | "ready" | "invalid"; detail?: string | null }>({
+    state: "checking",
+  });
   const router = useRouter();
+
+  useEffect(() => {
+    const detail = linkError();
+    if (detail) {
+      setLink({ state: "invalid", detail });
+      return;
+    }
+    // getSession waits for the client to finish exchanging the link's code.
+    void createClient()
+      .auth.getSession()
+      .then(({ data: { session } }) =>
+        setLink(session ? { state: "ready" } : { state: "invalid", detail: null })
+      );
+  }, []);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -56,7 +85,7 @@ export default function ResetPasswordPage() {
       });
 
       if (error) {
-        if (error.message.includes("auth session")) {
+        if (error.message.toLowerCase().includes("auth session")) {
           toast.error("Session Expired", {
             description:
               "Your password reset link has expired. Please request a new one.",
@@ -96,9 +125,29 @@ export default function ResetPasswordPage() {
       <div className="space-y-6">
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-bold">Reset Your Password</h1>
-          <p className="text-gray-500">Please enter your new password</p>
+          {link.state === "ready" && (
+            <p className="text-gray-500">Please enter your new password</p>
+          )}
         </div>
 
+        {link.state === "checking" && (
+          <p className="text-center text-sm text-muted-foreground">Checking your reset link…</p>
+        )}
+
+        {link.state === "invalid" && (
+          <div role="alert" className="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm">
+            <p className="font-medium">This password reset link is invalid or has expired.</p>
+            <p className="text-muted-foreground">
+              Reset links work once and expire after an hour. No password was changed.
+              {link.detail ? ` (${link.detail})` : ""}
+            </p>
+            <Link href="/auth/forgot-password" className="font-medium underline">
+              Request a new reset link
+            </Link>
+          </div>
+        )}
+
+        {link.state === "ready" && (
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -144,6 +193,7 @@ export default function ResetPasswordPage() {
             </Button>
           </form>
         </Form>
+        )}
       </div>
     </div>
   );

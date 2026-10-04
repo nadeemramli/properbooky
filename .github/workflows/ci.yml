@@ -70,6 +70,52 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
+  # PBK-30: real browser -> Next production build -> a separate, marked
+  # disposable Supabase stack (project pbk30-fixture; auth, PostgREST, storage,
+  # Mailpit), synthetic data only. A development stack runs beside it to prove
+  # the guarded destructive steps cannot reach it. Remote project stays paused.
+  web-local-supabase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PBK30_ARTIFACTS: ${{ github.workspace }}/.pbk30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Fixture guard refuses wrong targets (unit)
+        run: node --test scripts/pbk30-fixture-guard.test.mjs
+      - name: Development stack (stands in for a developer's own data)
+        run: scripts/local-supabase.sh start
+      - name: Fingerprint development stack (read-only)
+        run: scripts/pbk30-isolation-check.sh fingerprint "$PBK30_ARTIFACTS/ordinary-fingerprint-before.txt"
+      - name: Destructive steps refused before the fixture exists
+        run: scripts/pbk30-isolation-check.sh negatives-before-create
+      - name: Create marked fixture stack
+        run: scripts/pbk30-stack.sh create
+      - name: Destructive steps refused against wrong targets
+        run: scripts/pbk30-isolation-check.sh negatives-with-fixture
+      - name: PBK-30 criteria 2-4, restart, criterion 5, dev mode (fixture)
+        run: PBK30_DISPOSABLE=1 scripts/pbk30-verify.sh all
+      - name: Destroy fixture stack (guarded)
+        run: PBK30_DISPOSABLE=1 scripts/pbk30-stack.sh destroy
+      - name: Development stack unchanged
+        run: |
+          scripts/pbk30-isolation-check.sh fingerprint "$PBK30_ARTIFACTS/ordinary-fingerprint-after.txt"
+          diff <(tail -n +2 "$PBK30_ARTIFACTS/ordinary-fingerprint-before.txt") \
+               <(tail -n +2 "$PBK30_ARTIFACTS/ordinary-fingerprint-after.txt")
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pbk30-local-supabase-evidence
+          path: .pbk30/
+          include-hidden-files: true
+          retention-days: 14
+
   desktop:
     runs-on: ubuntu-latest
     steps:

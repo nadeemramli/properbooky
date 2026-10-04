@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -50,10 +50,16 @@ interface BookProfileDialogProps {
 }
 
 export function BookProfileDialog({
-  book,
+  book: selectedBook,
   open,
   onOpenChange,
 }: BookProfileDialogProps) {
+  // The parent passes a snapshot taken when the card was clicked; keep the
+  // latest saved copy here so every control reflects what was persisted.
+  const [book, setBook] = useState<Book | null>(selectedBook);
+  useEffect(() => {
+    setBook(selectedBook);
+  }, [selectedBook]);
   const [activeTab, setActiveTab] = useState("details");
   const [isEditing, setIsEditing] = useState(false);
   const [editedBook, setEditedBook] = useState<Partial<BookUpdate>>({});
@@ -65,6 +71,15 @@ export function BookProfileDialog({
     recommendation_text: "",
   });
   const { updateBook } = useBooks();
+  // Saves run one at a time: each one merges into the stored metadata, so
+  // overlapping saves (slider steps, typing) could otherwise land out of order
+  // and leave an older value persisted.
+  const saveChain = useRef<Promise<unknown>>(Promise.resolve());
+  const [notesDraft, setNotesDraft] = useState<string | null>(null);
+  type SliderField = "knowledge_spectrum" | "manual_rating" | "wishlist_priority";
+  const [draft, setDraft] = useState<Partial<Record<SliderField, number>>>({});
+  const setDraftValue = (field: SliderField, value: number | undefined) =>
+    setDraft((prev) => ({ ...prev, [field]: value }));
   const { toast } = useToast();
   const { user } = useAuth();
   const router = useRouter();
@@ -76,11 +91,46 @@ export function BookProfileDialog({
     setRecommendations(book?.metadata?.recommendations ?? []);
   }, [book?.id, book?.metadata?.recommendations]);
 
+  const persistBook = (id: string, updates: Partial<BookUpdate>) => {
+    const run = saveChain.current.then(() => updateBook(id, updates));
+    saveChain.current = run.catch(() => undefined);
+    return run.then((saved) => {
+      setBook((current) => (current?.id === saved.id ? saved : current));
+      return saved;
+    });
+  };
+
+  // Wishlist notes save shortly after typing stops, on blur, and when the
+  // dialog closes or switches book. The pending edit is keyed by the book it
+  // was typed into, so a late flush can never land on another book.
+  const pendingNotes = useRef<{ id: string; text: string } | null>(null);
+  const notesTimer = useRef<ReturnType<typeof setTimeout>>();
+  const flushNotes = () => {
+    clearTimeout(notesTimer.current);
+    const pending = pendingNotes.current;
+    pendingNotes.current = null;
+    if (pending) void handleUpdateBook({ wishlist_notes: pending.text }, pending.id);
+  };
+  const editNotes = (id: string, text: string) => {
+    setNotesDraft(text);
+    pendingNotes.current = { id, text };
+    clearTimeout(notesTimer.current);
+    notesTimer.current = setTimeout(flushNotes, 600);
+  };
+  const bookId = book?.id;
+  useEffect(() => {
+    setNotesDraft(null);
+    setDraft({});
+    return flushNotes; // switching book or closing saves what was typed
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- flushNotes reads refs only
+  }, [bookId]);
+
   if (!book || !user?.id) return null;
 
-  const handleUpdateBook = async (updates: Partial<BookUpdate>) => {
+  async function handleUpdateBook(updates: Partial<BookUpdate>, id = book?.id) {
+    if (!id) return;
     try {
-      await updateBook(book.id, updates);
+      await persistBook(id, updates);
       toast({
         title: "Success",
         description: "Book updated successfully",
@@ -92,11 +142,11 @@ export function BookProfileDialog({
         description: "Failed to update book",
       });
     }
-  };
+  }
 
   const handleSaveEdits = async () => {
     try {
-      await updateBook(book.id, editedBook);
+      await persistBook(book.id, editedBook);
       setIsEditing(false);
       setEditedBook({});
       toast({
@@ -165,7 +215,7 @@ export function BookProfileDialog({
         recommendations: updatedRecommendations,
       };
 
-      await updateBook(book.id, { metadata: updatedMetadata });
+      await persistBook(book.id, { metadata: updatedMetadata });
 
       // Update local state
       setRecommendations(updatedRecommendations);
@@ -191,7 +241,7 @@ export function BookProfileDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Book Details</span>
@@ -490,8 +540,9 @@ export function BookProfileDialog({
                   <Label>Knowledge Spectrum Score</Label>
                   <div className="flex items-center gap-4">
                     <Slider
-                      value={[book.knowledge_spectrum || 0.5]}
-                      onValueChange={(value) =>
+                      value={[draft.knowledge_spectrum ?? book.knowledge_spectrum ?? 0.5]}
+                      onValueChange={(value) => setDraftValue("knowledge_spectrum", value[0])}
+                      onValueCommit={(value) =>
                         handleUpdateBook({ knowledge_spectrum: value[0] })
                       }
                       min={0}
@@ -500,7 +551,7 @@ export function BookProfileDialog({
                       className="flex-1"
                     />
                     <span className="w-12 text-right">
-                      {book.knowledge_spectrum?.toFixed(1) || "0.5"}
+                      {(draft.knowledge_spectrum ?? book.knowledge_spectrum ?? 0.5).toFixed(1)}
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">
@@ -512,8 +563,9 @@ export function BookProfileDialog({
                   <Label>Manual Rating</Label>
                   <div className="flex items-center gap-4">
                     <Slider
-                      value={[book.manual_rating || 2.5]}
-                      onValueChange={(value) =>
+                      value={[draft.manual_rating ?? book.manual_rating ?? 2.5]}
+                      onValueChange={(value) => setDraftValue("manual_rating", value[0])}
+                      onValueCommit={(value) =>
                         handleUpdateBook({ manual_rating: value[0] })
                       }
                       min={0}
@@ -522,7 +574,7 @@ export function BookProfileDialog({
                       className="flex-1"
                     />
                     <span className="w-12 text-right">
-                      {book.manual_rating?.toFixed(1) || "2.5"}
+                      {(draft.manual_rating ?? book.manual_rating ?? 2.5).toFixed(1)}
                     </span>
                   </div>
                 </div>
@@ -533,8 +585,9 @@ export function BookProfileDialog({
                       <Label>Priority</Label>
                       <div className="flex items-center gap-4">
                         <Slider
-                          value={[book.wishlist_priority || 0]}
-                          onValueChange={(value) =>
+                          value={[draft.wishlist_priority ?? book.wishlist_priority ?? 0]}
+                          onValueChange={(value) => setDraftValue("wishlist_priority", value[0])}
+                          onValueCommit={(value) =>
                             handleUpdateBook({ wishlist_priority: value[0] })
                           }
                           min={0}
@@ -543,7 +596,7 @@ export function BookProfileDialog({
                           className="flex-1"
                         />
                         <span className="w-12 text-right">
-                          {book.wishlist_priority || "0"}
+                          {draft.wishlist_priority ?? book.wishlist_priority ?? 0}
                         </span>
                       </div>
                     </div>
@@ -551,10 +604,9 @@ export function BookProfileDialog({
                     <div className="space-y-2">
                       <Label>Notes</Label>
                       <Textarea
-                        value={book.wishlist_notes || ""}
-                        onChange={(e) =>
-                          handleUpdateBook({ wishlist_notes: e.target.value })
-                        }
+                        value={notesDraft ?? book.wishlist_notes ?? ""}
+                        onChange={(e) => editNotes(book.id, e.target.value)}
+                        onBlur={flushNotes}
                         placeholder="Add notes about this book..."
                       />
                     </div>

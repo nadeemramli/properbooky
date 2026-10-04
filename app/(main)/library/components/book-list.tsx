@@ -32,7 +32,7 @@ interface BookListProps {
 
 export function BookList({ searchQuery, view, status }: BookListProps) {
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
-  const { books, loading, error, deleteBook, updateBook } =
+  const { books, loading, error, deleteBook, updateBook, refreshBooks } =
     useBooks(searchQuery);
   const { toast } = useToast();
 
@@ -222,7 +222,13 @@ export function BookList({ searchQuery, view, status }: BookListProps) {
       <BookProfileDialog
         book={selectedBook}
         open={!!selectedBook}
-        onOpenChange={(open) => !open && setSelectedBook(null)}
+        onOpenChange={(open) => {
+          if (open) return;
+          setSelectedBook(null);
+          // The dialog saves through its own useBooks instance; reload so the
+          // cards show what it persisted.
+          void refreshBooks();
+        }}
       />
     </>
   );
