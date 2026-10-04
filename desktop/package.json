@@ -15,6 +15,7 @@
     "test:e2e:library-upgrade": "node e2e-desktop/library-upgrade.e2e.mjs",
     "test:e2e:highlights": "node e2e-desktop/highlights.e2e.mjs",
     "test:e2e:catalog-import": "node e2e-desktop/catalog-import.e2e.mjs",
+    "test:e2e:search-states": "node e2e-desktop/search-states.e2e.mjs",
     "test:e2e:packaged:failures": "node e2e-desktop/verify-failures.mjs",
     "fixtures:generate": "node e2e-desktop/fixtures/generate.mjs",
     "fixtures:check": "node e2e-desktop/fixtures/generate.mjs --check",

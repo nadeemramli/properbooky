@@ -205,6 +205,9 @@ jobs:
       - name: PBK-15 libraries journey (native picker, colliding libraries, isolation, switch/restart, rename/remove/re-add, stale results, missing/unreadable/empty folders, corrupt/unwritable settings and index)
         working-directory: desktop
         run: E2E_ARTIFACTS="$ARTIFACTS/libraries" xvfb-run -a -s "-screen 0 1280x900x24" npm run test:e2e:libraries
+      - name: PBK-15 search states (no match per query, clear/replace recovery, filtered zero, empty library, two libraries, failed listing)
+        working-directory: desktop
+        run: E2E_ARTIFACTS="$ARTIFACTS/search-states" xvfb-run -a npm run test:e2e:search-states
       - name: PBK-15 single-library upgrade on a copy (legacy app-data from the repository seeder)
         working-directory: desktop
         run: |
