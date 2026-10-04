@@ -104,10 +104,13 @@ export function openablePath(book: Book): string | null {
 export default function LibraryView({
   onOpen,
   initialStatus,
+  listNotices,
 }: {
   onOpen: (book: Book) => void;
   /** Result of indexing a library that was just opened. */
   initialStatus: string | null;
+  /** Recovery notices about the library list itself. */
+  listNotices: string[];
 }) {
   const { path: libraryPath, invoke } = useLibrary();
   const [books, setBooks] = useState<Book[]>([]);
@@ -288,7 +291,7 @@ export default function LibraryView({
       )}
 
       {status && <p className="status">{status}</p>}
-      {notices.map((notice) => (
+      {[...listNotices, ...notices].map((notice) => (
         <p key={notice} className="launcher-notice" role="note">
           {notice}
         </p>

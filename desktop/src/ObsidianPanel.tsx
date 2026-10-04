@@ -22,7 +22,8 @@ export default function ObsidianPanel({ onClose }: { onClose: () => void }) {
       "get_app_settings",
     )
       .then((s) => {
-        setVault(s.obsidian_vault_path ?? "");
+        // Never replace a path the user already started typing.
+        setVault((typed) => (typed.trim() ? typed : s.obsidian_vault_path ?? ""));
         setExportFolder(s.export_folder);
       })
       .catch((e) => setStatus(String(e)));

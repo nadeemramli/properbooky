@@ -53,6 +53,7 @@ function Workspace({
   library,
   handle,
   initialStatus,
+  notices,
   dialogOpen,
   onManage,
   onUnmount,
@@ -60,6 +61,8 @@ function Workspace({
   library: KnownLibrary;
   handle: LibraryHandle;
   initialStatus: string | null;
+  /** Library-list recovery notices, shown even when a library opens directly. */
+  notices: string[];
   dialogOpen: boolean;
   onManage: () => void;
   onUnmount: () => void;
@@ -219,7 +222,7 @@ function Workspace({
         aria-labelledby={tabId(activeIndex)}
       >
         {!activeTab ? (
-          <LibraryView onOpen={openBook} initialStatus={initialStatus} />
+          <LibraryView onOpen={openBook} initialStatus={initialStatus} listNotices={notices} />
         ) : (
           <ReaderBoundary key={activeTab.path}>
             {activeTab.format === "epub" ? (
@@ -367,8 +370,13 @@ export default function App() {
           library={open}
           handle={handleWithName}
           initialStatus={initialStatus}
+          notices={view?.notices ?? []}
           dialogOpen={dialog}
-          onManage={() => setDialog(true)}
+          onManage={() => {
+            setDialog(true);
+            // Folders may have moved or changed access since the last look.
+            refresh().catch((e) => setError(String(e)));
+          }}
           onUnmount={onUnmount}
         />
       ) : (
@@ -389,7 +397,14 @@ export default function App() {
           </nav>
           <section className="tab-panel" id="tab-panel" role="tabpanel" aria-labelledby="tab-library">
             <div className="library">
-              <Libraries view={view} actions={actions} busy={busy} error={error} dialog={false} />
+              {view === null && error === null ? (
+                // Not the first-run page: the saved list has not loaded yet.
+                <p className="launcher-progress" role="status">
+                  Loading your libraries…
+                </p>
+              ) : (
+                <Libraries view={view} actions={actions} busy={busy} error={error} dialog={false} />
+              )}
             </div>
           </section>
         </>
