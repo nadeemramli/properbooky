@@ -2,3 +2,4 @@
 # Never convert line endings, even with core.autocrlf=true on Windows.
 library/*.pdf binary
 library/*.epub binary
+catalog/*.md -text

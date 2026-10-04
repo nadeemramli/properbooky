@@ -37,6 +37,8 @@ export interface Book {
   year: number | null;
   spectrum: string | null;
   priority: number | null;
+  /** Fraction read, from the book's sidecar in the library folder. */
+  progress: number | null;
 }
 
 export interface MetadataCandidate {
@@ -129,6 +131,8 @@ export interface Sidecar {
   percent: number | null;
   updated_at: number;
   highlights: Highlight[];
+  /** Present when an unreadable sidecar was set aside on load. */
+  notice?: string;
 }
 
 export interface OpenTab {

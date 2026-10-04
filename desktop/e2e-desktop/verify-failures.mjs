@@ -118,6 +118,23 @@ const cases = [
     failMessage: /EPUB restored at epubcfi\(.*\), expected the recorded epubcfi\(/,
   },
   {
+    // PBK-24 reading journey: a position lost between sessions must fail the
+    // exact-restore assertion after restart, not pass on a default page.
+    name: "reading-lost-position",
+    script: "reading-journey.e2e.mjs",
+    env: { E2E_FAULT: "lost-position", E2E_TIMEOUT_MS: "300000" },
+    expectCode: 1,
+    mustPass: [
+      ...SETUP,
+      "C2 PDF non-initial position written to its sidecar on disk",
+      "close app (session 1)",
+      "relaunch same packaged binary",
+      "C2 library and progress persisted across restart",
+    ],
+    failStep: "C2 PDF reopens at the exact saved page after restart",
+    failMessage: /PDF restored at page 1, expected 2/,
+  },
+  {
     // A hung launch fails as setup with its own bound.
     name: "launch-timeout",
     env: { E2E_LAUNCH_TIMEOUT_MS: "1" },
@@ -155,10 +172,10 @@ function markedBy(runId) {
   return found;
 }
 
-function run(env, artifacts) {
+function run(script, env, artifacts) {
   return new Promise((resolve) => {
     const t0 = performance.now();
-    const child = spawn(process.execPath, [path.join(here, "run-packaged.mjs")], {
+    const child = spawn(process.execPath, [path.join(here, script)], {
       env: { ...process.env, E2E_TIMEOUT_MS: String(WHOLE_RUN_MS), ...env, E2E_ARTIFACTS: artifacts },
       stdio: "inherit",
     });
@@ -207,7 +224,7 @@ for (const c of selected) {
   const artifacts = path.join(root, c.name);
   mkdirSync(artifacts, { recursive: true });
   console.log(`\n=== case: ${c.name} ${JSON.stringify(c.env)} ===`);
-  const { code, signal, ms } = await run(c.env, artifacts);
+  const { code, signal, ms } = await run(c.script ?? "run-packaged.mjs", c.env, artifacts);
   const reportFile = path.join(artifacts, "report.json");
   const report = existsSync(reportFile) ? JSON.parse(readFileSync(reportFile, "utf8")) : null;
   const bound = Number(c.env.E2E_TIMEOUT_MS ?? WHOLE_RUN_MS) + CLEANUP_MARGIN_MS;

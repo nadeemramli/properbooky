@@ -252,3 +252,43 @@ fn corrupt_curation_aborts_scan_without_replacing_the_index() {
         1
     );
 }
+
+#[test]
+fn listing_reports_sidecar_progress_for_files_and_linked_profiles() {
+    let dir = fixture();
+    let root = dir.path();
+    fs::write(root.join("Library/linked.pdf"), b"%PDF-linked").unwrap();
+    fs::write(root.join("Library/plain.pdf"), b"%PDF-plain").unwrap();
+    fs::write(root.join("Library/fresh.pdf"), b"%PDF-fresh").unwrap();
+    profile(root, "Linked", "status: reading\nfile: Library/linked.pdf");
+    let conn = db::open(&root.join("index.db")).unwrap();
+    scanner::scan_library(&conn, root).unwrap();
+    let registry = identity::Registry::load(root).unwrap();
+    let state = |name: &str| registry.state_path(root, &root.join(name)).unwrap();
+    annotations::set_position(&state("Library/linked.pdf"), "2".into(), Some(0.4)).unwrap();
+    annotations::set_position(&state("Library/plain.pdf"), "3".into(), Some(0.75)).unwrap();
+    // An out-of-range value (e.g. a test sentinel) is not shown as progress.
+    annotations::set_position(&state("Library/fresh.pdf"), "1".into(), Some(-18.18)).unwrap();
+    let progress = |books: &[library::Book], title: &str| {
+        books
+            .iter()
+            .find(|b| b.title == title)
+            .unwrap_or_else(|| panic!("{title} listed"))
+            .details
+            .progress
+    };
+    let books = library::list(&conn, root, None).unwrap();
+    // The linked file is shown once, through its profile.
+    assert_eq!(books.len(), 3);
+    assert_eq!(progress(&books, "Linked"), Some(0.4));
+    assert_eq!(progress(&books, "plain"), Some(0.75));
+    assert_eq!(progress(&books, "fresh"), None);
+    // Index rebuild: drop the index entirely; sidecars remain the truth.
+    drop(conn);
+    fs::remove_file(root.join("index.db")).unwrap();
+    let conn = db::open(&root.join("index.db")).unwrap();
+    scanner::scan_library(&conn, root).unwrap();
+    let books = library::list(&conn, root, None).unwrap();
+    assert_eq!(progress(&books, "Linked"), Some(0.4));
+    assert_eq!(progress(&books, "plain"), Some(0.75));
+}

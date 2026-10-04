@@ -41,8 +41,12 @@ function matchesFilter(book: Book, filter: ShelfFilter): boolean {
     case "wanted":
       return book.want_to_read;
     case "reading":
+      // Explicitly reading/paused, or opened and partly read (sidecar
+      // progress) without a status recorded yet.
       return (
-        book.reading_status === "reading" || book.reading_status === "paused"
+        book.reading_status === "reading" ||
+        book.reading_status === "paused" ||
+        (book.reading_status === "unread" && (book.progress ?? 0) > 0)
       );
     case "finished":
       return book.reading_status === "finished";
@@ -335,7 +339,9 @@ export default function LibraryView({
           )}
         </section>
       )}
-      {loading && <p role="status">Loading your library…</p>}
+      {/* Nothing to load before a folder is chosen; showing this above the
+          first-run form only shifts its button under the pointer. */}
+      {loading && libraryPath && <p role="status">Loading your library…</p>}
       {filter === "cleanup" && (
         <div className="cleanup-toolbar">
           <div>
@@ -437,7 +443,22 @@ export default function LibraryView({
                   {book.content_type !== "book"
                     ? ` · ${book.content_type}`
                     : ""}
+                  {book.progress !== null
+                    ? ` · ${Math.round(book.progress * 100)}% read`
+                    : ""}
                 </p>
+                {book.progress !== null && (
+                  <div
+                    className="card-progress"
+                    role="progressbar"
+                    aria-label={`${book.title} reading progress`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(book.progress * 100)}
+                  >
+                    <span style={{ width: `${Math.round(book.progress * 100)}%` }} />
+                  </div>
+                )}
                 {book.author && <p className="author">{book.author}</p>}
                 {book.source_profiles.length > 1 && (
                   <p className="review-context">

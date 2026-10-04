@@ -7,7 +7,8 @@ import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import "pdfjs-dist/web/pdf_viewer.css";
 import HighlightsPanel from "./HighlightsPanel";
 import { captureQuoteSelection, rangeForQuote } from "./quote";
-import type { Highlight, Sidecar } from "../types";
+import { pageTurn, useReadingState } from "./readingState";
+import type { Highlight } from "../types";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -43,6 +44,7 @@ export default function PdfReader({
   const [pending, setPending] = useState<PendingSelection | null>(null);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [showPanel, setShowPanel] = useState(false);
+  const { load, save, notices } = useReadingState(path);
 
   // Latest callback via ref so render/save effects depend only on paging
   // state — a changing identity would re-render and re-save in a loop.
@@ -86,7 +88,7 @@ export default function PdfReader({
     let disposed = false;
     (async () => {
       try {
-        const sidecar = await invoke<Sidecar>("get_sidecar", { path });
+        const sidecar = await load();
         const loadingTask = pdfjs.getDocument({ url: convertFileSrc(path) });
         loadingTaskRef.current = loadingTask;
         const doc = await loadingTask.promise;
@@ -122,7 +124,7 @@ export default function PdfReader({
       docRef.current = null;
       highlightsRef.current = new Map();
     };
-  }, [path]);
+  }, [path, load]);
 
   useEffect(() => {
     const doc = docRef.current;
@@ -177,16 +179,12 @@ export default function PdfReader({
 
     const percent = numPages > 0 ? page / numPages : null;
     onProgressRef.current(path, percent);
-    invoke("save_progress", {
-      path,
-      position: String(page),
-      percent,
-    }).catch(() => {});
+    save(String(page), percent);
 
     return () => {
       cancelled = true;
     };
-  }, [page, numPages, path, fitTick, fitMode]);
+  }, [page, numPages, path, fitTick, fitMode, save]);
 
   // Re-fit when the window/panel resizes.
   useEffect(() => {
@@ -283,8 +281,8 @@ export default function PdfReader({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight") go(1);
-      if (e.key === "ArrowLeft") go(-1);
+      const direction = pageTurn(e);
+      if (direction) go(direction === "next" ? 1 : -1);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -300,6 +298,11 @@ export default function PdfReader({
 
   return (
     <div className="reader">
+      {notices.map((notice) => (
+        <p key={notice} className="reader-notice" role="alert">
+          {notice}
+        </p>
+      ))}
       <div
         className={`reader-page reader-page-pdf ${
           fitMode === "width" ? "fit-width" : ""
@@ -351,6 +354,7 @@ export default function PdfReader({
           · Page{" "}
           <input
             type="number"
+            aria-label="Page number"
             min={1}
             max={numPages || 1}
             value={page}

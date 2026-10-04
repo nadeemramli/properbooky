@@ -1074,6 +1074,53 @@ body {
   margin-top: 4rem;
 }
 
+.reader-notice {
+  flex: none;
+  margin: 0;
+  padding: 0.5rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--ribbon) 14%, var(--bg));
+  color: var(--fg);
+  font-size: 0.85rem;
+}
+
+.tab-list {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.tab button:focus-visible {
+  outline: 2px solid var(--ribbon);
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* the same bookmark ribbon on a card: how far into the book you are */
+.card-progress {
+  height: 3px;
+  margin: 0 0 8px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.card-progress span {
+  display: block;
+  height: 100%;
+  background: var(--ribbon);
+}
+
 .reader-bar {
   flex: none;
   display: flex;

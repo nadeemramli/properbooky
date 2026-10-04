@@ -429,8 +429,9 @@ async fn save_article(app: tauri::AppHandle, url: String) -> Result<Book, String
 #[tauri::command]
 fn get_sidecar(app: tauri::AppHandle, path: String) -> Result<annotations::Sidecar, String> {
     let file = progress_file(&app, &path)?;
-    let mut sidecar = annotations::load(&file);
-    sidecar.highlights = annotations::live_highlights(&file);
+    let mut sidecar = annotations::load_checked(&file).map_err(|e| format!("{e:#}"))?;
+    sidecar.highlights.retain(|h| !h.deleted);
+    sidecar.highlights.sort_by_key(|h| h.created_at);
     Ok(sidecar)
 }
 
@@ -442,7 +443,7 @@ fn save_progress(
     percent: Option<f64>,
 ) -> Result<(), String> {
     let file = progress_file(&app, &path)?;
-    annotations::set_position(&file, position, percent).map_err(|e| e.to_string())
+    annotations::set_position(&file, position, percent).map_err(|e| format!("{e:#}"))
 }
 
 #[tauri::command]
