@@ -2,6 +2,9 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  // PBK-30 runtime suite needs a local Supabase stack; see
+  // playwright.local-supabase.config.ts.
+  testIgnore: ["**/local-supabase/**"],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

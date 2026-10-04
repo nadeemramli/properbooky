@@ -1,0 +1,5 @@
+title,author,isbn,reason,source,priority,notes,goodreads_url,amazon_url
+PBK30 Wishlist Alpha,Synthetic Author A,9780000000101,Recommended in a synthetic thread,Fixture,8,First synthetic row,https://example.test/goodreads/alpha,https://example.test/amazon/alpha
+PBK30 Wishlist Beta,Synthetic Author B,9780000000102,Classic in the field,Fixture,5,Second synthetic row,,
+,Missing Title Author,9780000000199,Row without a title must be rejected,Fixture,3,Invalid row,,
+PBK30 Wishlist Gamma,Synthetic Author C,9780000000103,Follow-up reading,Fixture,2,Third synthetic row,,
