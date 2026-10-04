@@ -754,9 +754,9 @@ fn sync_obsidian(
     app: tauri::AppHandle,
     library_id: String,
 ) -> Result<export::ExportReport, String> {
+    // Synchronous command (main thread): no library lock, as before, so an
+    // export never waits for a long scan. Claiming the folder is idempotent.
     let lib = bound(&app, &library_id)?;
-    let lock = lock_for(&lib.id)?;
-    let _guard = lock.lock().map_err(|e| e.to_string())?;
     let (vault, owner) = with_session(&app, |s| {
         let vault = s
             .settings
