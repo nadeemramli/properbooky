@@ -1,0 +1,328 @@
+{
+  "batch_id": "pbk15-pbk26-integration",
+  "dispatch": "Properbooky bounded integration review-repair, 4 October 2026 (worker lifetime task 2, cap 2)",
+  "issue_keys": [
+    "PBK-15",
+    "PBK-26"
+  ],
+  "base_sha": "44e96b67d05213b53185d97d740f7d392e0c0c3f",
+  "inputs": {
+    "pr21_pbk15": "0b83611ee9be09f3ccfe52f6a26ec4961bb7e434",
+    "pr20_pbk26": "260da9fe7b1d09345964590afa8570c625be88ea"
+  },
+  "merge_commit": "ae075d9266bbcaa65026c5d0cdc388daab14a294",
+  "tested_sha": "5d8be402f9b105c4d594af2b140795abdbe7eae8",
+  "handoff_sha": "evidence-only commit(s) after the tested SHA (see PR head); no product/test change after tested_sha",
+  "branch": "claude/pbk15-pbk26-integration",
+  "pr_url": "https://github.com/nadeemramli/properbooky/pull/22",
+  "original_prs": [
+    "https://github.com/nadeemramli/properbooky/pull/21 (unchanged at 0b83611)",
+    "https://github.com/nadeemramli/properbooky/pull/20 (unchanged at 260da9f)"
+  ],
+  "model_observed": "claude-opus-5-5 (get_session: configured_model, session_context.model, last_served_model)",
+  "environment": "Anthropic cloud container, Ubuntu 24.04, rustc 1.97.0, Node 22.22.0, tauri-driver, webkit2gtk-driver, Xvfb 1280x900x24, xdotool, capsh; packaged debug .deb; per-run temp XDG dirs; temp copies of committed synthetic fixtures; loopback synthetic article server; no owner data.",
+  "product_repairs": "none needed: no integration defect found in product code. Test-only changes: patch + restored assertion strength (e556211), new integration steps (5d8be40).",
+  "criteria": [
+    {
+      "issue_key": "PBK-15+PBK-26",
+      "criterion": "I1 Merge PR #20 exact into PR #21 head preserving both histories; adjacent CI/package changes keep both suites; never weaken assertions",
+      "action": "git checkout -b claude/pbk15-pbk26-integration 0b83611; plan commit 8579a25; git merge --no-ff 260da9f; resolved ci.yml/package.json by keeping both sides; applied pr20-integration.patch; restored assertion strength.",
+      "expected": "Merge commit with both parents; every suite from both PRs in CI; no assertion weaker than either original.",
+      "observed": "Merge ae075d9 parents 8579a25 (child of 0b83611) and 260da9f; CI desktop-e2e runs reading, highlights, libraries, upgrade, failures; patch applied cleanly; highlights export step now also asserts the full folder listing (notes + one marker naming the open library) and the app-data step checks the library list has no reading state.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb 1280x900, tauri-driver/WebKitWebDriver), one build for every suite",
+      "evidence": [
+        "git log --format='%H %P' ae075d9",
+        ".github/workflows/ci.yml",
+        "desktop/e2e-desktop/highlights.e2e.mjs (e556211)"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "I2 Shared-export protection survives PR #20 with colliding file names and book IDs",
+      "action": "Libraries journey on the integrated build: beta (copy of alpha, same relative paths and identity UUIDs) tries alpha's export folder via the panel.",
+      "expected": "Refused, naming alpha; alpha's export folder byte-identical.",
+      "observed": "Refused 'Highlights from the library “alpha-shelf” are exported to …'; VAULT_ONE digest unchanged (twice: original C3 step and I4).",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb 1280x900, tauri-driver/WebKitWebDriver), one build for every suite",
+      "evidence": [
+        "desktop-e2e-artifacts/libraries/report.json#step:C3 export: one Obsidian folder per library",
+        "desktop-e2e-artifacts/libraries/report.json#step:I4/I7 user-authored export content is preserved and never crosses libraries"
+      ]
+    },
+    {
+      "issue_key": "PBK-15+PBK-26",
+      "criterion": "I3 Export marker and settings files coexist with PR #20 export",
+      "action": "Highlights journey export and app-data checks; libraries journey app-data listing.",
+      "expected": "Exporter ignores the marker; folder holds notes + marker only; app-data JSON is only the library list without reading state.",
+      "observed": "Highlights X1 passed with listing [.properbooky-library, 2 notes] and marker naming the open library; final app-data check passed; libraries 'app-data holds only the library list and per-library indexes' passed.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb 1280x900, tauri-driver/WebKitWebDriver), one build for every suite",
+      "evidence": [
+        "desktop-e2e-artifacts/highlights/report.json#step:X1 export through the Obsidian panel: per-book notes on disk",
+        "desktop-e2e-artifacts/highlights/report.json#step:X2 export rerun is idempotent and keeps the user's own text",
+        "desktop-e2e-artifacts/libraries/report.json#step:app-data holds only the library list and per-library indexes"
+      ]
+    },
+    {
+      "issue_key": "PBK-15+PBK-26",
+      "criterion": "I4 User-authored export content preserved across libraries",
+      "action": "Wrote private text into alpha's and beta's generated notes and a user-owned .md into alpha's export folder; re-exported each library; attempted beta into alpha's folder.",
+      "expected": "Each library's re-export keeps its private text and the user's file; other library's folder untouched.",
+      "observed": "Beta re-export 'Exported 1 highlights across 1 note (0 updated)' with 'Private beta note' kept and no alpha text; alpha re-export kept 'Private alpha note' and the user's file hash; cross-folder attempt refused with alpha's folder byte-identical.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb 1280x900, tauri-driver/WebKitWebDriver), one build for every suite",
+      "evidence": [
+        "desktop-e2e-artifacts/libraries/report.json#step:I4/I7 user-authored export content is preserved and never crosses libraries"
+      ]
+    },
+    {
+      "issue_key": "PBK-15+PBK-26",
+      "criterion": "I5 Remove / re-add / restart keep the protection",
+      "action": "Removed beta (exported to vault two), pointed alpha at vault two; re-added beta and exported; restarted and exported alpha.",
+      "expected": "Removed library's marker still refuses; re-added beta and restarted alpha keep their own text.",
+      "observed": "Alpha into removed beta's folder refused naming “Archive shelf” with re-add guidance, vault two unchanged; after re-add beta export kept its text, vault one unchanged; after restart alpha export kept its text and the user's file, vault two unchanged.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb 1280x900, tauri-driver/WebKitWebDriver), one build for every suite",
+      "evidence": [
+        "desktop-e2e-artifacts/libraries/report.json#step:I5 a removed library still owns its export folder",
+        "desktop-e2e-artifacts/libraries/report.json#step:I5 after re-add, beta exports to its own folder and keeps its private text",
+        "desktop-e2e-artifacts/libraries/report.json#step:I5 after restart, alpha re-exports and keeps the user's content"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "I6 Missing folder",
+      "action": "Alpha's folder renamed on disk, app relaunched, export invoked for alpha.",
+      "expected": "Refused; export folder unchanged; nothing recreated.",
+      "observed": "sync_obsidian refused 'was not found'; vault one digest unchanged; missing folder not recreated.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb 1280x900, tauri-driver/WebKitWebDriver), one build for every suite",
+      "evidence": [
+        "desktop-e2e-artifacts/libraries/report.json#step:C4 moved folder: visible, nothing opened in its place, nothing recreated"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "I7 In-flight old-library operations",
+      "action": "Export bound to alpha while beta open; stale download; late beta-bound writes (existing steps).",
+      "expected": "All refused; nothing written.",
+      "observed": "sync_obsidian refused 'This library is not open any more…'; stale download and late writes refused as before.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb 1280x900, tauri-driver/WebKitWebDriver), one build for every suite",
+      "evidence": [
+        "desktop-e2e-artifacts/libraries/report.json#step:I4/I7 user-authored export content is preserved and never crosses libraries",
+        "desktop-e2e-artifacts/libraries/report.json#step:C3 stale download: switched away before it finished, nothing is written anywhere",
+        "desktop-e2e-artifacts/libraries/report.json#step:C3/C4 late writes bound to beta are refused while alpha is open"
+      ]
+    },
+    {
+      "issue_key": "PBK-15+PBK-26",
+      "criterion": "I8 Private notes, highlights, progress and files never overwritten across libraries",
+      "action": "Tree/sidecar digests per library across switch, export, remove/re-add, restart; highlights journey sidecar checks.",
+      "expected": "Each library's files change only through its own actions.",
+      "observed": "All digest checks passed in both libraries runs; highlights journey UUID/tombstone/anchor checks passed.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb 1280x900, tauri-driver/WebKitWebDriver), one build for every suite",
+      "evidence": [
+        "desktop-e2e-artifacts/libraries/report.json#step:C3 dirty reader state lands in alpha when switching mid-read",
+        "desktop-e2e-artifacts/libraries/report.json#step:C2 remove from list: explained, and nothing on disk is touched",
+        "desktop-e2e-artifacts/highlights/report.json#step:X1 export through the Obsidian panel: per-book notes on disk"
+      ]
+    },
+    {
+      "issue_key": "PBK-26",
+      "criterion": "I9 PBK-26 behaviour unchanged by PBK-15",
+      "action": "PR #20 highlights journey (patched) on the integrated build.",
+      "expected": "All 30 steps pass.",
+      "observed": "PASS 30 steps, exit 0, no leftover processes.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb 1280x900, tauri-driver/WebKitWebDriver), one build for every suite",
+      "evidence": [
+        "desktop-e2e-artifacts/highlights/report.json"
+      ]
+    },
+    {
+      "issue_key": "PBK-15+PBK-26",
+      "criterion": "I10 Reader regression and negative cases with cleanup",
+      "action": "Smoke x2, PBK-24 reading journey, injected-failure verifier on the same build.",
+      "expected": "All pass; injected faults fail as designed; no leftover processes.",
+      "observed": "smoke 20+20 steps, reading 32 steps, FAILURE-PATH VERIFICATION: PASS.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb 1280x900, tauri-driver/WebKitWebDriver), one build for every suite",
+      "evidence": [
+        "desktop-e2e-artifacts/run-1",
+        "run-2",
+        "reading-journey",
+        "failures/failures-summary.json"
+      ]
+    },
+    {
+      "issue_key": "PBK-15+PBK-26",
+      "criterion": "I11 Upgrade/rollback boundary re-run (exporter changed)",
+      "action": "Previous build 44e96b6 created single-library app-data incl. an export note; user added text to it; new integrated build on a copy, exported; previous build on the upgraded copy; re-upgrade. Seeder mode separately.",
+      "expected": "Library/position/highlight/vault carried; first export keeps user text and claims the folder; legacy db unchanged; rollback keeps reading facts; no re-import.",
+      "observed": "Export after upgrade 'Exported 1 highlights across 1 note (1 updated)' with 'Legacy highlight', block markers and 'My legacy thought' kept, marker = migrated library id; legacy library.db unchanged; rollback reopened page 3; re-upgrade same id. Seeder mode PASS.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb 1280x900, tauri-driver/WebKitWebDriver), one build for every suite",
+      "evidence": [
+        "desktop-e2e-artifacts/library-upgrade-base/report.json (local)",
+        "desktop-e2e-artifacts/library-upgrade/report.json (CI seeder)"
+      ]
+    },
+    {
+      "issue_key": "PBK-15+PBK-26",
+      "criterion": "I12 Affected Rust/type/fixture/MCP checks",
+      "action": "Ran at tested SHA.",
+      "expected": "Exit 0.",
+      "observed": "All exit 0.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb 1280x900, tauri-driver/WebKitWebDriver), one build for every suite",
+      "evidence": [
+        "checks[]"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "command": "cd desktop/src-tauri && cargo test",
+      "exit_code": 0,
+      "result": "all suites pass (libraries_test 19, export_test incl. PR #20 cases, annotations_test)",
+      "evidence": "local integrated verification at 5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    },
+    {
+      "command": "cd desktop && npx tsc --noEmit -p .",
+      "exit_code": 0,
+      "result": "no errors",
+      "evidence": "local integrated verification at 5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    },
+    {
+      "command": "cd desktop && npm run fixtures:check",
+      "exit_code": 0,
+      "result": "fixtures current (incl. PR #20 highlights fixtures)",
+      "evidence": "local integrated verification at 5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    },
+    {
+      "command": "cd mcp && npm test",
+      "exit_code": 0,
+      "result": "4 passed",
+      "evidence": "local integrated verification at 5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    },
+    {
+      "command": "cd desktop && npx tauri build --debug --bundles deb",
+      "exit_code": 0,
+      "result": "deb built",
+      "evidence": "local integrated verification at 5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    },
+    {
+      "command": "cd desktop/src-tauri && cargo build --example seed_index",
+      "exit_code": 0,
+      "result": "built",
+      "evidence": "local integrated verification at 5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    },
+    {
+      "command": "E2E_ARTIFACTS=…/run-1 xvfb-run -a npm run test:e2e:packaged",
+      "exit_code": 0,
+      "result": "PASS 20 steps",
+      "evidence": "local integrated verification at 5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    },
+    {
+      "command": "…/run-2 (repeat)",
+      "exit_code": 0,
+      "result": "PASS 20 steps",
+      "evidence": "local integrated verification at 5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    },
+    {
+      "command": "xvfb-run -a npm run test:e2e:reading",
+      "exit_code": 0,
+      "result": "PASS 32 steps",
+      "evidence": "local integrated verification at 5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    },
+    {
+      "command": "xvfb-run -a npm run test:e2e:highlights",
+      "exit_code": 0,
+      "result": "PASS 30 steps",
+      "evidence": "local integrated verification at 5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    },
+    {
+      "command": "capsh --drop=cap_dac_override,cap_dac_read_search -- -c \"xvfb-run -a -s '-screen 0 1280x900x24' npm run test:e2e:libraries\" (run 1)",
+      "exit_code": 0,
+      "result": "PASS 44 steps",
+      "evidence": "local integrated verification at 5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    },
+    {
+      "command": "same (run 2)",
+      "exit_code": 0,
+      "result": "PASS 44 steps",
+      "evidence": "local integrated verification at 5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    },
+    {
+      "command": "E2E_BASE_APP=<44e96b6 packaged> xvfb-run -a npm run test:e2e:library-upgrade",
+      "exit_code": 0,
+      "result": "PASS 10 steps incl. legacy export and rollback",
+      "evidence": "local integrated verification at 5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    },
+    {
+      "command": "E2E_SEED_INDEX=…/seed_index xvfb-run -a npm run test:e2e:library-upgrade",
+      "exit_code": 0,
+      "result": "PASS 8 steps",
+      "evidence": "local integrated verification at 5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    },
+    {
+      "command": "xvfb-run -a npm run test:e2e:packaged:failures",
+      "exit_code": 0,
+      "result": "FAILURE-PATH VERIFICATION: PASS",
+      "evidence": "local integrated verification at 5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    }
+  ],
+  "ci": {
+    "run_url": null,
+    "head_sha": "5d8be402f9b105c4d594af2b140795abdbe7eae8",
+    "conclusion": "pending"
+  },
+  "artifacts": [
+    {
+      "path": "desktop/src-tauri/target/debug/bundle/deb/ProperBooky_0.1.0_amd64.deb",
+      "sha256": "b83689aa6bc26bda9942a6ada6682de316db7dcf0306dad25ac72b12b95f590a",
+      "source_sha": "5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    },
+    {
+      "path": "<deb>/usr/bin/desktop",
+      "sha256": "09a7cfaf93abfe586a5decbd69be16a54ef1f4f9fa57707a42de473fa399ad9b",
+      "source_sha": "5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    },
+    {
+      "path": "previous build <44e96b6 deb>/usr/bin/desktop (upgrade/rollback)",
+      "sha256": "f5e729534ceac3daf316dc258bb5bcc879ed199dadf1d582755846f9f160649e",
+      "source_sha": "44e96b67d05213b53185d97d740f7d392e0c0c3f"
+    },
+    {
+      "path": "CI artifact desktop-e2e-evidence: run-1, run-2, reading-journey, highlights, libraries (screenshots 01-11, 04b), library-upgrade, failures",
+      "sha256": null,
+      "source_sha": "5d8be402f9b105c4d594af2b140795abdbe7eae8"
+    }
+  ],
+  "prior_evidence": {
+    "pbk15": ".agent-delivery/batches/pbk15-multi-library/report.json (tested dbd6489, CI 37204269473 and 37205395944 green; upgrade/rollback with previous build passed)",
+    "pbk26": ".agent-delivery/batches/pbk26-highlights-export/report.json (tested 363ddb7 by the previous session)"
+  },
+  "local_verification_required": [
+    "Windows installed app (coordinator, deferred): the PBK-15 and PBK-26 walkthroughs in their own reports, on this integrated build: Windows folder picker, known-folder app-data isolation, drive/UNC paths, switching libraries and exporting to Obsidian folders, EPUB/PDF highlight selection under WebView2 (PBK-26 polls selection in WebKit; WebView2 path unexercised), installer.",
+    "Windows single-library upgrade on a backed-up copy, including the first export into the previous build's Obsidian folder."
+  ],
+  "review_walkthrough": [
+    "Open two libraries; highlight in each; Obsidian: give each its own folder and sync; add your own text to a note; sync again: text kept; try the other library's folder: refused.",
+    "Remove a library, point another at its folder: refused; re-add it: its export continues.",
+    "Quit/restart: each library's notes and text intact."
+  ],
+  "known_risks": [
+    "After a rollback to the previous build, its Obsidian sync regenerates notes wholesale (its documented behaviour); user text added after the upgrade would be lost if the user syncs with the old build. Reading state unaffected.",
+    "Inherited from PR #21 and PR #20 reports (see each).",
+    "Asset protocol scope ['**'] unchanged (pre-existing; separate decision).",
+    "Linux-only evidence."
+  ],
+  "unresolved_scope": [],
+  "next_eligible_batch": [
+    "none: worker at lifetime cap 2"
+  ]
+}
