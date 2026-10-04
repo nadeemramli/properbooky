@@ -189,35 +189,118 @@ fn merge_frontmatter(
     format!("---\n{}---\n", yaml)
 }
 
-/// Lines of a pre-marker export that were not written by the old exporter
-/// (its title, heading, quotes and notes are regenerated in the block).
-fn legacy_user_lines(body: &str) -> String {
-    let mut kept = Vec::new();
-    let mut seen_title = false;
-    for line in body.lines() {
-        let generated = line.trim().is_empty()
-            || line == "## Highlights"
-            || line.starts_with('>')
-            || line.starts_with("**Note:** ")
-            || (!seen_title && line.starts_with("# "));
-        if line.starts_with("# ") {
-            seen_title = true;
-        }
-        if !generated {
-            kept.push(line);
-        }
+/// Location text the exporter wrote before markers (every version up to
+/// 44e96b6): only PDF pages were described in detail.
+fn legacy_describe_anchor(anchor: &serde_json::Value) -> String {
+    if let Some(page) = anchor.get("page").and_then(|p| p.as_i64()) {
+        return format!("page {page}");
     }
-    kept.join("\n")
+    match anchor.get("type").and_then(|t| t.as_str()) {
+        Some("article") => "article".to_owned(),
+        Some("epub-cfi") => "epub location".to_owned(),
+        _ => "unknown location".to_owned(),
+    }
 }
 
-/// The complete new note, keeping user content from `existing`.
+/// The exact lines the pre-marker exporter wrote for one highlight, without
+/// its note: quote lines, the attribution line and a blank line.
+fn legacy_entry(h: &annotations::Highlight) -> String {
+    let mut entry = String::new();
+    for line in h.text.lines() {
+        entry.push_str(&format!("> {line}\n"));
+    }
+    entry.push_str(&legacy_attribution(h));
+    entry.push_str("\n\n");
+    entry
+}
+
+fn legacy_attribution(h: &annotations::Highlight) -> String {
+    format!(
+        "> — {} ^pb-{}",
+        legacy_describe_anchor(&h.anchor),
+        &h.id[..h.id.len().min(8)]
+    )
+}
+
+/// Every refusal's way out that needs no repair of the generated text.
+const KEEP_AS_OWN: &str =
+    "or remove the line `generated_by: properbooky` from its frontmatter to keep this file as \
+     your own (Properbooky then writes a new note beside it)";
+
+/// The user's part of a note written by the exporter before markers, or why
+/// it cannot be told apart. Ownership is proven, never guessed from Markdown:
+/// only bytes identical to what that exporter wrote for this book (its
+/// title, and each highlight of this book's sidecar, removed ones included)
+/// count as generated; everything after them is returned verbatim.
+fn legacy_user_part<'a>(
+    body: &'a str,
+    titles: &[&str],
+    known: &[annotations::Highlight],
+) -> std::result::Result<&'a str, String> {
+    if body.is_empty() {
+        return Ok(body);
+    }
+    let header = titles
+        .iter()
+        .map(|t| format!("\n# {t}\n\n## Highlights\n\n"))
+        .find(|h| body.starts_with(h.as_str()));
+    let Some(header) = header else {
+        return Err(format!(
+            "written by an older Properbooky, and its \"# title\" and \"## Highlights\" lines are no longer \
+             at the top as it wrote them, so Properbooky cannot tell its highlights from your writing. To \
+             sync it again, put those two lines back at the top, {KEEP_AS_OWN}"
+        ));
+    };
+    let mut rest = &body[header.len()..];
+    let entries: Vec<String> = known.iter().map(legacy_entry).collect();
+    let mut used = vec![false; known.len()];
+    'entries: loop {
+        for (i, h) in known.iter().enumerate() {
+            if used[i] {
+                continue;
+            }
+            let Some(after) = rest.strip_prefix(entries[i].as_str()) else {
+                continue;
+            };
+            used[i] = true;
+            rest = after;
+            if let Some(note) = &h.note {
+                rest = rest
+                    .strip_prefix(format!("**Note:** {note}\n\n").as_str())
+                    .unwrap_or(rest);
+            }
+            continue 'entries;
+        }
+        break;
+    }
+    // A generated attribution line after unproven text means the user wrote
+    // between highlights (or edited/duplicated one): keeping it would
+    // duplicate the highlight, dropping it could drop the user's text.
+    let attributions: Vec<String> = known.iter().map(legacy_attribution).collect();
+    if rest
+        .split('\n')
+        .map(|l| l.strip_suffix('\r').unwrap_or(l))
+        .any(|l| attributions.iter().any(|a| a == l))
+    {
+        return Err(format!(
+            "written by an older Properbooky and you wrote between its highlights (or edited one), so \
+             Properbooky cannot tell its highlights from your writing. To sync it again, move your own text \
+             to the end of the note, below the last highlight and the blank line after it, {KEEP_AS_OWN}"
+        ));
+    }
+    Ok(rest)
+}
+
+/// The complete new note, keeping user content from `existing`, or why the
+/// existing note must be left unchanged.
 fn compose(
     existing: Option<&str>,
     title: &str,
     author: Option<&str>,
     source: &str,
     block: &str,
-) -> String {
+    known: &[annotations::Highlight],
+) -> std::result::Result<String, String> {
     let (front, body) = existing.map(split_frontmatter).unwrap_or((None, ""));
     let frontmatter = merge_frontmatter(front, title, author, source);
     let body = match (body.find(BLOCK_START), body.find(BLOCK_END)) {
@@ -226,19 +309,29 @@ fn compose(
             let after = after.strip_prefix('\n').unwrap_or(after);
             format!("{}{}{}", &body[..start], block, after)
         }
-        _ => {
+        (None, None) => {
             // First export, or a note from the exporter before markers.
-            let user = existing
-                .map(|_| legacy_user_lines(body))
-                .unwrap_or_default();
+            let front_title = front
+                .and_then(frontmatter_mapping)
+                .and_then(|m| get_str(&m, "title").map(str::to_owned));
+            let mut titles = vec![title];
+            titles.extend(front_title.as_deref());
+            let user = legacy_user_part(body, &titles, known)?;
             if user.is_empty() {
                 format!("\n{block}")
             } else {
-                format!("\n{block}\n{user}\n")
+                format!("\n{block}\n{user}")
             }
         }
+        _ => {
+            return Err(format!(
+                "one of its two highlights block markers is missing or out of order, so Properbooky cannot \
+                 tell its highlights from your writing. To sync it again, put back the marker lines \
+                 `{BLOCK_START}` and `{BLOCK_END}` around the highlights, {KEEP_AS_OWN}"
+            ));
+        }
     };
-    format!("{frontmatter}{body}")
+    Ok(format!("{frontmatter}{body}"))
 }
 
 /// Existing notes in `out` that Properbooky generated, keyed by `source:`,
@@ -298,6 +391,8 @@ pub fn export_highlights(root: &Path, out: &Path) -> Result<ExportReport> {
         title: String,
         author: Option<String>,
         live: Vec<annotations::Highlight>,
+        /// Live and removed: proof of what an older export wrote.
+        known: Vec<annotations::Highlight>,
     }
     let mut notes: BTreeMap<String, Vec<Note>> = BTreeMap::new();
 
@@ -326,11 +421,8 @@ pub fn export_highlights(root: &Path, out: &Path) -> Result<ExportReport> {
         if sidecar.highlights.is_empty() {
             continue;
         }
-        let mut live: Vec<_> = sidecar
-            .highlights
-            .into_iter()
-            .filter(|h| !h.deleted)
-            .collect();
+        let known = sidecar.highlights;
+        let mut live: Vec<_> = known.iter().filter(|h| !h.deleted).cloned().collect();
         live.sort_by(|a, b| a.created_at.cmp(&b.created_at).then(a.id.cmp(&b.id)));
 
         let slug = entry
@@ -371,6 +463,7 @@ pub fn export_highlights(root: &Path, out: &Path) -> Result<ExportReport> {
             title,
             author,
             live,
+            known,
         });
     }
 
@@ -416,13 +509,22 @@ pub fn export_highlights(root: &Path, out: &Path) -> Result<ExportReport> {
                 continue;
             }
             let block = render_block(&note.title, &note.live);
-            let text = compose(
+            let text = match compose(
                 existing.as_deref(),
                 &note.title,
                 note.author.as_deref(),
                 &note.source,
                 &block,
-            );
+                &note.known,
+            ) {
+                Ok(text) => text,
+                Err(reason) => {
+                    report
+                        .skipped
+                        .push(format!("{destination}: left unchanged: {reason}."));
+                    continue;
+                }
+            };
             if existing.as_deref() != Some(text.as_str()) {
                 crate::identity::atomic_write(&path, text.as_bytes())?;
                 report.written += 1;
