@@ -6,7 +6,7 @@
   ],
   "base_sha": "44e96b67d05213b53185d97d740f7d392e0c0c3f",
   "tested_sha": "dbd648970cbec58f578b9e7fe05272af54430c52",
-  "handoff_sha": "the evidence-only commit that adds this file (see PR head); no product/test change after tested_sha",
+  "handoff_sha": "3f23c69079b19357f78edd27d2749561771ba323 plus this CI-result evidence commit (PR head); no product/test change after tested_sha",
   "branch": "claude/sweet-turing-shme1z",
   "pr_url": "https://github.com/nadeemramli/properbooky/pull/21",
   "model_observed": "claude-opus-5-5 (runtime get_session: session_context.model and last_served_model)",
@@ -172,7 +172,7 @@
       "criterion": "5. Real packaged Linux UI -> IPC -> settings/index/files E2E with two synthetic libraries; required checks/build plus affected reader/highlight regressions and exact-head CI.",
       "action": "Ran every check and packaged suite at the tested SHA (see checks); CI at the same head.",
       "expected": "All exit 0.",
-      "observed": "All local checks exit 0 at dbd6489 (libraries journey twice, 40 steps each, no leftover processes); CI result recorded under ci.",
+      "observed": "All local checks exit 0 at dbd6489 (libraries journey twice, 40 steps each, no leftover processes); CI run 37204269473 at dbd6489: all 6 jobs success, including the libraries and upgrade journeys.",
       "verdict": "Pass",
       "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb, tauri-driver/WebKitWebDriver)",
       "evidence": [
@@ -276,7 +276,8 @@
   "ci": {
     "run_url": "https://github.com/nadeemramli/properbooky/actions/runs/37204269473",
     "head_sha": "dbd648970cbec58f578b9e7fe05272af54430c52",
-    "conclusion": "pending"
+    "conclusion": "success — all 6 jobs: desktop (tsc, cargo test), web (lint non-blocking, unit, next build, edge typecheck), web-e2e, web-local-supabase, library-mcp, desktop-e2e (packaged smoke x2, PBK-24 reading, PBK-15 libraries, PBK-15 seeded upgrade, injected failures; non-root runner, artifact desktop-e2e-evidence)",
+    "handoff_runs": "evidence-only commits after dbd6489 re-run the same workflow; see the PR checks for the final head"
   },
   "artifacts": [
     {
