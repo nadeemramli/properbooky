@@ -2,6 +2,7 @@ pub mod acquire;
 pub mod annotations;
 pub mod article;
 pub mod catalog;
+pub mod catalog_import;
 pub mod consolidation;
 pub mod db;
 pub mod enrich;
@@ -691,6 +692,40 @@ async fn set_catalog_status(
     .await
 }
 
+#[derive(Serialize)]
+struct CatalogImport {
+    report: catalog_import::Report,
+    /// The rescan after a real import (none for a dry run).
+    scan: Option<scanner::ScanResult>,
+}
+
+/// Import the Library of Books CSV export into this library's `Catalog/`
+/// folder (PBK-19), then rescan so the new profiles are listed. Only adds
+/// files; a dry run writes nothing.
+#[tauri::command]
+async fn import_catalog(
+    app: tauri::AppHandle,
+    library_id: String,
+    csv_path: String,
+    dry_run: bool,
+) -> Result<CatalogImport, String> {
+    blocking(move || {
+        indexed(&app, &library_id, |lib, conn| {
+            let dir = catalog_import::catalog_dir(&lib.root).map_err(|e| format!("{e:#}"))?;
+            let imported = catalog_import::import(Path::new(&csv_path), &dir, dry_run);
+            // Profiles published before a failure are complete; list them too.
+            let scan = if dry_run || !dir.is_dir() {
+                None
+            } else {
+                Some(scanner::scan_library(conn, &lib.root).map_err(|e| e.to_string())?)
+            };
+            let report = imported.map_err(|e| format!("{e:#}"))?;
+            Ok(CatalogImport { report, scan })
+        })
+    })
+    .await
+}
+
 /// Match, rename, file, and link everything waiting in `<library>/Drop/`.
 #[tauri::command]
 async fn process_drop(
@@ -970,6 +1005,7 @@ pub fn run() {
             set_highlight_note,
             acquisition_queue,
             set_catalog_status,
+            import_catalog,
             process_drop,
             save_article,
             get_app_settings,

@@ -1,92 +1,91 @@
-//! Import the "Library of Books" sheet CSV into Catalog/*.md files.
+//! Import the "Library of Books" sheet CSV into Catalog/*.md files (PBK-19).
 //!
-//! Usage: cargo run --example import_catalog -- <csv-path> <catalog-dir>
+//! Usage: cargo run --example import_catalog -- [--dry-run] <csv-path> <catalog-dir>
 //!
-//! Re-runnable: existing files are never overwritten (the catalog file may
-//! have accumulated notes/links since import); duplicate rows are skipped.
+//! Re-runnable: existing profiles are never changed (they may hold notes and
+//! edits made since the import); every row that was not imported is listed
+//! with its CSV line. `--dry-run` reports the same without writing anything.
+//! Exit codes: 0 imported (rows may still be listed as skipped), 1 the CSV
+//! was refused and nothing was written, 2 usage.
 
-use desktop_lib::catalog::{self, CatalogEntry};
-use std::collections::HashSet;
+use desktop_lib::catalog_import;
 use std::path::PathBuf;
 
-fn field(record: &csv::StringRecord, idx: Option<usize>) -> Option<String> {
-    idx.and_then(|i| record.get(i))
-        .map(str::trim)
-        .filter(|v| !v.is_empty())
-        .map(ToOwned::to_owned)
-}
-
-fn map_status(sheet_status: Option<&str>) -> String {
-    match sheet_status.map(str::to_lowercase).as_deref() {
-        Some(s) if s.contains("downloaded") => "available".to_owned(),
-        Some(s) if s.contains("need to read") => "queued".to_owned(),
-        _ => "wishlist".to_owned(),
+fn main() {
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    let dry_run = args.first().is_some_and(|a| a == "--dry-run");
+    if dry_run {
+        args.remove(0);
     }
-}
-
-fn main() -> anyhow::Result<()> {
-    let mut args = std::env::args().skip(1);
-    let (Some(csv_path), Some(catalog_dir)) = (args.next(), args.next()) else {
-        eprintln!("usage: import_catalog <csv-path> <catalog-dir>");
+    let [csv_path, catalog_dir] = args.as_slice() else {
+        eprintln!("usage: import_catalog [--dry-run] <csv-path> <catalog-dir>");
         std::process::exit(2);
     };
-    let catalog_dir = PathBuf::from(catalog_dir);
-    std::fs::create_dir_all(&catalog_dir)?;
-
-    let mut reader = csv::Reader::from_path(&csv_path)?;
-    let headers = reader.headers()?.clone();
-    let col = |name: &str| headers.iter().position(|h| h.eq_ignore_ascii_case(name));
-    let (c_title, c_author) = (col("Book Title"), col("Author"));
-    let (c_released, c_type, c_topics) = (col("Date Releases"), col("Types"), col("Topic Category"));
-    let (c_rec, c_rating, c_status) = (col("Recommendation"), col("Rating"), col("Status"));
-    let (c_input, c_lattice) = (col("Date Input"), col("Latticework"));
-
-    let (mut created, mut existing, mut dupes, mut empty) = (0u32, 0u32, 0u32, 0u32);
-    let mut seen: HashSet<String> = HashSet::new();
-
-    for record in reader.records() {
-        let record = record?;
-        let Some(title) = field(&record, c_title) else {
-            empty += 1;
-            continue;
-        };
-        let author = field(&record, c_author);
-
-        let key = catalog::normalize_key(&title, author.as_deref());
-        if !seen.insert(key) {
-            dupes += 1;
-            continue;
+    let report = match catalog_import::import(
+        &PathBuf::from(csv_path),
+        &PathBuf::from(catalog_dir),
+        dry_run,
+    ) {
+        Ok(report) => report,
+        Err(error) => {
+            eprintln!("import refused: {error:#}");
+            std::process::exit(1);
         }
-
-        let entry = CatalogEntry {
-            title: title.clone(),
-            author: author.clone(),
-            status: map_status(field(&record, c_status).as_deref()),
-            rating: field(&record, c_rating).and_then(|r| r.parse().ok()),
-            recommendation: field(&record, c_rec),
-            r#type: field(&record, c_type),
-            topics: field(&record, c_topics)
-                .map(|t| t.split(',').map(|s| s.trim().to_owned()).collect())
-                .unwrap_or_default(),
-            published: field(&record, c_released),
-            added: field(&record, c_input),
-            source: Some("library-of-books-sheet/ai-enriching-3.0".to_owned()),
-            ..Default::default()
+    };
+    let verb = if dry_run { "would create" } else { "created" };
+    for c in &report.created {
+        let renamed = if c.renamed {
+            " (usual name taken by another book)"
+        } else {
+            ""
         };
-        let body = field(&record, c_lattice).unwrap_or_default();
-
-        let path = catalog_dir.join(catalog::entry_filename(&title, author.as_deref()));
-        if path.exists() {
-            existing += 1;
-            continue;
-        }
-        std::fs::write(&path, catalog::render(&entry, &body))?;
-        created += 1;
+        println!("line {}: {verb} {}{renamed}", c.line, c.file);
     }
-
+    for e in &report.existing {
+        if e.differs.is_empty() {
+            println!("line {}: already in the catalog as {}", e.line, e.file);
+        } else {
+            println!(
+                "line {}: kept {} unchanged; the row differs in {}",
+                e.line,
+                e.file,
+                e.differs.join(", ")
+            );
+        }
+    }
+    for d in &report.duplicates {
+        println!(
+            "line {}: same book as line {}; skipped",
+            d.line, d.first_line
+        );
+    }
+    for n in &report.near_duplicates {
+        println!(
+            "line {}: imported \"{}\" by {}; similar to {} (review in Library cleanup)",
+            n.line, n.title, n.author, n.similar_to
+        );
+    }
+    for r in &report.rejected {
+        println!("line {}: not imported: {}", r.line, r.reason);
+    }
+    for u in &report.unreadable {
+        println!("could not read existing catalog file {u}");
+    }
+    for s in &report.statuses {
+        println!("status \"{}\" -> {} ({} rows)", s.sheet, s.status, s.rows);
+    }
     println!(
-        "created={created} existing={existing} dupes={dupes} empty_rows={empty} dir={}",
-        catalog_dir.display()
+        "{}rows={} {}={} existing={} duplicates={} near_duplicates={} rejected={} blank_rows={} temp_files_removed={} dir={}",
+        if dry_run { "DRY RUN " } else { "" },
+        report.rows,
+        verb.replace(' ', "_"),
+        report.created.len(),
+        report.existing.len(),
+        report.duplicates.len(),
+        report.near_duplicates.len(),
+        report.rejected.len(),
+        report.blank_rows,
+        report.temp_files_removed,
+        catalog_dir
     );
-    Ok(())
 }
