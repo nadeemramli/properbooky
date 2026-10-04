@@ -1,35 +1,38 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-04T14:30:00Z",
-  "worker": "cloud Claude Code session https://claude.ai/code/session_01RNsLigHcU5SWHvzXzLoNx3 (sole product writer; previous session_01EtZ3J6ATM4uFEkFR33mYe1 retired after PBK-24/PBK-26)",
-  "model_observed": "claude-opus-5-5 (runtime get_session)",
+  "updated_at": "2026-10-04T16:45:00Z",
+  "worker": "cloud Claude Code session https://claude.ai/code/session_01VwUGjwXZJw5HhspdBBzDgB (sole product writer, new chat for the PBK-26 legacy export review repair; previous session_01RNsLigHcU5SWHvzXzLoNx3 stopped at cap 2 after PR #22)",
+  "model_observed": "claude-opus-5-5 (runtime get_session: configured_model, session_context.model, last_served_model)",
   "release_target": "Current approved release: desktop local-first reader plus PBK-30 web runtime verification on a local Supabase stack. Excludes PBK-7 sync/mobile, PBK-10 research, PBK-12 phases 2-3.",
   "issue_snapshot": {
     "date": "2026-10-04 MYT",
     "direct_cursor": 1029
   },
   "authorized_queue": {
-    "provenance": "Task 1: pbk15-libraries-20261004-queue (PBK-15). Task 2: Properbooky bounded integration review-repair, 4 October 2026 (PBK-15 + PBK-26 integration). Worker lifetime cap 2 reached with task 2.",
+    "provenance": "Task 1: PBK-26 legacy export preservation review repair (Direct PBK-26 v11). Task 2: PBK-26 frontmatter preservation, coordinator-confirmed escalation (Direct PBK-26 v13). Chat lifetime cap 2/2 reached; no further scope.",
     "dispatched_batches": [
-      "pbk15-multi-library",
-      "pbk15-pbk26-integration"
-    ]
+      "pbk26-legacy-export-repair",
+      "pbk26-frontmatter-repair"
+    ],
+    "previous_chat": {
+      "session": "session_01RNsLigHcU5SWHvzXzLoNx3",
+      "batches": [
+        "pbk15-multi-library",
+        "pbk15-pbk26-integration"
+      ],
+      "status": "stopped at cap 2"
+    }
   },
   "remote_main": "44e96b67d05213b53185d97d740f7d392e0c0c3f",
   "current_batch": {
-    "batch_id": "pbk15-pbk26-integration",
-    "branch": "claude/pbk15-pbk26-integration",
-    "base": "44e96b67d05213b53185d97d740f7d392e0c0c3f",
-    "inputs": {
-      "pr21": "0b83611ee9be09f3ccfe52f6a26ec4961bb7e434",
-      "pr20": "260da9fe7b1d09345964590afa8570c625be88ea"
-    },
-    "merge_commit": "ae075d9266bbcaa65026c5d0cdc388daab14a294",
-    "tested_head": "5d8be402f9b105c4d594af2b140795abdbe7eae8",
-    "pr": "https://github.com/nadeemramli/properbooky/pull/22 (draft)",
-    "report": ".agent-delivery/batches/pbk15-pbk26-integration/report.json",
-    "plan": ".agent-delivery/batches/pbk15-pbk26-integration/plan.md",
-    "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37207972150: success on tested head 5d8be40 (all 6 jobs)"
+    "batch_id": "pbk26-frontmatter-repair",
+    "branch": "claude/sharp-archimedes-s3rdeu",
+    "base": "e20d8664fe9fc95a03834b3c1d04948a298ebe97 (task-1 handoff; stack PR #22 cfb40a5 -> task 1 -> task 2)",
+    "tested_head": "2f9a850843573c482d0dcd82dae7f2f155338d0d",
+    "pr": "https://github.com/nadeemramli/properbooky/pull/23 (draft, base claude/pbk15-pbk26-integration)",
+    "report": ".agent-delivery/batches/pbk26-frontmatter-repair/report.json",
+    "plan": ".agent-delivery/batches/pbk26-frontmatter-repair/plan.md",
+    "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37216424582: success on tested head 2f9a850 (all 6 jobs)"
   },
   "completed_cloud_batches": [
     {
@@ -73,15 +76,28 @@
       "batch_id": "pbk15-pbk26-integration",
       "kind": "integration + packaged E2E",
       "pr_url": "https://github.com/nadeemramli/properbooky/pull/22",
-      "status": "awaiting coordinator review"
+      "status": "awaiting coordinator review; repair for the confirmed legacy-export data loss is stacked on it as PR #23"
+    },
+    {
+      "batch_id": "pbk26-legacy-export-repair",
+      "kind": "review repair + packaged E2E (stacked on PR #22)",
+      "pr_url": "https://github.com/nadeemramli/properbooky/pull/23",
+      "status": "tested 9e7ad7f, CI 37214563269 success; awaiting coordinator review in PR #23"
+    },
+    {
+      "batch_id": "pbk26-frontmatter-repair",
+      "kind": "review repair + packaged E2E (same PR #23)",
+      "pr_url": "https://github.com/nadeemramli/properbooky/pull/23",
+      "status": "tested 2f9a850; awaiting coordinator review"
     }
   ],
   "criterion_gaps": [
-    "PBK-15 and PBK-26: all mapped criteria Pass on the integrated Linux packaged build (tested 5d8be40); Windows/WebView2 unverified (coordinator, deferred)."
+    "PBK-26 legacy export and frontmatter preservation: repaired and verified on the Linux packaged build (tested 2f9a850); Windows/WebView2 unverified (coordinator, deferred).",
+    "PBK-15/PBK-26 other criteria: as in the integration report (tested 5d8be40); affected journeys re-run on 2f9a850."
   ],
   "pending_local_checks": [
-    "Coordinator Windows walkthrough of PBK-15 and PBK-26 on the integrated build (see integration report local_verification_required)",
-    "Coordinator independent source review of PR #21 and PR #20, then decide whether to merge PR #22 or the originals"
+    "Coordinator independent review of PR #23 at its final head (and PR #22 beneath it), then the merge path",
+    "Coordinator Windows walkthroughs in both PBK-26 repair reports (legacy note and frontmatter)"
   ],
   "pending_human_checks": [
     "PBK-15 owner acceptance",
@@ -93,9 +109,10 @@
     "Unused books columns (knowledge_spectrum, manual_rating, wishlist_*) vs metadata storage — PBK-5 candidate",
     "PBK-24 interpretation: Continue reading includes unread books with saved progress > 0 (opening a PDF counts as started) - owner may prefer another rule",
     "PBK-15: nested libraries are refused by design; owner may prefer allowing them",
-    "Narrow assetProtocol.scope ['**'] to open library folders (security-sensitive capability change; not made)"
+    "Narrow assetProtocol.scope ['**'] to open library folders (security-sensitive capability change; not made)",
+    "PBK-26 repair design choice: strict proof requires the generated blank line after each legacy entry; text typed directly under a highlight is refused (no write) rather than migrated. Coordinator may prefer accepting a missing blank line."
   ],
-  "next_action": "Coordinator: review PR #22 at its final head (5d8be40 + evidence), confirm CI, review the originals, merge one path, Windows walkthrough. This worker has reached its lifetime cap (2) and has stopped.",
+  "next_action": "Coordinator: review PR #23 (tested 2f9a850 + evidence), confirm CI, decide merge path for #22/#23, Windows walkthrough. This chat reached cap 2/2 and stopped; no subscriptions or reminders remain.",
   "pbk26_record_from_pr20": {
     "current_batch": {
       "batch_id": "pbk26-highlights-export",

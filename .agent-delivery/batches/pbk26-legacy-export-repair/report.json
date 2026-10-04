@@ -1,0 +1,305 @@
+{
+  "batch_id": "pbk26-legacy-export-repair",
+  "dispatch": "Properbooky PBK-26 legacy export preservation review repair, 4 October 2026 (new chat; lifetime task 1, cap 2, feedback involved; coordinator owns Direct PBK-26 Doing v11 claim)",
+  "issue_keys": [
+    "PBK-26"
+  ],
+  "base_sha": "cfb40a529ba132a461b101251c5a32cc5dbd5b51",
+  "base_note": "PR #22 exact head (claude/pbk15-pbk26-integration); stacked, not independently mergeable",
+  "tested_sha": "9e7ad7f67e92549fd57f90edafdaf5e432161424",
+  "handoff_sha": "evidence-only commit(s) after the tested SHA (see PR #23 head); no product/test change after tested_sha",
+  "branch": "claude/sharp-archimedes-s3rdeu",
+  "pr_url": "https://github.com/nadeemramli/properbooky/pull/23",
+  "pr_base": "claude/pbk15-pbk26-integration (PR #22); PRs #20/#21/#22 unchanged",
+  "model_observed": "claude-opus-5-5 (get_session: configured_model, session_context.model, external_metadata.last_served_model)",
+  "environment": "Anthropic cloud container, Ubuntu 24.04, rustc 1.97.0, Node 22.22.0, tauri-driver 2.1.0, webkit2gtk-driver, Xvfb, xdotool, capsh; packaged debug .deb built from the clean tested head; per-run temp XDG dirs; temp copies of committed synthetic fixtures; previous build = main 44e96b6 packaged in a separate worktree; no owner data.",
+  "defect": {
+    "source": "desktop/src-tauri/src/export.rs legacy_user_lines (removed): dropped every pre-marker line that was blank, '## Highlights', started with '>' or '**Note:** ', or was the first '# ' heading.",
+    "reproduction": "coordinator synthetic regression (tests/export_legacy_repro.rs, verbatim) through export::export_highlights",
+    "observed_before": {
+      "cfb40a5": "exit 101: written=1, skipped=[]; user_quote_present=false, user_note_present=false",
+      "260da9f": "exit 101: identical output"
+    },
+    "impact": "first sync with PR #20/#22 builds silently deleted user-authored blockquotes and **Note:** lines from notes written by the previous exporter; the packaged journey at the unrepaired cfb40a5 build reported 'Exported 3 highlights across 2 notes (2 updated)' with nothing skipped and failed."
+  },
+  "repair": "Ownership proven by exact bytes: legacy header (note's own or current title) and per-highlight legacy entries (quote lines, legacy location text, ^pb-id8, blank line; note only if byte-identical) for highlights in this book's sidecar, tombstones included, each used once. Proven prefix replaced by the managed block; everything after kept byte for byte. Refused with no write and an actionable skipped reason when unprovable: header changed, a known legacy attribution line after unproven text (text between highlights / edited / duplicated entry), or block markers incomplete/out of order.",
+  "criteria": [
+    {
+      "issue_key": "PBK-26",
+      "criterion": "L1 reproduce the confirmed loss before changing code",
+      "action": "unchanged synthetic test at cfb40a5 and at 260da9f",
+      "expected": "fails",
+      "observed": "both exit 101, written=1 skipped=[], both user lines deleted",
+      "verdict": "Pass",
+      "platform": "Linux cargo test",
+      "evidence": [
+        "repro-base.log",
+        "repro-pr20.log (scratch)"
+      ]
+    },
+    {
+      "issue_key": "PBK-26",
+      "criterion": "L2 public API regression passes, unchanged",
+      "action": "tests/export_legacy_repro.rs at tested SHA",
+      "expected": "user quote and note survive",
+      "observed": "pass; written=1, skipped=[], both present",
+      "verdict": "Pass",
+      "platform": "Linux cargo test",
+      "evidence": [
+        "final/cargo-test.log"
+      ]
+    },
+    {
+      "issue_key": "PBK-26",
+      "criterion": "L3 safe migration keeps every user byte; repeated exports idempotent; later block updates/removal leave user bytes",
+      "action": "export_legacy_test: legacy_note_migrates_by_proof_and_keeps_every_user_byte, unproven_text_is_kept_never_dropped",
+      "expected": "generated text once, user tail (quotes, **Note:**, '## Highlights' and '# ' headings, blank lines, CRLF, no final newline, multi-line note with quote) byte-identical after block; written=0 and mtime unchanged on reruns",
+      "observed": "pass",
+      "verdict": "Pass",
+      "platform": "Linux cargo test",
+      "evidence": [
+        "final/cargo-test.log"
+      ]
+    },
+    {
+      "issue_key": "PBK-26",
+      "criterion": "L4 ambiguous notes refused with no write, actionable reason, other notes exported; re-sync refuses again; fix then migrates",
+      "action": "export_legacy_test: ambiguous_legacy_notes_are_refused_without_any_write, every_unprovable_shape_is_refused_and_left_byte_identical (8 shapes incl. CRLF inside generated lines, opt-out), incomplete_block_markers_are_refused_not_treated_as_legacy",
+      "expected": "bytes+mtime unchanged, not counted, reason names fix",
+      "observed": "pass; new suite fails 5/6 at unrepaired cfb40a5 (crlf guard already safe there)",
+      "verdict": "Pass",
+      "platform": "Linux cargo test",
+      "evidence": [
+        "final/cargo-test.log",
+        "newsuite-at-base.log (scratch)"
+      ]
+    },
+    {
+      "issue_key": "PBK-26",
+      "criterion": "L5 old assertions not weakened; existing semantics kept",
+      "action": "git diff cfb40a5..tested -- tests/export_test.rs (empty); full cargo test",
+      "expected": "all prior tests pass unchanged",
+      "observed": "79 passed, 0 failed; export_test.rs untouched",
+      "verdict": "Pass",
+      "platform": "Linux cargo test",
+      "evidence": [
+        "final/cargo-test.log"
+      ]
+    },
+    {
+      "issue_key": "PBK-26",
+      "criterion": "L6 packaged seeded-upgrade journey with user-edited legacy notes, refusal in UI, fix, repeated exports, restart, library switch",
+      "action": "library-upgrade.e2e.mjs in E2E_BASE_APP mode (previous build 44e96b6 writes the notes through its UI; JS legacy writer proven byte-identical) and E2E_SEED_INDEX mode (CI path)",
+      "expected": "PDF note migrates keeping QUILL_TAIL byte for byte; Zephyr note refused in panel ('left unchanged: … you wrote between its highlights … move your own text to the end of the note …'), sha+mtime unchanged; after restart two syncs (0 updated) still refused; moved text migrates (3 highlights / 2 notes, 1 updated) with multi-line note once; second library refused on shared folder ('library “single-library”'), exports own folder; switch back (0 updated); new highlight updates block only; restart (0 updated); legacy DB/backup unchanged; rollback/re-upgrade still pass",
+      "observed": "pass in both modes; same journey FAILS at unrepaired cfb40a5 build (2 updated, nothing skipped)",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb, Xvfb + tauri-driver + WebKitWebDriver",
+      "evidence": [
+        "final/library-upgrade-base/report.json + 02b..02e screenshots",
+        "final/library-upgrade-seed/report.json",
+        "journey-at-unrepaired-base.log (scratch)",
+        "CI artifact desktop-e2e-evidence/library-upgrade"
+      ]
+    },
+    {
+      "issue_key": "PBK-26",
+      "criterion": "L7 affected regressions on the same build",
+      "action": "smoke x2, PBK-24 reading, PBK-26 highlights, PBK-15 libraries (capsh dropped DAC caps), injected failures; tsc, fixtures:check, mcp npm test",
+      "expected": "all pass",
+      "observed": "all exit 0",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb, Xvfb + tauri-driver + WebKitWebDriver",
+      "evidence": [
+        "final/summary.txt"
+      ]
+    },
+    {
+      "issue_key": "PBK-26",
+      "criterion": "L8 exact-head CI and delivery manifest",
+      "action": "CI on PR #23 head 9e7ad7f",
+      "expected": "all jobs success",
+      "observed": "CI run 37214563269 on 9e7ad7f: success, all 6 jobs",
+      "verdict": "Pass",
+      "platform": "GitHub Actions ubuntu",
+      "evidence": [
+        "https://github.com/nadeemramli/properbooky/actions/runs/37214563269"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "command": "cd desktop/src-tauri && cargo test --test export_legacy_repro (at cfb40a5, unchanged test)",
+      "exit_code": 101,
+      "result": "reproduced: written=1, skipped=[], user lines absent",
+      "evidence": "repro-base.log"
+    },
+    {
+      "command": "same at 260da9f (worktree, shared target)",
+      "exit_code": 101,
+      "result": "reproduced identically",
+      "evidence": "repro-pr20.log"
+    },
+    {
+      "command": "cargo test --test export_legacy_test at cfb40a5 (new suite against unrepaired code)",
+      "exit_code": 101,
+      "result": "5 failed, 1 passed (CRLF guard)",
+      "evidence": "newsuite-at-base.log"
+    },
+    {
+      "command": "E2E_APP=<cfb40a5 packaged> E2E_BASE_APP=<44e96b6 packaged> npm run test:e2e:library-upgrade",
+      "exit_code": 1,
+      "result": "defect detected: 'Exported 3 highlights across 2 notes (2 updated)', skipped []",
+      "evidence": "journey-at-unrepaired-base.log"
+    },
+    {
+      "command": "cd desktop/src-tauri && cargo test",
+      "exit_code": 0,
+      "result": "79 passed, 0 failed, 1 ignored (pre-existing)",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "cd desktop && npx tsc --noEmit -p .",
+      "exit_code": 0,
+      "result": "clean",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "cd desktop && npm run fixtures:check",
+      "exit_code": 0,
+      "result": "fixtures current",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "cd mcp && npm test",
+      "exit_code": 0,
+      "result": "fail 0",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "cd desktop && npx tauri build --debug --bundles deb",
+      "exit_code": 0,
+      "result": "deb built",
+      "evidence": "final/build-identity.txt"
+    },
+    {
+      "command": "cd desktop/src-tauri && cargo build --example seed_index",
+      "exit_code": 0,
+      "result": "built",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "E2E_ARTIFACTS=…/run-1 xvfb-run -a npm run test:e2e:packaged",
+      "exit_code": 0,
+      "result": "PASS",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "…/run-2 (repeat)",
+      "exit_code": 0,
+      "result": "PASS",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "xvfb-run -a npm run test:e2e:reading",
+      "exit_code": 0,
+      "result": "PASS",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "xvfb-run -a npm run test:e2e:highlights",
+      "exit_code": 0,
+      "result": "PASS",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "capsh --drop=cap_dac_override,cap_dac_read_search -- -c \"xvfb-run -a -s '-screen 0 1280x900x24' npm run test:e2e:libraries\"",
+      "exit_code": 0,
+      "result": "PASS",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "E2E_BASE_APP=<44e96b6 packaged> xvfb-run -a npm run test:e2e:library-upgrade",
+      "exit_code": 0,
+      "result": "PASS (incl. rollback; legacy writer byte-identical to previous build)",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "E2E_SEED_INDEX=…/seed_index xvfb-run -a npm run test:e2e:library-upgrade",
+      "exit_code": 0,
+      "result": "PASS",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "xvfb-run -a npm run test:e2e:packaged:failures",
+      "exit_code": 0,
+      "result": "FAILURE-PATH VERIFICATION: PASS",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    }
+  ],
+  "check_notes": [
+    "All final checks ran sequentially from one script on HEAD 9e7ad7f with git status clean at start. During the packaged build an evidence-only edit to .agent-delivery/state.json was briefly in the working tree (stashed within seconds); it is not an input to any build.",
+    "One preliminary (pre-commit) base-mode run timed out at WebDriver session creation while an unrelated Rust build saturated the 4 CPUs; it died before any test body, and every run on the idle machine passed."
+  ],
+  "ci": {
+    "run_url": "https://github.com/nadeemramli/properbooky/actions/runs/37214563269",
+    "head_sha": "9e7ad7f67e92549fd57f90edafdaf5e432161424",
+    "conclusion": "success: all 6 jobs (desktop: tsc + cargo test; web; web-e2e; web-local-supabase; library-mcp; desktop-e2e incl. the extended seeded-upgrade journey; artifact desktop-e2e-evidence), completed 2026-10-04T16:12:29Z"
+  },
+  "artifacts": [
+    {
+      "path": "desktop/src-tauri/target/debug/bundle/deb/ProperBooky_0.1.0_amd64.deb",
+      "sha256": "5b6dcf355bbd8f1918054a9578d7208a9eddbc9fee621ce35761687f792e902b",
+      "source_sha": "9e7ad7f67e92549fd57f90edafdaf5e432161424"
+    },
+    {
+      "path": "usr/bin/desktop (extracted from that deb)",
+      "sha256": "bc40468cf6245d61cede1d8bab718bc35cf2e84235f15e1f6a53a360e124195c",
+      "source_sha": "9e7ad7f67e92549fd57f90edafdaf5e432161424"
+    },
+    {
+      "path": "previous build usr/bin/desktop (rehearsal input)",
+      "sha256": "5303d948a76d8d62e5a00217f1b30ea927e97fdeeea3e762265f922a1445984a",
+      "source_sha": "44e96b67d05213b53185d97d740f7d392e0c0c3f"
+    },
+    {
+      "path": "unrepaired PR #22 usr/bin/desktop (negative control)",
+      "sha256": "0498bf2c0a387d474b37a56b42cc1c8409993a106efa470b4e3938dd7eedb260",
+      "source_sha": "cfb40a529ba132a461b101251c5a32cc5dbd5b51"
+    }
+  ],
+  "local_verification_required": [
+    "Windows installed app (coordinator, deferred): with a backed-up copy of a pre-PBK-26 Obsidian export folder, add your own quote and **Note:** line below the last highlight of one note and a line between two highlights of another; sync: first keeps every byte, second is listed under 'Not exported' and is unchanged; move the line to the end and sync: migrated.",
+    "Windows: Obsidian on Windows may save notes with CRLF; a fully CRLF note is never written (treated as not Properbooky's; a new note is written beside it) - confirm on a real vault whether Obsidian rewrites line endings."
+  ],
+  "review_walkthrough": [
+    "Previous build: highlight two books, sync to Obsidian. In one note add your own text, a '> quote' and a '**Note:**' line at the end; in the other write a line between two highlights.",
+    "New build: Obsidian > Sync highlights now: the first note keeps everything you wrote below the new block; the second is listed under 'Not exported' with how to fix it and is untouched.",
+    "Move the line to the end of the second note, sync again: migrated, your text kept. Sync again / restart: '(0 updated)'."
+  ],
+  "known_risks": [
+    "Design choice (conservative): a legacy entry is proven only with the blank line the old exporter wrote after it; text typed directly under a highlight is refused (no write) rather than migrated. Option for coordinator: accept a missing trailing blank line.",
+    "A legacy note whose old note text was later edited in the app keeps the old '**Note:** …' line as user text below the block (preserved, not deleted); in the middle of the note it causes a refusal.",
+    "Adjacent, pre-existing, NOT changed (escalated): when Properbooky's own frontmatter keys change (e.g. catalog title corrected), merge_frontmatter re-serializes the mapping and drops YAML comments/formatting of the user's other keys (values kept). Reproduced at cfb40a5 with a scratch probe.",
+    "Rollback limitation unchanged: the previous build regenerates notes wholesale if used to sync after a rollback.",
+    "Linux-only evidence."
+  ],
+  "escalations_to_coordinator": [
+    {
+      "issue": "PBK-26 (adjacent to export preservation)",
+      "source": "export.rs merge_frontmatter: when any of title/author/source/generated_by differs, serde_yaml::to_string(&map) rewrites the whole frontmatter",
+      "repro": "exported note + user adds '# my comment' and 'tags: [a,   b]   # inline' to frontmatter; catalog title changed; re-export → comment lines gone, tags reformatted to a block list (values intact)",
+      "head": "cfb40a529ba132a461b101251c5a32cc5dbd5b51 (unchanged at 9e7ad7f67e92549fd57f90edafdaf5e432161424)",
+      "impact": "silent loss of YAML comments/formatting the user wrote in a generated note's frontmatter on a title/author change",
+      "options": [
+        "accept and document (values are kept)",
+        "line-level edit of only Properbooky's keys when they are simple one-line scalars, else refuse with a reason",
+        "refuse to change frontmatter that would not round-trip, report in skipped"
+      ],
+      "recommendation": "line-level edit with refusal fallback, as a separate shaped issue; not done here to keep this repair bounded",
+      "status": "confirmed by the coordinator (Direct PBK-26 v13) and repaired as task 2 of this chat: see ../pbk26-frontmatter-repair/report.json"
+    }
+  ],
+  "next_eligible_batch": [
+    "pbk26-frontmatter-repair (task 2 of this chat, dispatched by the coordinator after confirming the escalation)"
+  ]
+}

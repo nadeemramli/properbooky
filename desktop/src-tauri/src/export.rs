@@ -155,90 +155,328 @@ fn get_str<'a>(map: &'a serde_yaml::Mapping, key: &str) -> Option<&'a str> {
     map.get(key).and_then(|v| v.as_str())
 }
 
-/// Ours, with the user's other keys kept in their order. The existing text
-/// is reused verbatim when our keys already hold these values.
+/// One `key: value` line as serde_yaml writes it (quoted when needed).
+fn render_property(key: &str, value: &str) -> String {
+    let mut map = serde_yaml::Mapping::new();
+    map.insert(key.into(), value.into());
+    let yaml = serde_yaml::to_string(&map).unwrap_or_default();
+    yaml.strip_suffix('\n').unwrap_or(&yaml).to_owned()
+}
+
+/// Whether a top-level `key: value` line can be rewritten without losing
+/// anything the user wrote: a single-line plain or fully quoted scalar (or
+/// nothing) and no comment. Anything else is left to the user.
+fn rewritable_property(line: &str, key: &str) -> bool {
+    let Some(value) = line
+        .strip_prefix(key)
+        .and_then(|rest| rest.strip_prefix(':'))
+    else {
+        return false;
+    };
+    if !(value.is_empty() || value.starts_with(' ')) {
+        return false;
+    }
+    let value = value.trim_start_matches(' ');
+    let closes_at_end = |quote: char| {
+        let mut chars = value.char_indices().skip(1).peekable();
+        while let Some((i, c)) = chars.next() {
+            if quote == '"' && c == '\\' {
+                chars.next();
+            } else if c == quote {
+                if quote == '\'' && chars.peek().is_some_and(|&(_, n)| n == '\'') {
+                    chars.next();
+                    continue;
+                }
+                return i + c.len_utf8() == value.len();
+            }
+        }
+        false
+    };
+    match value.chars().next() {
+        None => true,
+        Some('"') => closes_at_end('"'),
+        Some('\'') => closes_at_end('\''),
+        Some(c) if "[{|>&*!%@`#,".contains(c) => false,
+        Some('-' | '?' | ':') if value.len() == 1 || value[1..].starts_with(' ') => false,
+        Some(_) => !value.contains(" #") && !value.contains('\t') && !value.ends_with(' '),
+    }
+}
+
+/// Ours, with everything else the user wrote kept byte for byte. The
+/// existing text is reused verbatim when our keys already hold these
+/// values; otherwise only our own top-level lines are replaced, inserted or
+/// removed, and the result must parse to the user's properties unchanged.
+/// When that cannot be done safely the note is left alone, with the reason.
 fn merge_frontmatter(
     existing: Option<&str>,
     title: &str,
     author: Option<&str>,
     source: &str,
-) -> String {
+) -> std::result::Result<String, String> {
     let wanted: [(&str, Option<&str>); 4] = [
         ("title", Some(title)),
         ("author", author),
         ("source", Some(source)),
         ("generated_by", Some(GENERATED_BY)),
     ];
-    let mut map = existing.and_then(frontmatter_mapping).unwrap_or_default();
-    if let Some(front) = existing {
-        if wanted.iter().all(|(k, v)| get_str(&map, k) == *v) {
-            return format!("---\n{front}\n---\n");
-        }
-    }
-    for (key, value) in wanted {
-        match value {
-            Some(v) => {
+    let Some(front) = existing else {
+        let mut map = serde_yaml::Mapping::new();
+        for (key, value) in wanted {
+            if let Some(v) = value {
                 map.insert(key.into(), v.into());
             }
+        }
+        let yaml = serde_yaml::to_string(&map).unwrap_or_default();
+        return Ok(format!("---\n{}---\n", yaml));
+    };
+    let map = frontmatter_mapping(front).unwrap_or_default();
+    if wanted.iter().all(|(k, v)| get_str(&map, k) == *v) {
+        return Ok(format!("---\n{front}\n---\n"));
+    }
+    if front.contains('\r') {
+        return Err(frontmatter_refusal(
+            "its properties use Windows (CRLF) line endings",
+            "save them with LF line endings",
+        ));
+    }
+    let lines: Vec<&str> = front.split('\n').collect();
+    // Output lines per original line (replacement plus insertions), and
+    // lines added after the last one.
+    let mut slots: Vec<Vec<String>> = lines.iter().map(|l| vec![(*l).to_owned()]).collect();
+    let mut tail: Vec<String> = Vec::new();
+    let position = |key: &str| -> Vec<usize> {
+        let prefix = format!("{key}:");
+        lines
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| l.starts_with(&prefix))
+            .map(|(i, _)| i)
+            .collect()
+    };
+    for (n, (key, value)) in wanted.iter().enumerate() {
+        if get_str(&map, key) == *value {
+            continue;
+        }
+        let found = position(key);
+        if found.len() != usize::from(map.contains_key(*key)) {
+            return Err(frontmatter_refusal(
+                &format!("its `{key}` property appears more than once or in a form Properbooky did not write"),
+                &format!("keep a single `{key}:` line"),
+            ));
+        }
+        match found.first() {
+            Some(&i) => {
+                let continued = lines
+                    .get(i + 1)
+                    .is_some_and(|next| next.starts_with([' ', '\t']));
+                if !rewritable_property(lines[i], key) || continued {
+                    return Err(frontmatter_refusal(
+                        &format!("its `{key}:` line has a comment or formatting Properbooky did not write"),
+                        &format!("put `{key}:` back on one line without a comment (comments on their own lines are kept)"),
+                    ));
+                }
+                // Ours: replaced, or removed when it no longer applies.
+                slots[i].remove(0);
+                if let Some(v) = value {
+                    slots[i].insert(0, render_property(key, v));
+                }
+            }
             None => {
-                map.remove(key);
+                let Some(v) = value else { continue };
+                let line = render_property(key, v);
+                // Next to our other keys: after the previous one, else before
+                // the next one, else at the end.
+                let before = wanted[..n]
+                    .iter()
+                    .rev()
+                    .find_map(|(k, _)| position(k).first().copied());
+                let after = wanted[n + 1..]
+                    .iter()
+                    .find_map(|(k, _)| position(k).first().copied());
+                match (before, after) {
+                    (Some(i), _) => slots[i].push(line),
+                    (None, Some(i)) => slots[i].insert(0, line),
+                    (None, None) => tail.push(line),
+                }
             }
         }
     }
-    let yaml = serde_yaml::to_string(&map).unwrap_or_default();
-    format!("---\n{}---\n", yaml)
-}
-
-/// Lines of a pre-marker export that were not written by the old exporter
-/// (its title, heading, quotes and notes are regenerated in the block).
-fn legacy_user_lines(body: &str) -> String {
-    let mut kept = Vec::new();
-    let mut seen_title = false;
-    for line in body.lines() {
-        let generated = line.trim().is_empty()
-            || line == "## Highlights"
-            || line.starts_with('>')
-            || line.starts_with("**Note:** ")
-            || (!seen_title && line.starts_with("# "));
-        if line.starts_with("# ") {
-            seen_title = true;
-        }
-        if !generated {
-            kept.push(line);
-        }
+    let updated: Vec<String> = slots.into_iter().flatten().chain(tail).collect();
+    let updated = updated.join("\n");
+    // Proof: the user's properties are exactly as before, ours as wanted.
+    let check = frontmatter_mapping(&updated);
+    let ours = |k: &serde_yaml::Value| wanted.iter().any(|(w, _)| k.as_str() == Some(*w));
+    let same = check.as_ref().is_some_and(|new| {
+        wanted
+            .iter()
+            .all(|(k, v)| get_str(new, k) == *v && (v.is_some() || !new.contains_key(*k)))
+            && map
+                .iter()
+                .filter(|(k, _)| !ours(k))
+                .all(|(k, v)| new.get(k) == Some(v))
+            && new.iter().filter(|(k, _)| !ours(k)).count()
+                == map.iter().filter(|(k, _)| !ours(k)).count()
+    });
+    if !same {
+        return Err(frontmatter_refusal(
+            "Properbooky could not prove the update keeps your properties unchanged",
+            "simplify its `title:`, `author:` and `source:` lines to one plain line each",
+        ));
     }
-    kept.join("\n")
+    Ok(format!("---\n{updated}\n---\n"))
 }
 
-/// The complete new note, keeping user content from `existing`.
+/// Why Properbooky's properties could not be updated, and how to fix it.
+fn frontmatter_refusal(problem: &str, fix: &str) -> String {
+    format!(
+        "{problem}, so Properbooky cannot update its title, author or source without changing what you \
+         wrote. To sync it again, {fix}, {KEEP_AS_OWN}"
+    )
+}
+
+/// Location text the exporter wrote before markers (every version up to
+/// 44e96b6): only PDF pages were described in detail.
+fn legacy_describe_anchor(anchor: &serde_json::Value) -> String {
+    if let Some(page) = anchor.get("page").and_then(|p| p.as_i64()) {
+        return format!("page {page}");
+    }
+    match anchor.get("type").and_then(|t| t.as_str()) {
+        Some("article") => "article".to_owned(),
+        Some("epub-cfi") => "epub location".to_owned(),
+        _ => "unknown location".to_owned(),
+    }
+}
+
+/// The exact lines the pre-marker exporter wrote for one highlight, without
+/// its note: quote lines, the attribution line and a blank line.
+fn legacy_entry(h: &annotations::Highlight) -> String {
+    let mut entry = String::new();
+    for line in h.text.lines() {
+        entry.push_str(&format!("> {line}\n"));
+    }
+    entry.push_str(&legacy_attribution(h));
+    entry.push_str("\n\n");
+    entry
+}
+
+fn legacy_attribution(h: &annotations::Highlight) -> String {
+    format!(
+        "> — {} ^pb-{}",
+        legacy_describe_anchor(&h.anchor),
+        &h.id[..h.id.len().min(8)]
+    )
+}
+
+/// Every refusal's way out that needs no repair of the generated text.
+const KEEP_AS_OWN: &str =
+    "or remove the line `generated_by: properbooky` from its frontmatter to keep this file as \
+     your own (Properbooky then writes a new note beside it)";
+
+/// The user's part of a note written by the exporter before markers, or why
+/// it cannot be told apart. Ownership is proven, never guessed from Markdown:
+/// only bytes identical to what that exporter wrote for this book (its
+/// title, and each highlight of this book's sidecar, removed ones included)
+/// count as generated; everything after them is returned verbatim.
+fn legacy_user_part<'a>(
+    body: &'a str,
+    titles: &[&str],
+    known: &[annotations::Highlight],
+) -> std::result::Result<&'a str, String> {
+    if body.is_empty() {
+        return Ok(body);
+    }
+    let header = titles
+        .iter()
+        .map(|t| format!("\n# {t}\n\n## Highlights\n\n"))
+        .find(|h| body.starts_with(h.as_str()));
+    let Some(header) = header else {
+        return Err(format!(
+            "written by an older Properbooky, and its \"# title\" and \"## Highlights\" lines are no longer \
+             at the top as it wrote them, so Properbooky cannot tell its highlights from your writing. To \
+             sync it again, put those two lines back at the top, {KEEP_AS_OWN}"
+        ));
+    };
+    let mut rest = &body[header.len()..];
+    let entries: Vec<String> = known.iter().map(legacy_entry).collect();
+    let mut used = vec![false; known.len()];
+    'entries: loop {
+        for (i, h) in known.iter().enumerate() {
+            if used[i] {
+                continue;
+            }
+            let Some(after) = rest.strip_prefix(entries[i].as_str()) else {
+                continue;
+            };
+            used[i] = true;
+            rest = after;
+            if let Some(note) = &h.note {
+                rest = rest
+                    .strip_prefix(format!("**Note:** {note}\n\n").as_str())
+                    .unwrap_or(rest);
+            }
+            continue 'entries;
+        }
+        break;
+    }
+    // A generated attribution line after unproven text means the user wrote
+    // between highlights (or edited/duplicated one): keeping it would
+    // duplicate the highlight, dropping it could drop the user's text.
+    let attributions: Vec<String> = known.iter().map(legacy_attribution).collect();
+    if rest
+        .split('\n')
+        .map(|l| l.strip_suffix('\r').unwrap_or(l))
+        .any(|l| attributions.iter().any(|a| a == l))
+    {
+        return Err(format!(
+            "written by an older Properbooky and you wrote between its highlights (or edited one), so \
+             Properbooky cannot tell its highlights from your writing. To sync it again, move your own text \
+             to the end of the note, below the last highlight and the blank line after it, {KEEP_AS_OWN}"
+        ));
+    }
+    Ok(rest)
+}
+
+/// The complete new note, keeping user content from `existing`, or why the
+/// existing note must be left unchanged.
 fn compose(
     existing: Option<&str>,
     title: &str,
     author: Option<&str>,
     source: &str,
     block: &str,
-) -> String {
+    known: &[annotations::Highlight],
+) -> std::result::Result<String, String> {
     let (front, body) = existing.map(split_frontmatter).unwrap_or((None, ""));
-    let frontmatter = merge_frontmatter(front, title, author, source);
+    let frontmatter = merge_frontmatter(front, title, author, source)?;
     let body = match (body.find(BLOCK_START), body.find(BLOCK_END)) {
         (Some(start), Some(end)) if end > start => {
             let after = &body[end + BLOCK_END.len()..];
             let after = after.strip_prefix('\n').unwrap_or(after);
             format!("{}{}{}", &body[..start], block, after)
         }
-        _ => {
+        (None, None) => {
             // First export, or a note from the exporter before markers.
-            let user = existing
-                .map(|_| legacy_user_lines(body))
-                .unwrap_or_default();
+            let front_title = front
+                .and_then(frontmatter_mapping)
+                .and_then(|m| get_str(&m, "title").map(str::to_owned));
+            let mut titles = vec![title];
+            titles.extend(front_title.as_deref());
+            let user = legacy_user_part(body, &titles, known)?;
             if user.is_empty() {
                 format!("\n{block}")
             } else {
-                format!("\n{block}\n{user}\n")
+                format!("\n{block}\n{user}")
             }
         }
+        _ => {
+            return Err(format!(
+                "one of its two highlights block markers is missing or out of order, so Properbooky cannot \
+                 tell its highlights from your writing. To sync it again, put back the marker lines \
+                 `{BLOCK_START}` and `{BLOCK_END}` around the highlights, {KEEP_AS_OWN}"
+            ));
+        }
     };
-    format!("{frontmatter}{body}")
+    Ok(format!("{frontmatter}{body}"))
 }
 
 /// Existing notes in `out` that Properbooky generated, keyed by `source:`,
@@ -298,6 +536,8 @@ pub fn export_highlights(root: &Path, out: &Path) -> Result<ExportReport> {
         title: String,
         author: Option<String>,
         live: Vec<annotations::Highlight>,
+        /// Live and removed: proof of what an older export wrote.
+        known: Vec<annotations::Highlight>,
     }
     let mut notes: BTreeMap<String, Vec<Note>> = BTreeMap::new();
 
@@ -326,11 +566,8 @@ pub fn export_highlights(root: &Path, out: &Path) -> Result<ExportReport> {
         if sidecar.highlights.is_empty() {
             continue;
         }
-        let mut live: Vec<_> = sidecar
-            .highlights
-            .into_iter()
-            .filter(|h| !h.deleted)
-            .collect();
+        let known = sidecar.highlights;
+        let mut live: Vec<_> = known.iter().filter(|h| !h.deleted).cloned().collect();
         live.sort_by(|a, b| a.created_at.cmp(&b.created_at).then(a.id.cmp(&b.id)));
 
         let slug = entry
@@ -371,6 +608,7 @@ pub fn export_highlights(root: &Path, out: &Path) -> Result<ExportReport> {
             title,
             author,
             live,
+            known,
         });
     }
 
@@ -416,13 +654,22 @@ pub fn export_highlights(root: &Path, out: &Path) -> Result<ExportReport> {
                 continue;
             }
             let block = render_block(&note.title, &note.live);
-            let text = compose(
+            let text = match compose(
                 existing.as_deref(),
                 &note.title,
                 note.author.as_deref(),
                 &note.source,
                 &block,
-            );
+                &note.known,
+            ) {
+                Ok(text) => text,
+                Err(reason) => {
+                    report
+                        .skipped
+                        .push(format!("{destination}: left unchanged: {reason}."));
+                    continue;
+                }
+            };
             if existing.as_deref() != Some(text.as_str()) {
                 crate::identity::atomic_write(&path, text.as_bytes())?;
                 report.written += 1;
