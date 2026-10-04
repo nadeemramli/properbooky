@@ -22,6 +22,7 @@ import {
   X,
   AlertCircle,
   ChevronRight,
+  CheckCircle2,
 } from "lucide-react";
 import { useBooks } from "@/lib/hooks/use-books";
 import { useToast } from "@/components/ui/use-toast";
@@ -102,7 +103,7 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const { toast } = useToast();
-  const { addBook, uploadBookFile } = useBooks();
+  const { addBook, uploadBookFile, removeUploadedFile } = useBooks();
   const { user } = useAuth();
   const router = useRouter();
   const {
@@ -181,9 +182,12 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
         },
       };
 
-      console.log("Creating book with data:", bookData);
-      const result = await addBook(bookData);
-      console.log("Book created successfully:", result);
+      try {
+        await addBook(bookData);
+      } catch (error) {
+        if (selectedFile && fileUrl) await removeUploadedFile(fileUrl);
+        throw error;
+      }
 
       toast({
         title: "Success",
@@ -244,6 +248,7 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
 
     Papa.parse<WishlistCSVRow>(csvFile, {
       header: true,
+      skipEmptyLines: "greedy",
       complete: async (results) => {
         const books: BookCreate[] = results.data.map((row: any) => ({
           title: row.title,
@@ -271,24 +276,29 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
 
         setUploadProgress(0);
 
-        for (const bookData of books) {
+        let imported = 0;
+        const failures: string[] = [];
+        for (let index = 0; index < books.length; index++) {
+          const bookData = books[index]!;
           try {
             await addBook(bookData);
-            setUploadProgress((prev) => prev + 100 / books.length);
+            imported++;
           } catch (error: unknown) {
             console.error("Error adding book:", error);
-            toast({
-              variant: "destructive",
-              title: "Error",
-              description:
-                error instanceof Error ? error.message : "Failed to add book",
-            });
+            // Header is line 1, so data row i is line i + 2.
+            failures.push(
+              `line ${index + 2}: ${error instanceof Error ? error.message : "failed to add book"}`
+            );
           }
+          setUploadProgress(((index + 1) / books.length) * 100);
         }
 
         toast({
-          title: "Success",
-          description: `Imported ${books.length} books`,
+          variant: failures.length ? "destructive" : "default",
+          title: failures.length ? "Import finished with errors" : "Import complete",
+          description:
+            `Imported ${imported} of ${books.length} rows.` +
+            (failures.length ? ` Not imported: ${failures.join("; ")}` : ""),
         });
 
         setCsvFile(null);
@@ -324,6 +334,18 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
       "application/epub+zip": [".epub"],
     },
     maxSize: 100 * 1024 * 1024, // 100MB
+    onDropRejected: (rejections) => {
+      toast({
+        variant: "destructive",
+        title: "Some files were not added",
+        description: rejections
+          .map(
+            ({ file, errors }) =>
+              `${file.name}: ${errors[0]?.code === "file-too-large" ? "larger than 100MB" : "only PDF and EPUB files can be uploaded"}`
+          )
+          .join("; "),
+      });
+    },
     onError: (error: Error) => {
       console.error("Dropzone error:", error);
       toast({
@@ -333,6 +355,11 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
       });
     },
   });
+
+  // Completed items stay listed (marked) so the queue shows each outcome;
+  // only waiting and failed items are (re)processed.
+  const waitingCount = queue.filter((item) => item.status === "pending").length;
+  const failedCount = queue.filter((item) => item.status === "error").length;
 
   const handleBulkUpload = async () => {
     try {
@@ -683,27 +710,35 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
 
                 {/* File List */}
                 {queue.length > 0 && (
-                  <ScrollArea className="h-[200px] rounded-md border border-muted p-4">
+                  <ScrollArea
+                    data-testid="upload-queue"
+                    // Radix renders the viewport child as display:table, which
+                    // grows past the box instead of letting long names truncate.
+                    className="h-[200px] rounded-md border border-muted p-4 [&>[data-radix-scroll-area-viewport]>div]:!block"
+                  >
                     <div className="space-y-2">
                       {queue.map((item: QueueItem) => (
                         <div
                           key={item.id}
                           className="flex items-center justify-between gap-2 rounded-lg border border-muted bg-muted/50 p-2"
                         >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                            <span className="text-sm truncate">
-                              {item.file.name}
-                            </span>
-                            {item.error && (
-                              <span className="text-xs text-destructive truncate">
-                                {item.error}
-                              </span>
-                            )}
+                          <div className="flex items-start gap-2 min-w-0 flex-1">
+                            <FileText className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
+                            <div className="min-w-0">
+                              <p className="text-sm truncate">{item.file.name}</p>
+                              {item.error && (
+                                <p className="text-xs text-destructive break-words">
+                                  {item.error}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-shrink-0 items-center gap-2">
                             {item.status === "error" && (
-                              <AlertCircle className="h-4 w-4 text-destructive" />
+                              <AlertCircle className="h-4 w-4 text-destructive" aria-label="Failed" />
+                            )}
+                            {item.status === "completed" && (
+                              <CheckCircle2 className="h-4 w-4 text-green-600" aria-label="Uploaded" />
                             )}
                             {item.status === "uploading" && (
                               <div className="w-20">
@@ -721,6 +756,7 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
                               size="icon"
                               className="h-8 w-8 hover:bg-muted"
                               onClick={() => removeFromQueue(item.id)}
+                              aria-label="Remove from queue"
                               disabled={
                                 isUploading && item.status === "uploading"
                               }
@@ -748,14 +784,16 @@ export function BookDialog({ mode = "create", trigger }: BookDialogProps) {
                     <Button
                       size="sm"
                       onClick={handleBulkUpload}
-                      disabled={isUploading || queue.length === 0}
+                      disabled={isUploading || waitingCount + failedCount === 0}
                     >
                       {isUploading && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}
                       {isUploading
                         ? "Uploading..."
-                        : `Upload ${queue.length} files`}
+                        : waitingCount === 0 && failedCount > 0
+                        ? `Retry ${failedCount} failed`
+                        : `Upload ${waitingCount + failedCount} files`}
                     </Button>
                   </div>
                 )}

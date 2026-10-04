@@ -387,6 +387,17 @@ export function useBooks(searchQuery?: string) {
     }
   }
 
+  // Best-effort cleanup for an upload whose book row could not be created,
+  // so failed attempts don't leave orphaned files in storage.
+  const removeUploadedFile = async (fileUrl: string) => {
+    const marker = "/object/public/books/";
+    const at = fileUrl.indexOf(marker);
+    if (at === -1) return;
+    const path = decodeURIComponent(fileUrl.slice(at + marker.length));
+    const { error: removeError } = await supabase.storage.from("books").remove([path]);
+    if (removeError) console.error("Failed to remove orphaned upload:", removeError);
+  };
+
   const getBook = useCallback(async (id: string): Promise<AppBook> => {
     const { data, error } = await supabase
       .from("books")
@@ -408,6 +419,7 @@ export function useBooks(searchQuery?: string) {
     updateBook,
     deleteBook,
     uploadBookFile,
+    removeUploadedFile,
     getBook,
     refreshBooks: fetchBooks
   }

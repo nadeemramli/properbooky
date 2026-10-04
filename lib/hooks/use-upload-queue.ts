@@ -14,7 +14,7 @@ interface QueueItem {
 export function useUploadQueue() {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const { uploadBookFile, addBook } = useBooks();
+  const { uploadBookFile, addBook, removeUploadedFile } = useBooks();
   const { user } = useAuth();
 
   const addToQueue = useCallback((files: File[]) => {
@@ -80,8 +80,9 @@ export function useUploadQueue() {
       // when an individual file fails so one bad file can't drop the rest.
       for (const item of items) {
         updateItemStatus(item.id, "uploading");
+        let fileUrl: string | null = null;
         try {
-          const fileUrl = await uploadBookFile(item.file);
+          fileUrl = await uploadBookFile(item.file);
 
           await addBook({
             title: item.file.name.replace(/\.[^/.]+$/, ""), // Remove extension
@@ -103,6 +104,7 @@ export function useUploadQueue() {
           succeeded++;
         } catch (error) {
           console.error("Upload error:", error);
+          if (fileUrl) await removeUploadedFile(fileUrl);
           updateItemStatus(
             item.id,
             "error",
@@ -121,6 +123,7 @@ export function useUploadQueue() {
     isUploading,
     uploadBookFile,
     addBook,
+    removeUploadedFile,
     updateItemStatus,
     updateItemProgress,
     user,
