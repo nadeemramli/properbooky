@@ -14,6 +14,8 @@ npm run lint             # next lint (note: eslint.ignoreDuringBuilds is true in
 npm run test             # Jest unit tests
 npm run test:e2e         # Playwright E2E tests (e2e/)
 npm run supabase:types   # regenerate lib/database.types.ts from the remote project
+scripts/local-supabase.sh start|reset|env   # pinned local stack (docs/local-supabase.md)
+PBK30_DISPOSABLE=1 scripts/pbk30-verify.sh  # PBK-30 web runtime suite against the local stack
 ```
 
 ## Stack

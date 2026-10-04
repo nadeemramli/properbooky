@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
+import { Toaster as ActionToaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -27,6 +28,9 @@ export default function RootLayout({
         >
           {children}
           <Toaster richColors closeButton position="top-center" />
+          {/* Library actions report through the useToast() store; without this
+              mount their success/failure toasts were never shown. */}
+          <ActionToaster />
         </ThemeProvider>
       </body>
     </html>

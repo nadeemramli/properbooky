@@ -34,7 +34,7 @@ interface BookGridProps {
 }
 
 export function BookGrid({ searchQuery, view, status }: BookGridProps) {
-  const { books, loading, error, deleteBook, updateBook } =
+  const { books, loading, error, deleteBook, updateBook, refreshBooks } =
     useBooks(searchQuery);
   const { toast } = useToast();
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
@@ -235,7 +235,13 @@ export function BookGrid({ searchQuery, view, status }: BookGridProps) {
       <BookProfileDialog
         book={selectedBook}
         open={!!selectedBook}
-        onOpenChange={(open) => !open && setSelectedBook(null)}
+        onOpenChange={(open) => {
+          if (open) return;
+          setSelectedBook(null);
+          // The dialog saves through its own useBooks instance; reload so the
+          // cards show what it persisted.
+          void refreshBooks();
+        }}
       />
     </div>
   );

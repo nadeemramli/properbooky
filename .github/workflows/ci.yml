@@ -70,6 +70,38 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
+  # PBK-30: real browser -> Next production build -> local Supabase (auth,
+  # PostgREST, storage, Mailpit) on a fresh, disposable stack; synthetic data
+  # only. The remote project stays paused.
+  web-local-supabase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      PBK30_ARTIFACTS: ${{ github.workspace }}/.pbk30
+      PBK30_DISPOSABLE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Start pinned local Supabase stack
+        run: scripts/local-supabase.sh start
+      - name: PBK-30 criteria 2-4, restart, criterion 5, dev mode
+        run: scripts/pbk30-verify.sh all
+      - name: Stop local Supabase stack
+        if: always()
+        run: npx --yes supabase@2.33.9 stop --no-backup || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pbk30-local-supabase-evidence
+          path: .pbk30/
+          include-hidden-files: true
+          retention-days: 14
+
   desktop:
     runs-on: ubuntu-latest
     steps:

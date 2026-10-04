@@ -7,6 +7,11 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/$1',
   },
   transform: {
-    '^.+\\.tsx?$': 'ts-jest',
+    // Jest runs CommonJS; the app tsconfig's verbatimModuleSyntax/bundler
+    // settings target Next's ESM build and reject every TS test file.
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      { tsconfig: { verbatimModuleSyntax: false, module: 'commonjs', moduleResolution: 'node' } },
+    ],
   },
 }; 
