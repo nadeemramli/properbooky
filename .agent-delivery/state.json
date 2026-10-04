@@ -1,13 +1,19 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-04T06:00:00Z",
+  "updated_at": "2026-10-04T06:30:00Z",
   "worker": "cloud Claude Code session https://claude.ai/code/session_015RzJS52EF3Dk2Rb5pEiDHJ",
   "model_observed": "reported in the session handoff (runtime get_session); not written to Git by environment policy",
   "release_target": "Current approved release: desktop local-first reader plus PBK-30 web runtime verification on a local Supabase stack. Excludes PBK-7 sync/mobile, PBK-10 research, PBK-12 phases 2-3.",
-  "issue_snapshot": {"date": "2026-10-04 MYT", "direct_cursor": 1029},
+  "issue_snapshot": {
+    "date": "2026-10-04 MYT",
+    "direct_cursor": 1029
+  },
   "authorized_queue": {
     "provenance": "Coordinator dispatch pbk-20261004-1242 (PBK-30 Doing v7, claim codex-product-coordinator until ~2026-10-05 04:41 UTC). This worker writes code/evidence only; the coordinator owns Direct.",
-    "dispatched_batches": ["pbk30-local-web-verification"]
+    "dispatched_batches": [
+      "pbk30-local-web-verification (pbk-20261004-1242)",
+      "pbk30 review repair (pbk-20261004-0551-isolation)"
+    ]
   },
   "remote_main": "40d8e7698483b39e56c944508e47f8d8894f1276",
   "current_batch": {
@@ -15,21 +21,36 @@
     "branch": "claude/pbk-30-local-web-verification",
     "base": "40d8e7698483b39e56c944508e47f8d8894f1276",
     "product_final": "8a54d131d4f1532c69737630974f9bd019bb9519",
-    "tested_head": "a483199ec18e38007f01b71faa51fe0e8a23879f",
+    "tested_head": "38c74fdff26b2fb0b540ba9138f79f05d5e977cf",
     "pr": "https://github.com/nadeemramli/properbooky/pull/18 (draft)",
-    "report": ".agent-delivery/batches/pbk30-local-web-verification/report.json"
+    "report": ".agent-delivery/batches/pbk30-local-web-verification/report.json",
+    "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37182222358 (all 6 jobs success)"
   },
   "completed_cloud_batches": [
-    {"batch_id": "pbk18-independent-linux-rerun", "kind": "verification only", "where": "branch claude/funny-dirac-xv8791 @ 6daec54", "status": "superseded: PBK-18 merged as PR #17"},
-    {"batch_id": "pbk30-preflight-assessment", "kind": "assessment only", "where": "branch claude/funny-dirac-xv8791 @ 6daec54", "status": "findings F1-F5 carried into this batch (F1-F3, F5 fixed; F4 = PBK-31, untouched)"},
-    {"batch_id": "pbk30-local-web-verification", "kind": "implementation + E2E", "pr_url": "https://github.com/nadeemramli/properbooky/pull/18"}
+    {
+      "batch_id": "pbk18-independent-linux-rerun",
+      "kind": "verification only",
+      "where": "branch claude/funny-dirac-xv8791 @ 6daec54",
+      "status": "superseded: PBK-18 merged as PR #17"
+    },
+    {
+      "batch_id": "pbk30-preflight-assessment",
+      "kind": "assessment only",
+      "where": "branch claude/funny-dirac-xv8791 @ 6daec54",
+      "status": "findings F1-F5 carried into this batch (F1-F3, F5 fixed; F4 = PBK-31, untouched)"
+    },
+    {
+      "batch_id": "pbk30-local-web-verification",
+      "kind": "implementation + E2E",
+      "pr_url": "https://github.com/nadeemramli/properbooky/pull/18"
+    }
   ],
   "criterion_gaps": [
-    "PBK-30: all 5 criteria Pass on Linux/Chromium (cloud + CI). Not run on Windows/WSL or at the owner's own stack."
+    "PBK-30: all 5 criteria Pass on Linux/Chromium (cloud fixture + CI run 46) with the isolated fixture stack. Not run on Windows/WSL or beside the owner's real stack."
   ],
   "pending_local_checks": [
-    "Coordinator: disposable-stack run of scripts/pbk30-verify.sh all on the merged revision",
-    "Owner entrypoint smoke: npm run dev against the local stack (dev mode library loads, no RLS errors)"
+    "Coordinator: isolated fixture sequence beside the owner's idle development stack (see report local_verification_required); compare fingerprints",
+    "Owner entrypoint smoke: scripts/local-supabase.sh status (read-only), npm run dev"
   ],
   "pending_human_checks": [
     "PBK-30 focused owner checks (per issue): metadata-edit confidence; understandable bulk-failure recovery"
@@ -37,8 +58,8 @@
   "unresolved_decisions": [
     "Long-term fix for the three storage.objects migrations (keep the image pin, squash a baseline, or approve a privilege-tolerant edit)",
     "PBK-31 delete vs revive (evidence on claude/funny-dirac-xv8791 .agent-delivery/pbk-31-options.md); dashboard still queries dropped/forbidden relations",
-    "Unused books columns (knowledge_spectrum, manual_rating, wishlist_*) vs metadata storage — PBK-5 candidate",
+    "Unused books columns (knowledge_spectrum, manual_rating, wishlist_*) vs metadata storage \u2014 PBK-5 candidate",
     "PBK-15 multi-library picker in or out of the current release"
   ],
-  "next_action": "Wait for CI on PR #18 head and fix any CI-only failure; then coordinator review/merge. Next proposed batches: desktop file-ops integrity (PBK-20/23/21 + new issue), PBK-24/26 highlight restart+export E2E on the PBK-18 runner."
+  "next_action": "Coordinator review/merge of PR #18 at 38c74fd + evidence commit. Next proposed batches: desktop file-ops integrity (PBK-20/23/21 + new issue); PBK-24/26 highlight restart+export E2E on the PBK-18 runner."
 }
