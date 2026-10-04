@@ -150,3 +150,21 @@ export interface OpenTab {
   format: string;
   percent: number | null;
 }
+
+/** PBK-19: result of importing the Library of Books CSV export. */
+export interface CatalogImportResult {
+  report: {
+    dry_run: boolean;
+    rows: number;
+    blank_rows: number;
+    created: { line: number; file: string; renamed: boolean }[];
+    existing: { line: number; file: string; differs: string[] }[];
+    duplicates: { line: number; first_line: number; differs: string[] }[];
+    near_duplicates: { line: number; title: string; author: string; similar_to: string }[];
+    rejected: { line: number; reason: string }[];
+    statuses: { sheet: string; status: string; rows: number }[];
+    unreadable: string[];
+    temp_files_removed: number;
+  };
+  scan: ScanResult | null;
+}

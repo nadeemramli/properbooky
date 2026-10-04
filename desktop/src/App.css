@@ -617,6 +617,62 @@ body {
   color: var(--accent);
 }
 
+/* Catalog status of a book profile (PBK-19), beside its availability. */
+.card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.badge-status-wishlist {
+  background: color-mix(in srgb, #8a7ec8 18%, transparent);
+  color: #8a7ec8;
+}
+
+.badge-status-queued {
+  background: color-mix(in srgb, #c8a23f 22%, transparent);
+  color: #a3821f;
+}
+
+.badge-status-available,
+.badge-status-reading,
+.badge-status-done {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+
+.import-panel .acquire-drop {
+  overflow-y: auto;
+}
+
+.import-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.import-report {
+  margin-top: 0.6rem;
+  font-size: 0.78rem;
+}
+
+.import-summary {
+  color: var(--accent);
+  margin: 0 0 0.4rem;
+}
+
+.import-section h4 {
+  font-size: 0.78rem;
+  margin: 0.6rem 0 0.2rem;
+}
+
+.import-section ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  word-break: break-word;
+}
+
 /* ---- Reader ---- */
 
 .reader {
