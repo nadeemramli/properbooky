@@ -89,7 +89,7 @@ case "${1:-}" in
     # 5. A copy of the real marker with a nonce the fixture DB does not hold.
     copy=$(mktemp -d); cp -R .pbk30-stack/supabase "$copy/"
     sed -E 's/"nonce": "[0-9a-f]+"/"nonce": "'"$(printf '0%.0s' $(seq 48))"'"/' .pbk30-stack/marker.json > "$copy/marker.json"
-    expect_refusal guard-wrong-nonce env PBK30_STACK_DIR="$copy" PBK30_DISPOSABLE=1 node scripts/pbk30-fixture-guard.mjs --destructive
+    expect_refusal guard-wrong-nonce env PBK30_STACK_DIR="$copy" PBK30_DISPOSABLE=1 node scripts/pbk30-fixture-guard.mjs --destructive --target http://127.0.0.1:55421
     expect_refusal destroy-wrong-nonce env PBK30_STACK_DIR="$copy" PBK30_DISPOSABLE=1 scripts/pbk30-stack.sh destroy
     rm -rf "$copy"
     # 6. Destructive without explicit intent.

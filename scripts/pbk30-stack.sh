@@ -27,7 +27,9 @@ EXCLUDE=${SUPABASE_EXCLUDE:-"studio,imgproxy,vector,logflare,edge-runtime,supavi
 APP_PORT=3130
 API_URL="http://127.0.0.1:55421"
 MAILPIT_URL="http://127.0.0.1:55424"
-GUARD="node scripts/pbk30-fixture-guard.mjs"
+# Always check against this fixture's own API, never an inherited
+# NEXT_PUBLIC_SUPABASE_URL (CI sets a placeholder workflow-wide).
+GUARD="node scripts/pbk30-fixture-guard.mjs --target $API_URL"
 export PBK30_STACK_DIR="$DIR"
 
 die() { echo "pbk30-stack: $*" >&2; exit 3; }
