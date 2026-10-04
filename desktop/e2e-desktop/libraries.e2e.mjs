@@ -268,6 +268,36 @@ async function setVaultInput(folder) {
   await waitFor("vault path kept in the field", () => browser.execute((s, v) => document.querySelector(s)?.value === v, VAULT_INPUT, folder), RESPONSIVE_MS);
 }
 
+// --- Obsidian export through the panel (PBK-26 exporter, PBK-15 ownership) --
+
+const PANEL = '.acquire-panel[aria-label="Obsidian sync"]';
+const notesIn = (vault) => {
+  const dir = path.join(vault, "Properbooky");
+  return existsSync(dir) ? readdirSync(dir).filter((n) => n.endsWith(".md")).sort() : [];
+};
+const noteText = (vault, name) => readFileSync(path.join(vault, "Properbooky", name), "utf8");
+
+/** Sync through the real panel; returns the report or the refusal shown. */
+async function syncThroughPanel(vault) {
+  await clickLabel("Obsidian");
+  await present(PANEL);
+  await setVaultInput(vault);
+  await clickLabel("Sync highlights now");
+  const outcome = await waitFor(
+    "export outcome",
+    () =>
+      browser.execute((p) => {
+        const report = document.querySelector(".acquire-report")?.textContent.trim();
+        const status = Array.from(document.querySelectorAll(`${p} .status`)).map((e) => e.textContent.trim()).join(" | ");
+        return report || status ? { report: report || null, status: status || null } : null;
+      }, PANEL),
+    15000,
+  );
+  await clickLabel("Close");
+  await absent(PANEL);
+  return outcome;
+}
+
 async function search(term, expected) {
   await setInput('.toolbar input[type="search"]', term);
   return waitTitles(expected);
@@ -676,6 +706,57 @@ try {
     return { alpha: result, refusal, beta: betaResult };
   });
 
+  await step("I4/I7 user-authored export content is preserved and never crosses libraries", async () => {
+    // Private text inside each generated note (outside the regenerated
+    // block) and a note the user owns in alpha's export folder.
+    const [alphaNote] = notesIn(VAULT_ONE);
+    const [betaNote] = notesIn(VAULT_TWO);
+    check(alphaNote && betaNote, `notes ${alphaNote} / ${betaNote}`);
+    writeFileSync(path.join(VAULT_ONE, "Properbooky", alphaNote), `${noteText(VAULT_ONE, alphaNote)}\n## My thoughts\nPrivate alpha note: keep me.\n`);
+    writeFileSync(path.join(VAULT_TWO, "Properbooky", betaNote), `${noteText(VAULT_TWO, betaNote)}\n## My thoughts\nPrivate beta note: keep me.\n`);
+    writeFileSync(path.join(VAULT_ONE, "Properbooky", "My own alpha reading list.md"), "# Mine\n\nWritten by the user, not by ProperBooky.\n");
+    const userOwned = sha256(path.join(VAULT_ONE, "Properbooky", "My own alpha reading list.md"));
+    let vaultOne = digest(VAULT_ONE);
+    let vaultTwo = digest(VAULT_TWO);
+
+    // Beta is open: an export still bound to alpha (an old-library call in
+    // flight) is refused and touches nothing.
+    const stale = await expectRefused(rawInvoke("sync_obsidian", { libraryId: alphaId }), /not open any more/, "alpha-bound export while beta is open");
+    check(JSON.stringify(digest(VAULT_ONE)) === JSON.stringify(vaultOne), "stale export changed alpha's folder");
+
+    // Beta re-exports into its own folder: its private text survives and
+    // alpha's folder is untouched.
+    const beta = await syncThroughPanel(VAULT_TWO);
+    check(/Exported 1 highlights across 1 note/.test(beta.report ?? ""), `beta export ${JSON.stringify(beta)}`);
+    check(noteText(VAULT_TWO, betaNote).includes("Private beta note: keep me.") && noteText(VAULT_TWO, betaNote).includes("Beta-only highlight"), "beta note lost content");
+    check(!noteText(VAULT_TWO, betaNote).includes("Alpha-only"), "alpha highlight in beta's note");
+    check(JSON.stringify(digest(VAULT_ONE)) === JSON.stringify(vaultOne), "beta export changed alpha's folder");
+    // Beta into alpha's folder (same relative book path, same identity UUID)
+    // is refused; alpha's notes, including the private text, are unchanged.
+    const crossed = await syncThroughPanel(VAULT_ONE);
+    check(!crossed.report && /library “alpha-shelf”/.test(crossed.status ?? ""), `beta into alpha's folder ${JSON.stringify(crossed)}`);
+    check(JSON.stringify(digest(VAULT_ONE)) === JSON.stringify(vaultOne), "alpha's folder changed by beta");
+    await syncThroughPanel(VAULT_TWO); // keep beta's own folder as its setting
+    vaultTwo = digest(VAULT_TWO);
+
+    // Alpha re-exports: its private text and the user's own note survive.
+    await openDialog();
+    await clickLabel("Open alpha-shelf");
+    await opened("alpha-shelf", ALPHA_TITLES);
+    const alpha = await syncThroughPanel(VAULT_ONE);
+    check(/Exported 1 highlights across 1 note/.test(alpha.report ?? ""), `alpha export ${JSON.stringify(alpha)}`);
+    const text = noteText(VAULT_ONE, alphaNote);
+    check(text.includes("Private alpha note: keep me.") && text.includes("Alpha-only highlight") && !text.includes("Beta-only"), "alpha note content");
+    check(sha256(path.join(VAULT_ONE, "Properbooky", "My own alpha reading list.md")) === userOwned, "user's own note changed");
+    check(JSON.stringify(digest(VAULT_TWO)) === JSON.stringify(vaultTwo), "alpha export changed beta's folder");
+    await shot("04b-user-content-preserved");
+
+    await openDialog();
+    await clickLabel("Open beta-shelf");
+    await opened("beta-shelf", BETA_WITH_ARTICLE);
+    return { stale, beta: beta.report, refused: crossed.status, alpha: alpha.report };
+  });
+
   await step("C2 rename with the keyboard; empty and cancelled names change nothing", async () => {
     await openDialog();
     await browser.execute(() => document.querySelector('button[aria-label="Rename beta-shelf"]').focus());
@@ -724,6 +805,20 @@ try {
     return { explanation, files_kept: betaDigest.length };
   });
 
+  await step("I5 a removed library still owns its export folder", async () => {
+    // Alpha is open and beta (exported to vault two) was removed. Pointing
+    // alpha at beta's folder passes the list check (beta is no longer
+    // listed) but the folder's marker still names beta: refused.
+    const vaultTwo = digest(VAULT_TWO);
+    const refused = await syncThroughPanel(VAULT_TWO);
+    check(!refused.report && /library “Archive shelf”/.test(refused.status ?? "") && /re-add it/.test(refused.status ?? ""), `removed owner ${JSON.stringify(refused)}`);
+    check(JSON.stringify(digest(VAULT_TWO)) === JSON.stringify(vaultTwo), "removed library's export folder changed");
+    const back = await syncThroughPanel(VAULT_ONE);
+    check(/Exported 1 highlights/.test(back.report ?? ""), `alpha back to its folder ${JSON.stringify(back)}`);
+    check(noteText(VAULT_ONE, notesIn(VAULT_ONE).find((n) => n !== "My own alpha reading list.md")).includes("Private alpha note: keep me."), "alpha private text lost");
+    return { refused: refused.status };
+  });
+
   await step("C2 re-add restores the same library with its data", async () => {
     await pastePath(B);
     await opened("Archive shelf", BETA_WITH_ARTICLE);
@@ -735,6 +830,16 @@ try {
     const state = await invoke("get_sidecar", { path: path.join(B, QUILL_REL) });
     check(state.highlights.some((h) => h.text === "Beta-only highlight"), "beta highlight lost");
     return { id: betaId, progress, export_folder: settingsView.export_folder };
+  });
+
+  await step("I5 after re-add, beta exports to its own folder and keeps its private text", async () => {
+    const vaultOne = digest(VAULT_ONE);
+    const result = await syncThroughPanel(VAULT_TWO);
+    check(/Exported 1 highlights across 1 note/.test(result.report ?? ""), `beta export after re-add ${JSON.stringify(result)}`);
+    const [betaNote] = notesIn(VAULT_TWO);
+    check(noteText(VAULT_TWO, betaNote).includes("Private beta note: keep me."), "beta private text lost after re-add");
+    check(JSON.stringify(digest(VAULT_ONE)) === JSON.stringify(vaultOne), "alpha's folder changed");
+    return { report: result.report };
   });
 
   await step("C4 empty folder opens with an honest empty state", async () => {
@@ -773,6 +878,20 @@ try {
     return { rows: list.map((r) => r.name) };
   });
 
+  await step("I5 after restart, alpha re-exports and keeps the user's content", async () => {
+    await click("#tab-library");
+    await waitTitles(ALPHA_TITLES);
+    const vaultTwo = digest(VAULT_TWO);
+    const userOwned = sha256(path.join(VAULT_ONE, "Properbooky", "My own alpha reading list.md"));
+    const result = await syncThroughPanel(VAULT_ONE);
+    check(/Exported 1 highlights across 1 note/.test(result.report ?? ""), `alpha export after restart ${JSON.stringify(result)}`);
+    const note = notesIn(VAULT_ONE).find((n) => n !== "My own alpha reading list.md");
+    check(noteText(VAULT_ONE, note).includes("Private alpha note: keep me."), "alpha private text lost after restart");
+    check(sha256(path.join(VAULT_ONE, "Properbooky", "My own alpha reading list.md")) === userOwned, "user's own note changed");
+    check(JSON.stringify(digest(VAULT_TWO)) === JSON.stringify(vaultTwo), "beta's folder changed");
+    return { report: result.report };
+  });
+
   await step("close app (session 2)", closeApp);
 
   // ---- Session 3: missing / moved, unreadable, unwritable --------------------
@@ -793,6 +912,9 @@ try {
     await sleep(1500);
     check(!existsSync(A), "the missing folder was recreated");
     check(JSON.stringify(digest(B)) === JSON.stringify(betaBeforeMissing), "another library was written");
+    const vaultOne = digest(VAULT_ONE);
+    await expectRefused(invoke("sync_obsidian"), /was not found/, "export from a missing library");
+    check(JSON.stringify(digest(VAULT_ONE)) === JSON.stringify(vaultOne), "export folder changed for a missing library");
     await shot("07-missing-folder");
     return { error, state };
   });

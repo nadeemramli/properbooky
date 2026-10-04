@@ -230,6 +230,16 @@ try {
     });
   }
 
+  if (BASE_APP) {
+    await step("user adds private text to the previous build's export note", () => {
+      const [note] = readdirSync(path.join(vault, "Properbooky")).filter((n) => n.endsWith(".md"));
+      const file = path.join(vault, "Properbooky", note);
+      check(!readFileSync(file, "utf8").includes("properbooky:highlights:start"), "previous build already wrote block markers");
+      writeFileSync(file, `${readFileSync(file, "utf8")}\nMy legacy thought: keep me.\n`);
+      return { note };
+    });
+  }
+
   let before;
   await step("upgrade rehearsal runs on a copy; the original is kept as the backup", () => {
     check(!existsSync(path.join(appDir, "settings.json")), "legacy app-data already has a library list");
@@ -267,8 +277,25 @@ try {
     await click('.reader-bar button[aria-label="Next page"]');
     await waitFor("page 3 saved", async () => sidecar(lib).value?.position === "3", 10000);
     await shot("02-upgraded");
+    let exported = null;
+    if (BASE_APP) {
+      // The migrated library takes over the folder the previous build wrote:
+      // the current exporter keeps the user's text and claims the folder.
+      await click("#tab-library");
+      await waitTitles(TITLES);
+      await clickText("Obsidian");
+      await waitFor("vault carried into the panel", () => browser.execute((v) => document.querySelector('.acquire-panel[aria-label="Obsidian sync"] .path-form input')?.value === v, vault), RESPONSIVE_MS);
+      await clickText("Sync highlights now");
+      exported = await waitFor("export after upgrade", () => browser.execute(() => document.querySelector(".acquire-report")?.textContent.trim() || document.querySelector('.acquire-panel .status')?.textContent.trim() || null), 15000);
+      check(/^Exported 1 highlights/.test(exported), `export after upgrade: ${exported}`);
+      const out = path.join(vault, "Properbooky");
+      const notes = readdirSync(out).filter((n) => n.endsWith(".md"));
+      const text = readFileSync(path.join(out, notes[0]), "utf8");
+      check(notes.length === 1 && text.includes("Legacy highlight") && text.includes("properbooky:highlights:start") && text.includes("My legacy thought: keep me."), `legacy note after upgrade: ${text}`);
+      check(JSON.parse(readFileSync(path.join(out, ".properbooky-library"), "utf8")).library_id === libraryId, "export folder not claimed by the migrated library");
+    }
     await closeApp();
-    return { id: libraryId, progress, settings: saved };
+    return { id: libraryId, progress, settings: saved, exported };
   });
 
   await step("legacy database untouched by the upgrade; the original backup unchanged", () => {
