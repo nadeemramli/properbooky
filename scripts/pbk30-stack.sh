@@ -70,7 +70,7 @@ verify() {
     die "applied migration versions differ from supabase/migrations"
   fi
   image=$(docker inspect "supabase_db_$ID" --format '{{.Config.Image}}')
-  digest=$(docker image inspect "$image" --format '{{.Id}} {{join .RepoDigests ","}}')
+  digest=$(docker image inspect "$image" --format '{{.Id}} {{json .RepoDigests}}')
   case "$image" in *":$PINNED_POSTGRES") ;; *) die "database image $image is not the pinned $PINNED_POSTGRES" ;; esac
   {
     echo "project_id=$ID"
