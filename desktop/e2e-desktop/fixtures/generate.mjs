@@ -10,6 +10,7 @@ import path from "node:path";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const libraryDir = path.join(here, "library");
+const catalogDir = path.join(here, "catalog");
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
   let c = n;
@@ -165,12 +166,48 @@ export const FIXTURES = {
   ]),
 };
 
+// PBK-24 catalog profiles, copied into `<library>/Catalog/` by the reading
+// journey: two link committed files (shown once, through the profile), one
+// names a file that does not exist, one is a wishlist entry with no file.
+const profile = (fields) =>
+  Buffer.from(`---\n${fields.join("\n")}\n---\n\nSynthetic catalog note kept verbatim.\n`, "utf8");
+
+export const CATALOG = {
+  "Quillfeather Orbit Atlas.md": profile([
+    "title: The Quillfeather Orbit Atlas",
+    "author: Synthetic Cartographer",
+    "status: reading",
+    "file: quillfeather-orbit-atlas.pdf",
+  ]),
+  "Basalt Ledger Handbook.md": profile([
+    "title: The Basalt Ledger Handbook",
+    "author: Synthetic Archivist",
+    "status: done",
+    "file: basalt-ledger-handbook.pdf",
+  ]),
+  "Vanished Atlas.md": profile([
+    "title: Vanished Atlas",
+    "author: Synthetic Surveyor",
+    "status: queued",
+    "file: vanished-atlas.pdf",
+  ]),
+  "Moonlit Wishlist Volume.md": profile([
+    "title: Moonlit Wishlist Volume",
+    "author: Synthetic Poet",
+    "status: wishlist",
+  ]),
+};
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const check = process.argv.includes("--check");
   mkdirSync(libraryDir, { recursive: true });
+  mkdirSync(catalogDir, { recursive: true });
   let stale = 0;
-  for (const [name, bytes] of Object.entries(FIXTURES)) {
-    const file = path.join(libraryDir, name);
+  for (const [file, bytes] of [
+    ...Object.entries(FIXTURES).map(([name, bytes]) => [path.join(libraryDir, name), bytes]),
+    ...Object.entries(CATALOG).map(([name, bytes]) => [path.join(catalogDir, name), bytes]),
+  ]) {
+    const name = path.relative(here, file);
     if (check) {
       let current = null;
       try {

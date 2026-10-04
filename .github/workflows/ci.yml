@@ -143,10 +143,10 @@ jobs:
         working-directory: desktop/src-tauri
         run: cargo test
 
-  # Packaged desktop E2E (PBK-18): builds the debug .deb, extracts the
-  # packaged binary and drives it with tauri-driver against the committed
-  # synthetic fixture library and fresh per-run app-data. No dev server, no
-  # personal library. Web local-Supabase runtime checks (PBK-30) are separate.
+  # Packaged desktop E2E (PBK-18, PBK-24 reading journey): builds the debug
+  # .deb, extracts the packaged binary and drives it with tauri-driver against
+  # the committed synthetic fixture library and fresh per-run app-data. No dev
+  # server, no personal library. Web local-Supabase checks (PBK-30) are separate.
   desktop-e2e:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -196,6 +196,9 @@ jobs:
       - name: Packaged smoke rerun (new clean app-data, repeatability)
         working-directory: desktop
         run: E2E_ARTIFACTS="$ARTIFACTS/run-2" xvfb-run -a npm run test:e2e:packaged
+      - name: PBK-24 reading journey (tabs, EPUB/PDF paging, sidecar positions across close/restart/index rebuild, failure paths)
+        working-directory: desktop
+        run: E2E_ARTIFACTS="$ARTIFACTS/reading-journey" xvfb-run -a npm run test:e2e:reading
       - name: Injected failures exit nonzero, bounded, cleaned up
         working-directory: desktop
         run: E2E_ARTIFACTS="$ARTIFACTS/failures" xvfb-run -a npm run test:e2e:packaged:failures
