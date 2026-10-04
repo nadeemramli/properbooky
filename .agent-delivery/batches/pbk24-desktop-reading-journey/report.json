@@ -1,0 +1,290 @@
+{
+  "batch_id": "pbk24-desktop-reading-journey",
+  "dispatch": "pbk-fresh-reader-20261004 (coordinator claim codex-product-coordinator, PBK-24 v6; this worker writes code/evidence only, never Direct)",
+  "issue_keys": [
+    "PBK-24"
+  ],
+  "base_sha": "f2672f289a2972ce88e1ba0a01173271b8de97ae",
+  "tested_sha": "5012151354d132692ed5d2fcead634b5807b03d4",
+  "tested_sha_note": "Final local packaged binary built from the clean tree at 5012151 (git status clean for desktop/ and .github/); all final local checks ran that binary with the 5012151 scripts.",
+  "handoff_sha": "the evidence-only commit that adds this report (child of 5012151); see PR head",
+  "branch": "claude/jolly-wright-dxg02n",
+  "pr_url": "https://github.com/nadeemramli/properbooky/pull/19",
+  "model_observed": "claude-opus-5-5 (runtime get_session: configured_model, session_context.model and last_served_model all claude-opus-5-5)",
+  "environment": "Anthropic cloud container, Ubuntu 24.04 (Linux 6.18), rustc/cargo 1.97.0, Node 22.22.0, tauri-driver 2.1.0, webkit2gtk-driver + libwebkit2gtk-4.1 from noble, Xvfb via xvfb-run. Packaged debug .deb (tauri build --debug --bundles deb) extracted with dpkg-deb; per-run temp XDG_DATA/CONFIG/CACHE/STATE_HOME and a temp copy of the committed synthetic fixtures. No dev server, no owner library, no Supabase, no network services.",
+  "gaps_reproduced_on_base": [
+    {
+      "id": "G1",
+      "where": "packaged base binary e87d90c5... (probe)",
+      "observed": "EPUB at 17% (sidecar percent 0.1739); close tab and reopen -> sidecar percent removed, ribbon 0%, reader shows '—'"
+    },
+    {
+      "id": "G2",
+      "where": "packaged base binary (probe)",
+      "observed": "focus close button, Enter -> tab closed, document.activeElement = BODY"
+    },
+    {
+      "id": "G3",
+      "where": "packaged base binary (probe)",
+      "observed": "0-byte EPUB stays on 'Opening…' indefinitely, no error"
+    },
+    {
+      "id": "G4",
+      "where": "packaged base binary (probe)",
+      "observed": "sidecar replaced with invalid JSON containing a highlight -> reopen silently overwrote it with {position:'1',percent:0.5,highlights:[]}"
+    },
+    {
+      "id": "G5",
+      "where": "packaged base binary (probe)",
+      "observed": "sidecar path made a directory -> save_progress returns 'Is a directory (os error 21)' but the reader shows nothing"
+    },
+    {
+      "id": "G6",
+      "where": "packaged base binary (probe3, repro-rapid)",
+      "observed": "open EPUB then switch to Library while loading: React root empty (whole app blank, all tabs lost) after 3 iterations; errors t.removeEventListener / this._locations.length. Same probe on the fixed binary: 15/15 iterations, no blanking, no errors"
+    },
+    {
+      "id": "G7",
+      "where": "code inspection of base (not separately executed on the base binary)",
+      "observed": "list_books never reads sidecars and the 'Continue reading' filter uses reading_status only, so reading a plain file cannot change its card or filter membership; the base probe showed Zephyr as 'EPUB · unread' with no progress element"
+    },
+    {
+      "id": "G8",
+      "where": "CI run 37186968415 desktop-e2e (coordinator-inspected failure.png/html/report: path typed, Index button enabled, no Scanning/status/error; launch 31463ms, step failed after 30082ms), plus code inspection",
+      "observed": "First-run 'Index this path' click did not reach the submit handler on a slow runner. Root cause not proven by artifacts alone; two base mechanisms that silently drop such a click were removed: (a) WebDriver click on a still-disabled button is ignored (harnesses now wait for the enabled button), (b) LibraryView rendered 'Loading your library…' above the first-run form while no library exists, shifting the button (product fix: not shown before a folder is chosen). Not reproduced locally (8 runs incl. 6 under CPU saturation)."
+    }
+  ],
+  "already_working_on_base_retained_as_proof": [
+    "Library tab + per-book closable tabs, PDF page render/prev-next/page input/fit width, EPUB paginated prev/next, sidecars in <library>/.properbooky/state, restart restore (PBK-18 smoke), linked catalog/file dedup, missing-file and wishlist cards, corrupt PDF error"
+  ],
+  "criteria": [
+    {
+      "issue_key": "PBK-24",
+      "criterion": "(1) Open the synthetic EPUB and PDF from the actual grid and paginate",
+      "action": "Click card Read buttons; PDF: Next, Previous, ArrowRight, page input 3, Fit width toggle, ArrowLeft; EPUB: Next button, ArrowRight, ArrowLeft",
+      "expected": "Linked PDF renders page text 'Quillfeather Orbit Atlas - page N' for each move; fit width widens canvas; EPUB CFI advances and ArrowLeft returns to the previous CFI",
+      "observed": "page 1->2->1->2->3 (text verified), canvas 530px->828px, ->2; EPUB CFIs /4/2 -> /4/14 -> /4/26 -> /4/14",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug (WebKitGTK, Xvfb)",
+      "evidence": [
+        "journey steps 'C1/C4 open linked PDF profile…', 'C1 PDF paginates…', 'C1 open EPUB from the grid and paginate…'",
+        "screenshots 02-pdf-page2-fit-width.png, 03-epub-two-tabs.png (CI artifact desktop-e2e-evidence/reading-journey)"
+      ]
+    },
+    {
+      "issue_key": "PBK-24",
+      "criterion": "(1b) Empty/corrupt book files fail clearly and leave the app usable",
+      "action": "Open runtime-created 0-byte 'hollow-reed.epub' and corrupt 'cracked-quartz.pdf' from the grid",
+      "expected": "Actionable error in the tab; tab closable; reading state untouched",
+      "observed": "'Couldn't open this book: Error: the file is empty (0 bytes)' and '…InvalidPDFException: Invalid PDF structure.'; sidecar digest unchanged; grid intact",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug",
+      "evidence": [
+        "journey step 'C1 failure: corrupt PDF and 0-byte EPUB…'",
+        "06-empty-epub-error.png"
+      ]
+    },
+    {
+      "issue_key": "PBK-24",
+      "criterion": "(2) Non-initial positions saved as JSON sidecars in library/.properbooky/state survive close/reopen, restart of the same packaged binary, and index rebuild",
+      "action": "PDF at page 2 (0.667), EPUB at CFI /4/14 (0.087); close+reopen EPUB tab; quit and relaunch; delete all app-data (index) and re-index the same folder; in-app Rescan. Before each reopen the sidecar gets an e2e marker the app drops on rewrite, proving the asserted value is a fresh write by the reader",
+      "expected": "Exact page / CFI restored each time; percent preserved; sidecars live only under the library; app-data holds no JSON state",
+      "observed": "PDF page 2 and EPUB epubcfi(/6/2!/4/14/1:0) with percent 0.08695652173913043 after reopen, after restart, after index rebuild and after Rescan; re-indexing left every sidecar byte-identical; app-data listing has no .json",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug",
+      "evidence": [
+        "journey steps 'C2 …' (8 steps)",
+        "09-restart-restored.png, 10-after-index-rebuild.png",
+        "verify-failures case reading-lost-position: deleting the PDF sidecar between sessions fails 'C2 PDF reopens at the exact saved page after restart' with 'PDF restored at page 1, expected 2'"
+      ]
+    },
+    {
+      "issue_key": "PBK-24",
+      "criterion": "(2b) Persistence failure and corrupt state are surfaced and never destroy data",
+      "action": "Replace a sidecar with a directory (unreadable+unwritable even as root), page, then remove the obstruction; replace a sidecar with invalid JSON containing a highlight",
+      "expected": "Visible load/save notices, reader keeps paging, failed write leaves obstruction, recovery saves and clears the save notice; corrupt bytes preserved and named in the notice",
+      "observed": "Both notices shown; page 2 rendered; directory intact; after removal page 1 saved and save notice cleared; corrupt file kept byte-for-byte as <name>.json.unreadable-<ts> and named in the notice; fresh sidecar written",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug + cargo tests",
+      "evidence": [
+        "journey steps 'failure: unwritable sidecar…', 'failure: corrupt sidecar…'",
+        "07-unwritable-sidecar-notice.png, 08-corrupt-sidecar-notice.png",
+        "tests/annotations_test.rs unreadable_sidecar_is_set_aside_not_overwritten, unwritable_sidecar_reports_an_error_and_keeps_existing_state"
+      ]
+    },
+    {
+      "issue_key": "PBK-24",
+      "criterion": "(3) Progress ribbon and grid status filters reflect state",
+      "action": "Compare tab ribbon data-percent/width and card progressbar with on-disk sidecar percent; click Wishlist, Up next, Continue reading, Finished, On the shelf, Everything before and after reading; repeat after restart and index rebuild",
+      "expected": "Ribbon = sidecar percent (also immediately on reopen); filters match catalog status; partly read books appear in Continue reading",
+      "observed": "Ribbon 67% / 9% matching 0.667 / 0.087, 9% at reopen before the reader reported; Wishlist [Moonlit, Vanished (queued => wanted, file absent)], Up next [Vanished], Continue reading [Quillfeather] -> [Quillfeather, Zephyr] after reading, Finished [Basalt], On the shelf = 5 local books; same after restart/rebuild/Rescan",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug",
+      "evidence": [
+        "journey steps 'C3 shelf filters…', 'C2/C3 EPUB percent…', 'C3 grid progress and Continue reading…'",
+        "04-continue-reading.png",
+        "tests/library_identity.rs listing_reports_sidecar_progress_for_files_and_linked_profiles"
+      ]
+    },
+    {
+      "issue_key": "PBK-24",
+      "criterion": "(3b) Keyboard: tab rail, close, navigation",
+      "action": "Focus Library tab; ArrowRight/ArrowLeft/Home/End across [Library, PDF, EPUB]; Enter on PDF tab; ArrowRight on the rail while PDF open; Delete on the EPUB tab; Enter on the focused close button of the active PDF tab",
+      "expected": "Focus moves without activating; Enter opens; rail arrows never turn pages; Delete closes; focus lands on the active tab, then Library",
+      "observed": "As expected; PDF stayed on page 2 throughout; after Delete focus = PDF tab; after closing PDF focus = Library and Library selected",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug (WebDriver key events)",
+      "evidence": [
+        "journey step 'C3 keyboard: arrows move along the tab rail, Enter opens, Delete closes'",
+        "05-keyboard-closed.png"
+      ]
+    },
+    {
+      "issue_key": "PBK-24",
+      "criterion": "(3c) Rapid switch/close",
+      "action": "10 cycles of opening the EPUB and leaving it 0-60ms later; 12 rapid tab flips; close the EPUB while loading; reopen both",
+      "expected": "App never blanks; no position written to the wrong book; no reader error",
+      "observed": "App alive every cycle; PDF '2' and EPUB CFI/percent unchanged; 0 page errors on the final head",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug",
+      "evidence": [
+        "journey step 'rapid tab switching and closing writes nothing to the wrong book' (report.page_errors_rapid_switching = [])"
+      ]
+    },
+    {
+      "issue_key": "PBK-24",
+      "criterion": "(4) Linked catalog/file entry rendered once and opens the correct file",
+      "action": "Index library with catalog profiles linking quillfeather-orbit-atlas.pdf and basalt-ledger-handbook.pdf, one linking a missing file, one wishlist",
+      "expected": "One card per linked work (profile title), no file-title duplicates, exactly one Read button that opens the linked file; missing file shows 'File missing' with no Read; wishlist 'No local file'",
+      "observed": "7 cards, no 'quillfeather orbit atlas'/'basalt ledger handbook' cards; Read on 'The Quillfeather Orbit Atlas' renders 'Quillfeather Orbit Atlas - page 1' and writes that file's sidecar; Vanished Atlas 'File missing' 0 Read; Moonlit 'No local file' 0 Read",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug",
+      "evidence": [
+        "journey steps 'C4 linked catalog entries render once…', 'C1/C4 open linked PDF profile…'",
+        "01-library-grid.png"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "command": "cd desktop/src-tauri && cargo test",
+      "exit_code": 0,
+      "result": "49 passed, 0 failed, 1 ignored (3 new tests)",
+      "evidence": "local final suite at 5012151; CI job desktop"
+    },
+    {
+      "command": "cd desktop && npx tsc --noEmit -p .",
+      "exit_code": 0,
+      "result": "clean",
+      "evidence": "local; CI job desktop"
+    },
+    {
+      "command": "cd desktop && npm run fixtures:check",
+      "exit_code": 0,
+      "result": "3 books + 4 catalog profiles current; library fixture bytes unchanged from base",
+      "evidence": "local; CI"
+    },
+    {
+      "command": "rustfmt --check --edition 2021 src/annotations.rs src/library.rs tests/annotations_test.rs tests/library_identity.rs",
+      "exit_code": 0,
+      "result": "clean (rustfmt-clean at base; lib.rs was not clean at base and was not reformatted)",
+      "evidence": "local"
+    },
+    {
+      "command": "cd desktop && npx tauri build --debug --bundles deb",
+      "exit_code": 0,
+      "result": "ProperBooky_0.1.0_amd64.deb",
+      "evidence": "local at 5012151"
+    },
+    {
+      "command": "E2E_APP=<pkg>/usr/bin/desktop xvfb-run -a node e2e-desktop/reading-journey.e2e.mjs",
+      "exit_code": 0,
+      "result": "5/5 PASS at 5012151 (32/32 steps, ~19s each); also 8/8 on the previous identical-app-source binary incl. 6 under CPU saturation",
+      "evidence": "local final/journey-1..5"
+    },
+    {
+      "command": "E2E_APP=… xvfb-run -a node e2e-desktop/run-packaged.mjs",
+      "exit_code": 0,
+      "result": "2/2 PASS (PBK-18 smoke after harness extraction)",
+      "evidence": "local final/smoke-1, smoke-2"
+    },
+    {
+      "command": "E2E_APP=… xvfb-run -a node e2e-desktop/verify-failures.mjs",
+      "exit_code": 0,
+      "result": "2/2 runs at 5012151: 9/9 cases fail as intended, bounded, cleaned up (incl. new reading-lost-position)",
+      "evidence": "local final/failures, failures-rep2"
+    },
+    {
+      "command": "E2E_VERIFY_SELFTEST=1 … verify-failures.mjs",
+      "exit_code": 1,
+      "result": "expected nonzero: control case rejected (3 problems)",
+      "evidence": "local final/selftest"
+    },
+    {
+      "command": "verify-failures.mjs at fd71214",
+      "exit_code": 1,
+      "result": "wrong-restore fault case failed at an earlier wait: race between the PBK-18 fault's sidecar rewrite (reader still open) and the reader's new post-locations save; same in CI run 37186349934; fixed in 9a29a1e (fault rewrites after leaving the reader; assertions unchanged)",
+      "evidence": "local, CI 37186349934"
+    },
+    {
+      "command": "reading journey in CI run 37186968415 (9a29a1e)",
+      "exit_code": 1,
+      "result": "first-run indexing click lost (G8); fixed in 5012151",
+      "evidence": "CI 37186968415 job desktop-e2e"
+    }
+  ],
+  "ci": {
+    "run_url": "https://github.com/nadeemramli/properbooky/actions/runs/37188081377",
+    "head_sha": "5012151354d132692ed5d2fcead634b5807b03d4",
+    "conclusion": "pending at time of writing; see PR / handoff response",
+    "history": [
+      "37186349934 @ fd71214: failure (desktop-e2e: wrong-restore fault-case race; journey passed; other 5 jobs success)",
+      "37186968415 @ 9a29a1e: failure (desktop-e2e: journey first-run click lost; other 5 jobs success)"
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "local packaged binary usr/bin/desktop (debug, Linux x86_64)",
+      "sha256": "6d879a7f89e6cac3195b706c1ca82a80d430186d1db76d97628fbf2f2c151ef1",
+      "source_sha": "5012151354d132692ed5d2fcead634b5807b03d4"
+    },
+    {
+      "path": "local ProperBooky_0.1.0_amd64.deb (debug)",
+      "sha256": "9832df4d21a8c8e42c6c5e5d6d737bbf6962544ecf33bfe290358f567c6bbef2",
+      "source_sha": "5012151354d132692ed5d2fcead634b5807b03d4"
+    },
+    {
+      "path": "base binary used for gap reproduction",
+      "sha256": "e87d90c5cebcd67ccab9b565255f56cb23a3227189c7e0b0aa061e0c93d8f100",
+      "source_sha": "f2672f289a2972ce88e1ba0a01173271b8de97ae"
+    },
+    {
+      "path": "CI artifact desktop-e2e-evidence (build-identity.txt with the CI binary hash, run-1/2, reading-journey screenshots + report, failures)",
+      "sha256": "see CI run",
+      "source_sha": "CI head"
+    }
+  ],
+  "local_verification_required": [
+    "Coordinator (Windows, after deferred native access with proper known-folder app-data isolation): install the delivered build, open a disposable synthetic library, open EPUB+PDF from the grid, page, close/reopen, quit/relaunch, confirm exact positions and sidecar files under <library>\\.properbooky\\state",
+    "Windows WebView2: keyboard tab rail (arrows/Home/End/Enter/Delete), ribbon and card progress rendering, epub.js teardown under rapid switching",
+    "Windows file semantics: atomic sidecar replace (tempfile persist) over an existing sidecar and the corrupt-sidecar set-aside rename"
+  ],
+  "review_walkthrough": [
+    "Synthetic library with a catalog profile linked to a PDF: grid shows the profile once; Read opens the PDF (criterion 4)",
+    "Read the EPUB a few pages, close the tab, reopen: same page and the tab ribbon is already at the saved percent (criteria 2, 3)",
+    "Quit, relaunch: Continue reading lists the partly read books with progress bars; both reopen at the exact place (criteria 2, 3)",
+    "Keyboard only: arrows along the tab rail, Enter to open, Delete to close; focus stays on a tab (criterion 3)"
+  ],
+  "known_risks": [
+    "G8 root cause is inferred (click never reached the submit handler), not proven; both plausible mechanisms are removed; CI at the final head is the check.",
+    "Interpretation: 'Continue reading' now also includes unread-status books with saved progress > 0; opening a PDF records page 1/N, so merely opening a PDF counts as started. Explicit statuses (finished/stopped) are never overridden. Owner may prefer a different rule.",
+    "EPUB percent is approximate until epub.js locations finish generating (keeps the last stored value meanwhile); exact once generated.",
+    "Corrupt sidecars are set aside automatically on first read (bytes preserved, named in the notice); no in-app restore UI.",
+    "Reader notices show absolute sidecar paths (local paths only).",
+    "Linux/WebKitGTK only; Windows/WebView2 behaviour unverified.",
+    "ArticleReader (markdown/article, a non-goal) still swallows save errors."
+  ],
+  "next_eligible_batch": [
+    "no further cloud dispatch recorded; proposals only: PBK-25 reader verification overlaps this evidence (coordinator to decide if it can be recorded from it); PBK-26/27 highlights need their own dispatch"
+  ]
+}
