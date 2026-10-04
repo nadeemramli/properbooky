@@ -129,6 +129,11 @@ export default function LibraryView({
   const [review, setReview] = useState<Book | null>(null);
   const [cleanupReason, setCleanupReason] = useState("");
   const [loading, setLoading] = useState(false);
+  // The search the shown listing answers, and whether the latest listing
+  // failed: empty and no-results states are decided from these, never from
+  // a request still in flight (PBK-15).
+  const [listedQuery, setListedQuery] = useState<string | null>(null);
+  const [listError, setListError] = useState<{ query: string; message: string } | null>(null);
   const [authorFilter, setAuthorFilter] = useState("");
   const [topicFilter, setTopicFilter] = useState("");
   const request = useRef(0);
@@ -143,7 +148,12 @@ export default function LibraryView({
       if (sequence === request.current) {
         setBooks(result);
         setLoaded(true);
+        setListedQuery(search);
+        setListError(null);
       }
+    } catch (e) {
+      if (sequence === request.current) setListError({ query: search, message: String(e) });
+      throw e;
     } finally {
       if (sequence === request.current) setLoading(false);
     }
@@ -154,7 +164,8 @@ export default function LibraryView({
 
   useEffect(() => {
     const handle = setTimeout(() => {
-      refreshBooks(query).catch((e) => setStatus(String(e)));
+      // A failed listing is shown by the search-error alert below.
+      refreshBooks(query).catch(() => {});
     }, 150);
     return () => clearTimeout(handle);
   }, [query, refreshBooks]);
@@ -211,6 +222,10 @@ export default function LibraryView({
         !cleanupReason ||
         b.issues.includes(cleanupReason)),
   );
+  // The listing for the current search has completed (successfully).
+  const settled = loaded && !loading && !listError && listedQuery === query;
+  const failed = !loading && listError?.query === query ? listError : null;
+  const shown = failed ? [] : visible;
   const undo = async () => {
     try {
       await invoke("undo_library_edit");
@@ -286,7 +301,7 @@ export default function LibraryView({
               {f.label}
             </button>
           ))}
-          <span className="chip-count">{visible.length} items</span>
+          <span className="chip-count">{shown.length} items</span>
         </div>
       )}
 
@@ -378,7 +393,14 @@ export default function LibraryView({
         </div>
       )}
 
-      {loaded && !loading && books.length === 0 && !query && (
+      {failed && (
+        <p className="status search-error" role="alert">
+          {failed.query
+            ? `Searching for “${failed.query}” failed: ${failed.message}`
+            : `Your library could not be listed: ${failed.message}`}
+        </p>
+      )}
+      {settled && books.length === 0 && !query.trim() && (
         <div className="empty library-empty" role="note">
           <p>
             No books were found in <code>{libraryPath}</code> yet. Add EPUB, PDF or
@@ -387,7 +409,7 @@ export default function LibraryView({
         </div>
       )}
       <section className="grid">
-        {visible.map((book) => {
+        {shown.map((book) => {
           const openable = openablePath(book) !== null;
           return (
             <article
@@ -503,7 +525,13 @@ export default function LibraryView({
             </article>
           );
         })}
-        {visible.length === 0 && books.length > 0 && (
+        {settled && books.length === 0 && query.trim() && (
+          <div className="empty search-empty" role="status">
+            <p>No books match “{query}”.</p>
+            <button onClick={() => setQuery("")}>Clear search</button>
+          </div>
+        )}
+        {settled && visible.length === 0 && books.length > 0 && (
           <p className="empty">
             Nothing here{query ? ` for “${query}”` : ""}.
           </p>
