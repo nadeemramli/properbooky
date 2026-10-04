@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-04T08:20:00Z",
-  "worker": "cloud Claude Code session https://claude.ai/code/session_01EtZ3J6ATM4uFEkFR33mYe1 (sole product writer; prior session_015RzJS52EF3Dk2Rb5pEiDHJ retired)",
+  "updated_at": "2026-10-04T13:30:00Z",
+  "worker": "cloud Claude Code session https://claude.ai/code/session_01RNsLigHcU5SWHvzXzLoNx3 (sole product writer; previous session_01EtZ3J6ATM4uFEkFR33mYe1 retired after PBK-24/PBK-26)",
   "model_observed": "claude-opus-5-5 (runtime get_session)",
   "release_target": "Current approved release: desktop local-first reader plus PBK-30 web runtime verification on a local Supabase stack. Excludes PBK-7 sync/mobile, PBK-10 research, PBK-12 phases 2-3.",
   "issue_snapshot": {
@@ -9,21 +9,22 @@
     "direct_cursor": 1029
   },
   "authorized_queue": {
-    "provenance": "Coordinator dispatch pbk-fresh-reader-20261004 (PBK-24, coordinator claim codex-product-coordinator; v6 at dispatch, v8 per later coordinator note). Lifetime objective count for this worker: 1 of 3. This worker writes code/evidence only; the coordinator owns Direct.",
+    "provenance": "Coordinator dispatch pbk15-libraries-20261004-queue (PBK-15, Direct Doing v8, coordinator claim codex-product-coordinator). This worker: lifetime objective 1 of cap 3 (cap 2 if direct review/improvement feedback later). The worker writes code and evidence only; the coordinator owns Direct and Windows.",
     "dispatched_batches": [
-      "pbk24-desktop-reading-journey (pbk-fresh-reader-20261004)"
+      "pbk15-multi-library (pbk15-libraries-20261004-queue)"
     ]
   },
-  "remote_main": "f2672f289a2972ce88e1ba0a01173271b8de97ae",
+  "remote_main": "44e96b67d05213b53185d97d740f7d392e0c0c3f",
   "current_batch": {
-    "batch_id": "pbk24-desktop-reading-journey",
-    "branch": "claude/jolly-wright-dxg02n",
-    "base": "f2672f289a2972ce88e1ba0a01173271b8de97ae",
-    "tested_head": "5012151354d132692ed5d2fcead634b5807b03d4",
-    "pr": "https://github.com/nadeemramli/properbooky/pull/19 (draft)",
-    "report": ".agent-delivery/batches/pbk24-desktop-reading-journey/report.json",
-    "plan": ".agent-delivery/batches/pbk24-desktop-reading-journey/plan.md",
-    "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37188081377 (head 5012151; see handoff for conclusion)"
+    "batch_id": "pbk15-multi-library",
+    "branch": "claude/sweet-turing-shme1z",
+    "base": "44e96b67d05213b53185d97d740f7d392e0c0c3f",
+    "tested_head": "dbd648970cbec58f578b9e7fe05272af54430c52",
+    "pr": "https://github.com/nadeemramli/properbooky/pull/21 (draft)",
+    "report": ".agent-delivery/batches/pbk15-multi-library/report.json",
+    "plan": ".agent-delivery/batches/pbk15-multi-library/plan.md",
+    "pr20_integration_patch": ".agent-delivery/batches/pbk15-multi-library/pr20-integration.patch",
+    "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37204269473 (head dbd6489; see report ci)"
   },
   "completed_cloud_batches": [
     {
@@ -48,24 +49,38 @@
       "batch_id": "pbk24-desktop-reading-journey",
       "kind": "implementation + packaged E2E",
       "pr_url": "https://github.com/nadeemramli/properbooky/pull/19",
+      "status": "merged as PR #19 (main 44e96b6)"
+    },
+    {
+      "batch_id": "pbk26-highlights-export",
+      "kind": "implementation + packaged E2E",
+      "pr_url": "https://github.com/nadeemramli/properbooky/pull/20",
+      "status": "draft, pending independent review (previous session); untouched by this batch"
+    },
+    {
+      "batch_id": "pbk15-multi-library",
+      "kind": "implementation + packaged E2E + upgrade/rollback rehearsal",
+      "pr_url": "https://github.com/nadeemramli/properbooky/pull/21",
       "status": "awaiting coordinator review"
     }
   ],
   "criterion_gaps": [
-    "PBK-24: all mapped criteria Pass on Linux packaged debug build (local); Windows/WebView2 installed-app unverified (coordinator)."
+    "PBK-15: all mapped criteria Pass on the Linux packaged debug build (local, tested dbd6489); Windows/WebView2/native picker/known-folder app-data unverified (coordinator, deferred)."
   ],
   "pending_local_checks": [
-    "Coordinator Windows installed-app PBK-24 walkthrough after deferred native access with known-folder app-data isolation (see report local_verification_required)"
+    "Coordinator Windows walkthrough for PBK-15 per report local_verification_required (folder picker, known-folder app-data isolation, drive/UNC paths, single-library upgrade on a backed-up copy)",
+    "Integrate PR #20 with PR #21: resolve ci.yml/package.json adjacent conflicts and apply pr20-integration.patch"
   ],
   "pending_human_checks": [
-    "PBK-24 owner acceptance (intent/usability: tab rail, ribbon, Continue reading rule)"
+    "PBK-15 owner acceptance (intent/usability: switcher, Remove-from-list wording, missing-folder recovery)"
   ],
   "unresolved_decisions": [
     "Long-term fix for the three storage.objects migrations (keep the image pin, squash a baseline, or approve a privilege-tolerant edit)",
     "PBK-31 delete vs revive (evidence on claude/funny-dirac-xv8791 .agent-delivery/pbk-31-options.md); dashboard still queries dropped/forbidden relations",
     "Unused books columns (knowledge_spectrum, manual_rating, wishlist_*) vs metadata storage — PBK-5 candidate",
-    "PBK-15 multi-library picker in or out of the current release",
-    "PBK-24 interpretation: Continue reading includes unread books with saved progress > 0 (opening a PDF counts as started) - owner may prefer another rule"
+    "PBK-24 interpretation: Continue reading includes unread books with saved progress > 0 (opening a PDF counts as started) - owner may prefer another rule",
+    "PBK-15: nested libraries are refused by design; owner may prefer allowing them",
+    "Narrow assetProtocol.scope ['**'] to open library folders (security-sensitive capability change; not made)"
   ],
-  "next_action": "Coordinator: review PR #19 at its final head (5012151 + evidence commit), confirm CI, merge, Windows walkthrough. No further cloud batch dispatched; do not start PBK-26 or others without dispatch."
+  "next_action": "Coordinator: review PR #21 at its final head (dbd6489 + evidence commit), confirm CI, integrate with PR #20 (patch provided), merge, Windows walkthrough. No further cloud batch dispatched to this worker."
 }

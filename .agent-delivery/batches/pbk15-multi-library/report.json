@@ -1,0 +1,346 @@
+{
+  "batch_id": "pbk15-multi-library",
+  "dispatch": "pbk15-libraries-20261004-queue",
+  "issue_keys": [
+    "PBK-15"
+  ],
+  "base_sha": "44e96b67d05213b53185d97d740f7d392e0c0c3f",
+  "tested_sha": "dbd648970cbec58f578b9e7fe05272af54430c52",
+  "handoff_sha": "the evidence-only commit that adds this file (see PR head); no product/test change after tested_sha",
+  "branch": "claude/sweet-turing-shme1z",
+  "pr_url": "https://github.com/nadeemramli/properbooky/pull/21",
+  "model_observed": "claude-opus-5-5 (runtime get_session: session_context.model and last_served_model)",
+  "environment": "Anthropic cloud container, Ubuntu 24.04 (Linux 6.18), rustc/cargo 1.97.0, Node 22.22.0, tauri-driver (cargo install --locked), webkit2gtk-driver + libwebkit2gtk-4.1, Xvfb 1280x900x24, xdotool 3.20160805, capsh. Packaged debug .deb extracted with dpkg-deb; per-run temp XDG dirs; temp copies of committed synthetic fixtures; loopback-only synthetic article server. No dev server, owner library, Obsidian vault, Supabase or credentials.",
+  "design": "settings.json registry (atomic + previous copy, removed entries kept as tombstones) + one disposable index per library (app-data/libraries/<id>/library.db); every library-scoped command bound to libraryId and accepted only for the open, readable library; renderer workspace keyed by library id with in-flight settle before switching; per-library locks; per-library Obsidian folder with ownership marker; legacy library.db imported from a copy and never modified.",
+  "criteria": [
+    {
+      "issue_key": "PBK-15",
+      "criterion": "1. Launcher/switcher persists known libraries in settings and shows name, path and actual indexed book count.",
+      "action": "Opened alpha via first-run form and beta via the native picker; opened the Libraries dialog from the tab-rail switcher; restarted.",
+      "expected": "Each row shows folder name, full path and its own index COUNT; list persists in settings.json and survives restart.",
+      "observed": "Rows 'alpha-shelf'/'beta-shelf' with exact paths and '4 books indexed' each (separate libraries/<id>/library.db files); settings.json lists both with active id; after restart rows Archive shelf 5 / alpha-shelf 4 / empty-shelf 0.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb, tauri-driver/WebKitWebDriver)",
+      "evidence": [
+        "desktop-e2e-artifacts/libraries/report.json#step:C1 launcher shows name, path and the actual indexed count",
+        "desktop-e2e-artifacts/libraries/report.json#step:C1 both libraries listed with their own counts and index files",
+        "desktop-e2e-artifacts/libraries/report.json#step:C4 restart restores the library list and the open library"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "1. Open folder as library adds/selects chosen folder; repeated canonical folder does not duplicate registry; user location never predetermined.",
+      "action": "First run inspected; beta chosen in the real GTK chooser (xdotool); alpha re-added as 'alpha/' and via a symlink; picker cancelled with Escape.",
+      "expected": "No default path or library on first run; picker adds and opens the chosen folder; other spellings select the existing entry; cancel changes nothing.",
+      "observed": "First run: 0 libraries, empty path field, no settings.json. Picker opened beta-shelf (Indexed 4 books). Trailing slash and symlink selected alpha; registry stayed at 2. Cancel: 'No folder was chosen; nothing changed.', settings.json bytes identical.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb, tauri-driver/WebKitWebDriver)",
+      "evidence": [
+        "desktop-e2e-artifacts/libraries/report.json#step:C1 first run: no library, no predetermined location",
+        "desktop-e2e-artifacts/libraries/report.json#step:C1 open beta through the native folder picker",
+        "desktop-e2e-artifacts/libraries/report.json#step:C1 the same folder in another spelling selects it, never duplicates",
+        "desktop-e2e-artifacts/libraries/report.json#step:C4 canceled picker changes nothing"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "2. Rename/remove registry entry. Removal must never delete books, library directory, sidecars, indexes needed for retained data or user notes; allow re-add with data preserved. Explain registry removal clearly.",
+      "action": "Renamed beta with the keyboard (blank and Escape also tried); removed it via the confirmation; re-added the same path.",
+      "expected": "Rename persists; blank refused; removal explained and only forgets; folder and index untouched; re-add restores the same entry and data.",
+      "observed": "Name 'Archive shelf' in rail and settings; blank Save disabled and IPC refusal; confirmation text 'only forgets it … stays on disk untouched'; beta tree digest and index sha256 identical after removal; removed id refused by commands; re-add revived the same id/name/export folder, with progress 33% and 'Beta-only highlight' intact.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb, tauri-driver/WebKitWebDriver)",
+      "evidence": [
+        "desktop-e2e-artifacts/libraries/report.json#step:C2 rename with the keyboard; empty and cancelled names change nothing",
+        "desktop-e2e-artifacts/libraries/report.json#step:C2 remove from list: explained, and nothing on disk is touched",
+        "desktop-e2e-artifacts/libraries/report.json#step:C2 re-add restores the same library with its data"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "3. Each library isolates index/search/details/reader tabs/progress/highlights/exports.",
+      "action": "Beta is a copy of alpha with the same relative paths and identity UUIDs; searched, opened details, read and highlighted in alpha, switched to beta; exported both.",
+      "expected": "Each library shows only its own results, details, tabs, progress, highlights and notes; one library cannot export into another's folder.",
+      "observed": "'amber' only in alpha, 'cobalt' only in beta; details show the library's own path; reader tabs reset on switch; beta's copy not started (alpha at page 3); beta highlights panel empty; beta export into alpha's vault refused naming alpha-shelf, alpha notes byte-identical; beta exported to its own vault with only its highlight.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb, tauri-driver/WebKitWebDriver)",
+      "evidence": [
+        "desktop-e2e-artifacts/libraries/report.json#step:C3 index, search and details stay within each library",
+        "desktop-e2e-artifacts/libraries/report.json#step:C3 reading progress and highlights belong to alpha only",
+        "desktop-e2e-artifacts/libraries/report.json#step:C3 dirty reader state lands in alpha when switching mid-read",
+        "desktop-e2e-artifacts/libraries/report.json#step:C3 export: one Obsidian folder per library"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "3. Prevent old asynchronous scan/read results and dirty reader state from mutating the newly active library.",
+      "action": "Turned an alpha PDF page then switched immediately; started Save URL in beta against a held local response and switched to alpha before releasing it; sent beta-bound writes while alpha was open.",
+      "expected": "Last page turn lands in alpha only; the stale download writes nowhere; late beta-bound writes refused.",
+      "observed": "Alpha sidecar position 3 with beta's tree unchanged; after releasing the slow response, alpha and beta tree digests unchanged and no status in alpha; save_progress/update_book (with colliding UUID) refused 'This library is not open any more…'; control article saved in beta when not switched.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb, tauri-driver/WebKitWebDriver)",
+      "evidence": [
+        "desktop-e2e-artifacts/libraries/report.json#step:C3 dirty reader state lands in alpha when switching mid-read",
+        "desktop-e2e-artifacts/libraries/report.json#step:C3 control: an article saved in beta lands in beta",
+        "desktop-e2e-artifacts/libraries/report.json#step:C3 stale download: switched away before it finished, nothing is written anywhere",
+        "desktop-e2e-artifacts/libraries/report.json#step:C3/C4 late writes bound to beta are refused while alpha is open"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "3. Preserve files-as-truth, UUID sidecar/LWW/tombstone behavior.",
+      "action": "All reading state stayed in each library's .properbooky; index corruption and app-data loss rebuilt from folders; existing annotation/identity Rust suites run.",
+      "expected": "No reading state in app-data; sidecar format unchanged; rebuilds keep positions and highlights.",
+      "observed": "App-data holds only settings*.json and libraries/<id>/library.db (+WebKit storage); list contains no reading state; existing annotations/library_identity tests pass unchanged; progress and highlights intact after corrupt index, relocation and list loss.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb, tauri-driver/WebKitWebDriver)",
+      "evidence": [
+        "desktop-e2e-artifacts/libraries/report.json#step:app-data holds only the library list and per-library indexes",
+        "desktop-e2e-artifacts/libraries/report.json#step:C4 corrupt index is set aside and rebuilt from the folder",
+        "desktop-e2e-artifacts/libraries/report.json#step:C4 corrupt list without a backup: empty, explained, folders untouched",
+        "cargo test (annotations_test, library_identity)"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "3. Migrate existing single-library settings/index safely with isolated rehearsals and reversible backup plan, no owner data.",
+      "action": "Previous build 44e96b6 (packaged) created a synthetic single-library install through its UI (page 2, highlight, Obsidian vault); the new build ran on a copy; the previous build then ran on the upgraded copy; new build again. CI repeats with the repository seeder. Rust tests cover WAL/corrupt/empty legacy files.",
+      "expected": "Library, position, highlight and vault carry over; legacy library.db unchanged; original app-data untouched; rollback build keeps working; no second import.",
+      "observed": "Opened 'single-library' at 67%, PDF page 2, highlight present, vault carried (export folder shown); library.db sha256 unchanged with no -wal created; original backup digest unchanged; previous build on the upgraded copy reopened page 3 (written by the new build); re-upgrade kept the same id.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb, tauri-driver/WebKitWebDriver)",
+      "evidence": [
+        "desktop-e2e-artifacts/library-upgrade-base/report.json#step:binaries and legacy source present",
+        "desktop-e2e-artifacts/library-upgrade-base/report.json#step:fresh temp app-data, library copy and vault",
+        "desktop-e2e-artifacts/library-upgrade-base/report.json#step:tauri-driver ready",
+        "desktop-e2e-artifacts/library-upgrade-base/report.json#step:previous build: index the library, read to page 2, set the Obsidian vault",
+        "desktop-e2e-artifacts/library-upgrade-base/report.json#step:upgrade rehearsal runs on a copy; the original is kept as the backup",
+        "desktop-e2e-artifacts/library-upgrade-base/report.json#step:new build on the copy: the library opens as before, with its reading state",
+        "desktop-e2e-artifacts/library-upgrade-base/report.json#step:legacy database untouched by the upgrade; the original backup unchanged",
+        "desktop-e2e-artifacts/library-upgrade-base/report.json#step:rollback: the previous build on the upgraded copy keeps every reading fact",
+        "desktop-e2e-artifacts/library-upgrade-base/report.json#step:re-upgrade does not import again: same library, same id",
+        "desktop-e2e-artifacts/library-upgrade/report.json (CI, seeder mode)",
+        "cargo test libraries_test (legacy_* tests)"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "4. Restart restores registry and safe active selection. Empty, missing/moved, inaccessible folders recover visibly without silently opening another path, deleting facts or writing to wrong location.",
+      "action": "Restarted with the list; renamed alpha's folder on disk and relaunched; Check again; Locate folder… via picker; chmod 000 a library; opened an empty folder.",
+      "expected": "Last open library reopens; missing/unreadable shown with recovery actions, nothing else opened, nothing recreated; empty folder honest.",
+      "observed": "Restart reopened empty-shelf with all rows; missing: 'was not found at … Nothing was opened in its place', no workspace, folder not recreated, beta unchanged, writes refused; Locate re-pointed the same entry with progress 100% and highlight intact; unreadable row 'Folder can't be read', switch refused, recovered after chmod 755; empty: 'No books were found in … yet', 0 books indexed.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb, tauri-driver/WebKitWebDriver); permission cases run as root with cap_dac_override/cap_dac_read_search dropped (capsh); CI runner is non-root",
+      "evidence": [
+        "desktop-e2e-artifacts/libraries/report.json#step:C4 restart restores the library list and the open library",
+        "desktop-e2e-artifacts/libraries/report.json#step:C4 moved folder: visible, nothing opened in its place, nothing recreated",
+        "desktop-e2e-artifacts/libraries/report.json#step:C4 locate the moved folder with the picker: data intact",
+        "desktop-e2e-artifacts/libraries/report.json#step:C4 unreadable folder: shown as such, refused, recovers after access returns",
+        "desktop-e2e-artifacts/libraries/report.json#step:C4 empty folder opens with an honest empty state"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "4. Don't follow paths supplied by renderer beyond current authorized library boundary. Use existing Rust picker and capability scope.",
+      "action": "IPC calls with another library's or an outside path, unknown ids, a nested folder and a .properbooky folder.",
+      "expected": "All refused; nothing written outside; no capability added.",
+      "observed": "get_sidecar/save_progress/set_catalog_status outside refused 'path is outside the library' (outside folder unchanged, no .properbooky created); unknown id refused; nested folder and state folder refused. No capability or permission changes (capabilities/default.json, tauri.conf.json untouched).",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb, tauri-driver/WebKitWebDriver)",
+      "evidence": [
+        "desktop-e2e-artifacts/libraries/report.json#step:C4 renderer paths and ids outside the open library are refused",
+        "desktop-e2e-artifacts/libraries/report.json#step:C3/C4 late writes bound to beta are refused while alpha is open"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "4/5. Corrupt/unwritable settings/index recovery.",
+      "action": "Made the app-data dir read-only and renamed; wrote garbage into an index; wrote garbage into settings.json with and without a backup.",
+      "expected": "Visible failures/notices; quarantined files kept; nothing silently overwritten or opened elsewhere.",
+      "observed": "Rename on read-only list: 'cannot save the library list', settings bytes and in-memory name unchanged; corrupt index kept as library.db.unreadable-<t>, rebuilt, notice shown; corrupt list kept as settings.json.unreadable-<t>, previous list restored with notice; without backup: empty launcher, notice 'Open your library folders again', folders untouched, re-add restored progress.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb, tauri-driver/WebKitWebDriver)",
+      "evidence": [
+        "desktop-e2e-artifacts/libraries/report.json#step:C4 unwritable library list: rename fails visibly and nothing changes",
+        "desktop-e2e-artifacts/libraries/report.json#step:C4 corrupt index is set aside and rebuilt from the folder",
+        "desktop-e2e-artifacts/libraries/report.json#step:C4 corrupt library list restores the previous saved list, visibly",
+        "desktop-e2e-artifacts/libraries/report.json#step:C4 corrupt list without a backup: empty, explained, folders untouched"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "5. Real packaged Linux UI -> IPC -> settings/index/files E2E with two synthetic libraries; required checks/build plus affected reader/highlight regressions and exact-head CI.",
+      "action": "Ran every check and packaged suite at the tested SHA (see checks); CI at the same head.",
+      "expected": "All exit 0.",
+      "observed": "All local checks exit 0 at dbd6489 (libraries journey twice, 40 steps each, no leftover processes); CI result recorded under ci.",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, Xvfb, tauri-driver/WebKitWebDriver)",
+      "evidence": [
+        "final verification exits (checks[])",
+        "https://github.com/nadeemramli/properbooky/actions/runs/37204269473"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "command": "cd desktop/src-tauri && cargo test",
+      "exit_code": 0,
+      "result": "all suites pass; libraries_test 19 passed",
+      "evidence": "local final verification at dbd648970cbec58f578b9e7fe05272af54430c52"
+    },
+    {
+      "command": "cd desktop && npx tsc --noEmit -p .",
+      "exit_code": 0,
+      "result": "no errors",
+      "evidence": "local final verification at dbd648970cbec58f578b9e7fe05272af54430c52"
+    },
+    {
+      "command": "cd desktop && npm run fixtures:check",
+      "exit_code": 0,
+      "result": "fixtures current",
+      "evidence": "local final verification at dbd648970cbec58f578b9e7fe05272af54430c52"
+    },
+    {
+      "command": "cd mcp && npm test",
+      "exit_code": 0,
+      "result": "4 passed incl. open-library resolution",
+      "evidence": "local final verification at dbd648970cbec58f578b9e7fe05272af54430c52"
+    },
+    {
+      "command": "cd desktop && npx tauri build --debug --bundles deb",
+      "exit_code": 0,
+      "result": "deb built",
+      "evidence": "local final verification at dbd648970cbec58f578b9e7fe05272af54430c52"
+    },
+    {
+      "command": "cd desktop/src-tauri && cargo build --example seed_index",
+      "exit_code": 0,
+      "result": "legacy seeder built",
+      "evidence": "local final verification at dbd648970cbec58f578b9e7fe05272af54430c52"
+    },
+    {
+      "command": "E2E_ARTIFACTS=…/run-1 xvfb-run -a npm run test:e2e:packaged",
+      "exit_code": 0,
+      "result": "PASS 20 steps",
+      "evidence": "local final verification at dbd648970cbec58f578b9e7fe05272af54430c52"
+    },
+    {
+      "command": "E2E_ARTIFACTS=…/run-2 xvfb-run -a npm run test:e2e:packaged",
+      "exit_code": 0,
+      "result": "PASS 20 steps",
+      "evidence": "local final verification at dbd648970cbec58f578b9e7fe05272af54430c52"
+    },
+    {
+      "command": "E2E_ARTIFACTS=…/reading-journey xvfb-run -a npm run test:e2e:reading",
+      "exit_code": 0,
+      "result": "PASS 32 steps (PBK-24 regression)",
+      "evidence": "local final verification at dbd648970cbec58f578b9e7fe05272af54430c52"
+    },
+    {
+      "command": "capsh --drop=cap_dac_override,cap_dac_read_search -- -c \"xvfb-run -a -s '-screen 0 1280x900x24' npm run test:e2e:libraries\" (run 1)",
+      "exit_code": 0,
+      "result": "PASS 40 steps",
+      "evidence": "local final verification at dbd648970cbec58f578b9e7fe05272af54430c52"
+    },
+    {
+      "command": "same (run 2)",
+      "exit_code": 0,
+      "result": "PASS 40 steps",
+      "evidence": "local final verification at dbd648970cbec58f578b9e7fe05272af54430c52"
+    },
+    {
+      "command": "E2E_BASE_APP=<44e96b6 packaged> xvfb-run -a npm run test:e2e:library-upgrade",
+      "exit_code": 0,
+      "result": "PASS 9 steps incl. rollback",
+      "evidence": "local final verification at dbd648970cbec58f578b9e7fe05272af54430c52"
+    },
+    {
+      "command": "E2E_SEED_INDEX=…/seed_index xvfb-run -a npm run test:e2e:library-upgrade",
+      "exit_code": 0,
+      "result": "PASS 8 steps",
+      "evidence": "local final verification at dbd648970cbec58f578b9e7fe05272af54430c52"
+    },
+    {
+      "command": "xvfb-run -a npm run test:e2e:packaged:failures",
+      "exit_code": 0,
+      "result": "FAILURE-PATH VERIFICATION: PASS",
+      "evidence": "local final verification at dbd648970cbec58f578b9e7fe05272af54430c52"
+    },
+    {
+      "command": "rustfmt --check --edition 2021 src/lib.rs src/libraries.rs tests/libraries_test.rs",
+      "exit_code": 0,
+      "result": "own files clean (pre-existing diffs in untouched acquire/article/catalog/extract/matcher only)",
+      "evidence": "local final verification at dbd648970cbec58f578b9e7fe05272af54430c52"
+    }
+  ],
+  "ci": {
+    "run_url": "https://github.com/nadeemramli/properbooky/actions/runs/37204269473",
+    "head_sha": "dbd648970cbec58f578b9e7fe05272af54430c52",
+    "conclusion": "pending"
+  },
+  "artifacts": [
+    {
+      "path": "desktop/src-tauri/target/debug/bundle/deb/ProperBooky_0.1.0_amd64.deb",
+      "sha256": "a907806af0921804642082f956f676e4e3618c6ce8bf61181cd93d52ada5b756",
+      "source_sha": "dbd648970cbec58f578b9e7fe05272af54430c52"
+    },
+    {
+      "path": "<deb>/usr/bin/desktop",
+      "sha256": "bf9066bccfa59be3d6e477e4eb3329db949c643ce6e238c3743e6a29302e7cd0",
+      "source_sha": "dbd648970cbec58f578b9e7fe05272af54430c52"
+    },
+    {
+      "path": "previous build for rollback rehearsal: <44e96b6 deb>/usr/bin/desktop",
+      "sha256": "f5e729534ceac3daf316dc258bb5bcc879ed199dadf1d582755846f9f160649e",
+      "source_sha": "44e96b67d05213b53185d97d740f7d392e0c0c3f"
+    },
+    {
+      "path": "CI artifact desktop-e2e-evidence (libraries/, library-upgrade/ reports and screenshots 01-11)",
+      "sha256": null,
+      "source_sha": "dbd648970cbec58f578b9e7fe05272af54430c52"
+    }
+  ],
+  "defects_found_and_fixed": [
+    "GTK location completion opened a library's own .properbooky folder as a new library (f369a7c: refused)",
+    "Read-only SQLite open created an empty library.db-wal beside the legacy database (992b817: import reads a temp copy)",
+    "Obsidian panel's late settings load replaced a path the user had typed (f986d14)",
+    "First-run launcher flashed before the saved list loaded; dialog showed stale folder status (f986d14)",
+    "sync_obsidian (main-thread command) would have waited on a scan lock (dbd6489: lock removed, as before)"
+  ],
+  "integration_with_pr20": {
+    "pr20": "https://github.com/nadeemramli/properbooky/pull/20 @ 260da9fe7b1d09345964590afa8570c625be88ea (not merged, not approved by this worker)",
+    "trial_merge": "git merge-tree: textual conflicts only in .github/workflows/ci.yml and desktop/package.json (adjacent additions; keep both). Reader/ObsidianPanel/types/readingState/App.css auto-merge; merged tree passes tsc.",
+    "required_followup": "apply .agent-delivery/batches/pbk15-multi-library/pr20-integration.patch to highlights.e2e.mjs (export listing .md only; app-data admits settings*.json)",
+    "merged_build_result": "Local only, not a delivered build: tree = git merge-tree(dbd6489, 260da9f) with package.json conflict resolved (keep both) and pr20-integration.patch applied; packaged debug build binary sha256 16ff6d4896668559e85acaba65a07d6c6b45197ee726220ebebf5930426fddb8; PR #20 highlights.e2e.mjs PASS (exit 0) and libraries.e2e.mjs PASS (exit 0, capsh). ci.yml conflict not exercised (workflow only)."
+  },
+  "local_verification_required": [
+    "Windows installed app (coordinator, deferred native access): first run → Open folder as library via the Windows folder picker → second library → switch/rename/remove/re-add → restart restores; app-data under the Windows known-folder location with proper isolation (not APPDATA override).",
+    "Windows path handling: drive-letter and UNC paths, case-insensitive dedupe (canonical key lowercases on Windows, strips \\\\?\\), a library on a removable/disconnected drive shown as 'Folder not found'.",
+    "Windows upgrade of an existing single-library install on a backed-up copy: library listed, positions/highlights/vault kept, library.db unchanged, previous build still opens it.",
+    "WebView2 keyboard/focus behaviour of the Libraries dialog (Escape, Tab trap, focus return to switcher)."
+  ],
+  "review_walkthrough": [
+    "Fresh app-data → Libraries page with no library and an empty path field → Open folder as library… → pick folder A → 'Indexed N books' (C1).",
+    "Tab-rail switcher → Libraries dialog → Open folder as library… → folder B → B opens; dialog lists A and B with path and count; adding A again (any spelling) does not duplicate (C1).",
+    "Read a book in A, switch to B: B has no A tabs/progress/highlights; Obsidian: B cannot use A's folder (C3).",
+    "Rename B, Remove from list (read the explanation), add B's folder again → same name and progress (C2).",
+    "Quit, move A's folder, relaunch → 'Folder not found … Nothing was opened in its place' → Locate folder… → A reopens with its progress (C4)."
+  ],
+  "known_risks": [
+    "A switch that fails after the workspace was closed (e.g. folder vanished in between) reopens the previous library with its reader tabs closed; the error is shown.",
+    "Late writes from the previous library get up to 1.5 s to finish before switching; a write issued later is refused (never redirected), so an unflushed position older than that can be lost, as when closing a tab.",
+    "Obsidian vault path must now be an existing folder (previously created on export).",
+    "assetProtocol.scope is ['**'] (pre-existing): the webview can load any local file by path. Narrowing it per library is a security-sensitive capability change not made here; recommended as a separate decision.",
+    "Nested libraries are refused by design (each library indexes everything under its folder); owner may prefer allowing them.",
+    "Linux-only evidence; Windows/WebView2/native picker unverified."
+  ],
+  "unresolved_platform_boundaries": [
+    "Windows native picker and known-folder app-data",
+    "WebView2",
+    "installer/MSI/NSIS",
+    "macOS not targeted"
+  ],
+  "next_eligible_batch": [
+    "no eligible batch dispatched to this worker; lifetime objective 1 of cap 3 used"
+  ]
+}
