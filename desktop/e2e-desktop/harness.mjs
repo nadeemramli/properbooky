@@ -261,8 +261,29 @@ export const cardTitles = () =>
     Array.from(document.querySelectorAll(".grid .card h2")).map((h) => h.textContent.trim()),
   );
 
+// Commands that are not bound to one library (PBK-15).
+const UNBOUND = new Set([
+  "get_library_state",
+  "list_libraries",
+  "add_library",
+  "switch_library",
+  "rename_library",
+  "remove_library",
+  "relocate_library",
+]);
+
 // Calls the same Tauri command boundary the UI uses (client → Rust → files).
-export const invoke = async (command, args) => {
+// Like the UI, library-scoped calls carry the open library's id unless the
+// caller binds one explicitly.
+export const invoke = async (command, args = {}) => {
+  if (!UNBOUND.has(command) && !("libraryId" in args)) {
+    const state = await rawInvoke("get_library_state");
+    args = { ...args, libraryId: state.library_id };
+  }
+  return rawInvoke(command, args);
+};
+
+export const rawInvoke = async (command, args) => {
   const result = await browser.execute(
     async (cmd, a) => {
       try {
