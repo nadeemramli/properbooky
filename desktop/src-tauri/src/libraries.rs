@@ -121,6 +121,20 @@ pub fn normalize(path: &str) -> Result<String> {
     Ok(value)
 }
 
+/// A library's own state lives in `.properbooky`; that folder (or anything in
+/// it) is never a library itself.
+fn ensure_not_state_folder(path: &str) -> Result<()> {
+    if Path::new(path)
+        .components()
+        .any(|c| c.as_os_str() == ".properbooky")
+    {
+        bail!(
+            "This is ProperBooky's own data folder inside a library. Open the library folder that contains it instead."
+        );
+    }
+    Ok(())
+}
+
 /// One spelling per folder: symlinks and `..` resolved when the folder can be
 /// reached, a lexical form otherwise.
 pub fn canonical_key(path: &str) -> String {
@@ -234,6 +248,7 @@ impl Settings {
     /// library. Returns the entry id and whether a new entry was created.
     pub fn add(&mut self, path: &str) -> Result<(String, bool)> {
         let path = normalize(path)?;
+        ensure_not_state_folder(&canonical_key(&path))?;
         let (status, detail) = probe(Path::new(&path));
         if status != Status::Available {
             bail!(problem(
@@ -277,6 +292,7 @@ impl Settings {
     /// the folder; nothing is guessed.
     pub fn relocate(&mut self, id: &str, path: &str) -> Result<()> {
         let path = normalize(path)?;
+        ensure_not_state_folder(&canonical_key(&path))?;
         let (status, detail) = probe(Path::new(&path));
         if status != Status::Available {
             bail!(problem(

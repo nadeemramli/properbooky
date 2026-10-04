@@ -110,6 +110,23 @@ fn unusable_folders_are_refused_with_a_reason() {
 }
 
 #[test]
+fn a_library_state_folder_is_never_a_library() {
+    let parent = temp("state-folder");
+    let a = library(&parent, "Alpha");
+    let mut s = libraries::Settings::default();
+    for candidate in [
+        format!("{a}/.properbooky"),
+        format!("{a}/.properbooky/state"),
+    ] {
+        let err = s.add(&candidate).unwrap_err().to_string();
+        assert!(err.contains("own data folder"), "{err}");
+    }
+    let (id, _) = s.add(&a).unwrap();
+    assert!(s.relocate(&id, &format!("{a}/.properbooky")).is_err());
+    assert_eq!(s.listed().count(), 1);
+}
+
+#[test]
 fn nested_libraries_are_refused() {
     let parent = temp("nested");
     let outer = library(&parent, "Outer");
