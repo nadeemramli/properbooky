@@ -420,7 +420,12 @@ export async function startDriver(env) {
   ]);
 }
 
-export async function launchApp() {
+// Binary of the current session; a journey may launch another build (e.g.
+// the previous release for an upgrade/rollback rehearsal).
+let launched = APP;
+
+export async function launchApp(app = APP) {
+  launched = app;
   // A hung launch is a setup failure with its own bound; it must never be
   // absorbed by (or mistaken for) a later phase's deadline.
   let timer;
@@ -437,7 +442,7 @@ export async function launchApp() {
           logLevel: "warn",
           connectionRetryCount: 0,
           connectionRetryTimeout: LAUNCH_TIMEOUT_MS + 5000,
-          capabilities: { alwaysMatch: { "tauri:options": { application: APP } } },
+          capabilities: { alwaysMatch: { "tauri:options": { application: app } } },
         });
         // DOM queries, not element handles: the rail is re-rendered once the
         // saved library list loads (PBK-15), which would stale a handle.
@@ -477,7 +482,7 @@ export async function closeApp() {
   await browser.deleteSession();
   browser = null;
   // The app exits with its session; only the driver should remain marked.
-  const app = realpathSync(APP);
+  const app = realpathSync(launched);
   for (let i = 0; i < 100; i++) {
     if (!markedProcesses().some((p) => p.exe === app)) return;
     await new Promise((r) => setTimeout(r, 100));
