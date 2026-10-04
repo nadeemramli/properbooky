@@ -98,7 +98,7 @@
       "criterion": "2. Change one metadata field and reload: highlights, bookmarks, TOC, recommendations intact; spectrum/rating/wishlist persist without column errors; a second recommendation keeps the first",
       "action": "e2e/local-supabase/c2-metadata.spec.ts: UI edit Publisher -> reload; DB deep-equality of metadata arrays and highlights-table rows; keyboard slider steps; Home -> 0; wishlist priority + typed notes; add recommendation",
       "expected": "UI shows the edit after reload and the DB arrays/rows are unchanged; 0.8/1.5, 0, priority 4 and the note persist; recommendations [One, Two]",
-      "observed": "5/5 pass on 987421d (local fixture run with CI env and CI run 46); baseline (unfixed product code) results unchanged from the first round",
+      "observed": "5/5 pass on 38c74fd (local fixture run with CI env and CI run 46); baseline (unfixed product code) results unchanged from the first round",
       "verdict": "Pass",
       "platform": "Linux, Chromium, production build",
       "evidence": [
@@ -111,7 +111,7 @@
       "criterion": "3. Upload one EPUB/PDF; mixed bulk queue with a controlled failing file: retrievable books, displayed outcomes match persisted successes/failures, failed items recoverable; wishlist CSV rows persist after reload",
       "action": "c3-uploads.spec.ts: manual EPUB (SHA-256 of the downloaded file); bulk queue of 2 PDFs + duplicate-title EPUB + .txt with a single injected storage 500 (Playwright route, labelled fault injection); retry; remove the duplicate; CSV with 3 valid rows + 1 without a title",
       "expected": ".txt rejected with a message; toast '1 uploaded, 2 failed'; DB rows and storage objects match; failures listed with reasons; retry -> '1 uploaded, 1 failed'; no orphans; CSV toast 'Imported 3 of 4 rows' and 3 wishlist rows after reload",
-      "observed": "3/3 pass on 987421d (local fixture run with CI env and CI run 46); baseline (unfixed product code) results unchanged from the first round",
+      "observed": "3/3 pass on 38c74fd (local fixture run with CI env and CI run 46); baseline (unfixed product code) results unchanged from the first round",
       "verdict": "Pass",
       "platform": "Linux, Chromium, production build",
       "evidence": [
@@ -124,7 +124,7 @@
       "criterion": "4. Local synthetic accounts + email capture under next build/next start: reset link reaches /auth/reset-password and resets; pending sign-up lands at /auth/verify-email; invalid/expired link fails intelligibly without changing another account",
       "action": "c4-auth.spec.ts with Mailpit: sign-up -> verify-email -> emailed confirm link; forgot-password -> emailed link -> reset form -> new password; spent and tampered links opened while another account is signed in",
       "expected": "verify-email page, unconfirmed account cannot sign in until confirmed; reset page stays (no /library redirect), new password works, old one fails, bystander unchanged; invalid link shows 'invalid or has expired' and no password changes",
-      "observed": "3/3 pass on 987421d (local fixture run with CI env and CI run 46); baseline (unfixed product code) results unchanged from the first round",
+      "observed": "3/3 pass on 38c74fd (local fixture run with CI env and CI run 46); baseline (unfixed product code) results unchanged from the first round",
       "verdict": "Pass",
       "platform": "Linux, Chromium, production build, local GoTrue + Mailpit",
       "evidence": [
@@ -137,7 +137,7 @@
       "criterion": "5. Restart local app/services without resetting data; metadata, annotations, recommendations, uploaded content and CSV rows intact",
       "action": "pbk30-verify.sh restart: stop next start, `supabase stop` (volumes kept), local-supabase.sh start, restart Next; c5-restart.spec.ts compares DB with the recorded pre-restart state, downloads file bytes and checks the UI",
       "expected": "new container ids; identical metadata, highlight rows, book rows and file hashes; UI shows the edits",
-      "observed": "2/2 pass at 987421d; restart.txt: supabase_db_pbk30-fixture dd99ecd04ad4 -> bd97236d8189 (local); CI artifact has its own ids",
+      "observed": "2/2 pass at 38c74fd; restart.txt: supabase_db_pbk30-fixture dd99ecd04ad4 -> bd97236d8189 (local); CI artifact has its own ids",
       "verdict": "Pass",
       "platform": "Linux, Chromium, production build",
       "evidence": [
@@ -152,7 +152,7 @@
       "command": "node --test scripts/pbk30-fixture-guard.test.mjs",
       "exit_code": 0,
       "result": "12/12",
-      "evidence": "CI step + scratch ci-sequence-987421d.log"
+      "evidence": "CI step + scratch ci-sequence-38c74fd.log"
     },
     {
       "command": "scripts/local-supabase.sh start (development stand-in)",
