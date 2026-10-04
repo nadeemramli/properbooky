@@ -18,6 +18,9 @@
 // whose generated text it can prove, refuses the ambiguous one without
 // writing it, migrates it once the user moves their text, and nothing is
 // rewritten again across repeated syncs, restarts and library switches.
+// The user's own frontmatter (comments, properties) survives Properbooky's
+// metadata updates (at the upgrade and after a title edit) byte for byte; an
+// owned line it cannot rewrite safely is refused with the note unchanged.
 //
 // Usage (Linux, inside an X server or `xvfb-run -a`):
 //   E2E_APP=/path/to/desktop E2E_BASE_APP=… node e2e-desktop/library-upgrade.e2e.mjs
@@ -169,6 +172,10 @@ const ZEPHYR_HIGHLIGHTS = [
 // quotes, a **Note:** line, headings, blank lines, CRLF lines, no final newline.
 const QUILL_TAIL =
   "My legacy thought: keep me.\n\n## My reading notes\n> USER QUOTE: the atlas skips page 3\n**Note:** USER NOTE: check the orbit table\n\n\n# Heading I wrote\r\nA line saved with CRLF\r\n\r\n- [ ] follow up\nlast line without newline";
+// Written into the PDF note's frontmatter: comments on their own lines and
+// inline on the user's keys, a flow list, a block list.
+const QUILL_FRONT_USER = "# My Obsidian comment: keep me\ntags: [atlas,   orbit]   # my inline comment\naliases:\n  - Orbit atlas\n";
+const ZEPHYR_FRONT_USER = "# Zephyr comment: keep me\n";
 // Written between the two Zephyr highlights: ownership cannot be proven.
 const ZEPHYR_MINE = "My thought between the two highlights.\n> USER QUOTE between highlights\n**Note:** USER NOTE between highlights\n\n";
 
@@ -195,6 +202,15 @@ const afterBlock = (text) => {
 };
 const count = (text, part) => text.split(part).length - 1;
 const fileState = (file) => ({ sha256: sha256(file), mtime: statSync(file).mtimeMs });
+const OWNED = /^(title|author|source|generated_by):/;
+/** Frontmatter text between the `---` lines. */
+const frontOf = (text) => {
+  check(text.startsWith("---\n"), "note without frontmatter");
+  return text.slice(4, text.indexOf("\n---\n", 4));
+};
+/** The frontmatter without Properbooky's own lines: what the user owns. */
+const userFront = (text) => frontOf(text).split("\n").filter((l) => !OWNED.test(l)).join("\n");
+const ownedLine = (text, key) => frontOf(text).split("\n").filter((l) => l.startsWith(`${key}:`));
 
 function digest(dir) {
   return listTree(dir)
@@ -357,13 +373,20 @@ try {
   const ZEPHYR_NOTE = legacyNote(ZEPHYR_REL, []).name;
   let zephyrLegacy;
   let zephyrRefused;
+  let quillFrontBefore;
+  let quillUserFront;
   await step("user edits the previous build's notes in Obsidian (quotes, notes, headings, blank and CRLF lines)", () => {
     const quill = path.join(legacyOut, QUILL_NOTE);
-    writeFileSync(quill, `${readFileSync(quill, "utf8")}${QUILL_TAIL}`);
+    const quillLegacy = readFileSync(quill, "utf8");
+    quillFrontBefore = frontOf(quillLegacy);
+    check(count(quillLegacy, "generated_by: properbooky\n") === 1, "PDF note frontmatter");
+    writeFileSync(quill, `${quillLegacy.replace("generated_by: properbooky\n", `generated_by: properbooky\n${QUILL_FRONT_USER}`)}${QUILL_TAIL}`);
+    quillUserFront = userFront(readFileSync(quill, "utf8"));
     const zephyr = path.join(legacyOut, ZEPHYR_NOTE);
-    zephyrLegacy = readFileSync(zephyr, "utf8");
+    zephyrLegacy = readFileSync(zephyr, "utf8").replace("---\ntitle:", `---\n${ZEPHYR_FRONT_USER}title:`);
     const second = `> lantern light\n> — epub location ^pb-${ZEPHYR_HIGHLIGHTS[1].id.slice(0, 8)}\n\n`;
     check(count(zephyrLegacy, second) === 1, "second Zephyr entry not found");
+    check(zephyrLegacy.startsWith(`---\n${ZEPHYR_FRONT_USER}title:`), "Zephyr frontmatter comment not added");
     writeFileSync(zephyr, zephyrLegacy.replace(second, `${ZEPHYR_MINE}${second}`));
     zephyrRefused = fileState(zephyr);
     return { quill: QUILL_NOTE, zephyr: ZEPHYR_NOTE, zephyr_sha256: zephyrRefused.sha256 };
@@ -422,11 +445,16 @@ try {
     check(text.includes("Legacy highlight") && text.includes("properbooky:highlights:start") && text.includes("My legacy thought: keep me."), `legacy note after upgrade: ${text}`);
     check(afterBlock(text) === `\n\n${QUILL_TAIL}`, `user text not kept byte for byte: ${JSON.stringify(afterBlock(text))}`);
     check(count(text, "> Legacy highlight\n") === 1 && count(text, "## Highlights\n") === 1, "generated text duplicated or user heading lost");
+    // The upgrade updates Properbooky's own properties (the previous build
+    // titled uncatalogued files by their file stem); only those lines change.
+    check(userFront(text) === quillUserFront, `user frontmatter changed: ${JSON.stringify(frontOf(text))}`);
+    check(frontOf(text).includes(QUILL_FRONT_USER.trimEnd()), "user frontmatter lines not kept in place");
+    const metadataUpdated = frontOf(text) !== quillFrontBefore.replace("generated_by: properbooky", `generated_by: properbooky\n${QUILL_FRONT_USER.trimEnd()}`);
     check(JSON.parse(readFileSync(path.join(out, ".properbooky-library"), "utf8")).library_id === libraryId, "export folder not claimed by the migrated library");
     check(outcome.skipped.length === 1 && outcome.skipped[0].startsWith(`${ZEPHYR_NOTE}: left unchanged: `) && outcome.skipped[0].includes("you wrote between its highlights") && outcome.skipped[0].includes("move your own text to the end of the note, below the last highlight"), `refusal shown ${JSON.stringify(outcome.skipped)}`);
     check(JSON.stringify(fileState(path.join(out, ZEPHYR_NOTE))) === JSON.stringify(zephyrRefused), "refused note was written");
     await closeApp();
-    return { id: libraryId, progress, settings: saved, exported, refused: outcome.skipped };
+    return { id: libraryId, progress, settings: saved, exported, refused: outcome.skipped, metadata_updated_at_upgrade: metadataUpdated, title: ownedLine(text, "title") };
   });
 
   await step("legacy database untouched by the upgrade; the original backup unchanged", () => {
@@ -489,6 +517,7 @@ try {
     check(/^Exported 3 highlights across 2 notes \(1 updated\)/.test(outcome.report ?? "") && outcome.skipped.length === 0, `after the move ${JSON.stringify(outcome)}`);
     const text = readFileSync(path.join(legacyOut, ZEPHYR_NOTE), "utf8");
     check(afterBlock(text) === `\n\n${ZEPHYR_MINE}`, `moved text not kept byte for byte: ${JSON.stringify(afterBlock(text))}`);
+    check(userFront(text) === userFront(zephyrLegacy) && frontOf(text).startsWith(ZEPHYR_FRONT_USER), `Zephyr frontmatter comment lost: ${JSON.stringify(frontOf(text))}`);
     check(count(text, "> quiet weather\n") === 1 && count(text, "> lantern light\n") === 1, "Zephyr highlights duplicated or lost");
     check(count(text, "**Note:** first line\n\nsecond paragraph\n> quoted in my note\n") === 1, "multi-line note not regenerated once");
     check(readFileSync(path.join(legacyOut, QUILL_NOTE), "utf8") === quillAfter, "PDF note changed");
@@ -545,6 +574,53 @@ try {
     check(afterBlock(readFileSync(path.join(legacyOut, QUILL_NOTE), "utf8")) === `\n\n${QUILL_TAIL}`, "PDF note user text changed");
     await closeApp();
     return { report: outcome.report, after_restart: again.report };
+  });
+
+  await step("title edit: user frontmatter survives the metadata update; an inline comment on the title line is refused unchanged, then fixed", async () => {
+    await launchApp();
+    await waitTitles(TITLES, 30000);
+    const quill = path.join(legacyOut, QUILL_NOTE);
+    const zephyr = path.join(legacyOut, ZEPHYR_NOTE);
+    // Controlled failure: the user annotates Properbooky's own title line.
+    const original = readFileSync(quill, "utf8");
+    const [titleLine] = ownedLine(original, "title");
+    check(titleLine, "no title line");
+    writeFileSync(quill, original.replace(`${titleLine}\n`, `${titleLine} # why I like it\n`));
+    const annotated = fileState(quill);
+    const [book] = await invoke("list_books", { query: QUILL });
+    const NEW_TITLE = "Quillfeather Orbit Atlas: Revised";
+    await invoke("update_book", {
+      id: book.stable_id,
+      edit: { title: NEW_TITLE, author: book.author ?? null, category: book.category ?? null, content_type: book.content_type, reading_status: book.reading_status, want_to_read: book.want_to_read, up_next: book.up_next },
+    });
+    const zephyrBefore = fileState(zephyr);
+    const refused = await syncPanel(vault, false, "02f-title-line-comment-refused");
+    check(refused.skipped.length === 1 && refused.skipped[0].startsWith(`${QUILL_NOTE}: left unchanged: `) && refused.skipped[0].includes("put `title:` back on one line without a comment"), `refusal ${JSON.stringify(refused)}`);
+    check(/^Exported 3 highlights across 1 note \(0 updated\)/.test(refused.report ?? ""), `refused sync report ${JSON.stringify(refused)}`);
+    check(JSON.stringify(fileState(quill)) === JSON.stringify(annotated), "refused note was written");
+    check(JSON.stringify(fileState(zephyr)) === JSON.stringify(zephyrBefore), "other note rewritten");
+    // The user moves the comment to its own line; the title is updated.
+    const moved = original.replace(`${titleLine}\n`, `# why I like it\n${titleLine}\n`);
+    writeFileSync(quill, moved);
+    const fixed = await syncPanel(vault, false, "02g-title-updated-comments-kept");
+    check(/^Exported 4 highlights across 2 notes \(1 updated\)/.test(fixed.report ?? "") && fixed.skipped.length === 0, `after the fix ${JSON.stringify(fixed)}`);
+    const text = readFileSync(quill, "utf8");
+    check(JSON.stringify(ownedLine(text, "title")) === JSON.stringify([`title: '${NEW_TITLE}'`]), `title line ${JSON.stringify(ownedLine(text, "title"))}`);
+    check(frontOf(text).includes(`# why I like it\ntitle: '${NEW_TITLE}'`) && userFront(text) === userFront(moved), `user frontmatter changed: ${JSON.stringify(frontOf(text))}`);
+    check(frontOf(text).includes(QUILL_FRONT_USER.trimEnd()), "user frontmatter lines lost");
+    check(afterBlock(text) === `\n\n${QUILL_TAIL}` && text.includes(`# ${NEW_TITLE}\n`), "block not updated or user text changed");
+    // Repeated sync and reload: nothing rewritten.
+    const before = digest(legacyOut);
+    const again = await syncPanel(vault);
+    check(/\(0 updated\)/.test(again.report ?? ""), `repeat ${JSON.stringify(again)}`);
+    await closeApp();
+    await launchApp();
+    await waitTitles(TITLES.map((t) => (t === QUILL ? NEW_TITLE : t)).sort(), 30000);
+    const reloaded = await syncPanel(vault);
+    check(/\(0 updated\)/.test(reloaded.report ?? "") && reloaded.skipped.length === 0, `after reload ${JSON.stringify(reloaded)}`);
+    check(JSON.stringify(digest(legacyOut)) === JSON.stringify(before), "repeat or reload changed the notes");
+    await closeApp();
+    return { refused: refused.skipped[0], fixed: fixed.report, title: ownedLine(text, "title"), after_reload: reloaded.report };
   });
 
   stopWatchdog();
