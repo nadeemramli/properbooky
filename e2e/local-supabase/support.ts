@@ -3,29 +3,46 @@
 // Everything here talks to the LOCAL stack only (scripts/local-supabase.sh).
 // The service-role client exists solely to create synthetic fixtures and to
 // assert what the browser actually persisted; it never runs in the browser.
+import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
+
 import { expect, type Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
-export const MAILPIT_URL = process.env.MAILPIT_URL ?? "http://127.0.0.1:54324";
+export const MAILPIT_URL = process.env.MAILPIT_URL ?? "http://127.0.0.1:55424";
 
-export function assertLocalStack() {
-  const local = /^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/;
-  if (!local.test(SUPABASE_URL) || !local.test(MAILPIT_URL)) {
-    throw new Error(
-      `PBK-30 suite refuses to run against a non-local Supabase (${SUPABASE_URL || "unset"}).`
-    );
+const GUARD = path.resolve(__dirname, "../../scripts/pbk30-fixture-guard.mjs");
+
+function runGuard(destructive: boolean) {
+  const args = [GUARD, "--target", SUPABASE_URL, ...(destructive ? ["--destructive"] : [])];
+  try {
+    execFileSync(process.execPath, args, { stdio: "pipe", encoding: "utf8" });
+  } catch (error) {
+    const stderr = (error as { stderr?: string }).stderr ?? String(error);
+    throw new Error(`Refusing to touch this Supabase stack.\n${stderr}`);
   }
-  if (!SERVICE_ROLE_KEY) throw new Error("SUPABASE_SERVICE_ROLE_KEY is required (local stack key).");
+}
+
+let fixtureChecked = false;
+/** Throws unless the suite targets the marked PBK-30 fixture stack. */
+export function assertFixtureStack() {
+  if (!SERVICE_ROLE_KEY) throw new Error("SUPABASE_SERVICE_ROLE_KEY is required (fixture stack key).");
+  if (!fixtureChecked) runGuard(false);
+  fixtureChecked = true;
+}
+
+/** Re-checks right before deleting anything, including PBK30_DISPOSABLE=1. */
+export function assertDisposableFixture() {
+  runGuard(true);
 }
 
 let adminClient: SupabaseClient | null = null;
 export function admin(): SupabaseClient {
-  assertLocalStack();
+  assertFixtureStack();
   adminClient ??= createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -48,7 +65,7 @@ export async function createConfirmedUser(label: string) {
     password: PASSWORD,
     email_confirm: true,
   });
-  if (error || !data.user) throw new Error(`createUser ${email}: ${error?.message}`);
+  if (error !== null) throw new Error(`createUser ${email}: ${error.message}`);
   return { id: data.user.id, email };
 }
 
@@ -65,6 +82,22 @@ export async function waitForCard(page: Page, title: string) {
   const card = page.locator("div.rounded-lg.border").filter({ has: page.getByRole("heading", { name: title, exact: true }) });
   await expect(card.first()).toBeVisible({ timeout: 30_000 });
   return card.first();
+}
+
+/** The metadata fields the suite seeds and asserts on (books.metadata jsonb). */
+export interface FixtureMetadata {
+  publisher?: string;
+  isbn?: string;
+  description?: string;
+  highlights?: unknown;
+  bookmarks?: unknown;
+  toc?: unknown;
+  recommendations?: Array<{ recommender_name: string }>;
+  knowledge_spectrum?: number;
+  manual_rating?: number;
+  wishlist_priority?: number;
+  wishlist_notes?: string;
+  [field: string]: unknown;
 }
 
 export interface BookRow {
@@ -87,7 +120,7 @@ export async function bookRows(userId: string): Promise<BookRow[]> {
 
 // --- Mailpit (local email capture) -----------------------------------------
 
-type MailSummary = { ID: string; Subject: string; Created: string };
+interface MailSummary { ID: string; Subject: string; Created: string }
 
 export async function latestMailTo(email: string, since: Date, timeoutMs = 30_000): Promise<{ subject: string; text: string; html: string }> {
   const deadline = Date.now() + timeoutMs;

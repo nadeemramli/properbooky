@@ -4,11 +4,19 @@
 // library at once; the dev session's own id must own the data, with no RLS
 // rejections and exactly one default book.
 import { test, expect, type Page } from "@playwright/test";
+
 import { FLAGS } from "../../lib/config/flags";
 import { defaultBookId } from "../../lib/utils/default-books";
-import { admin, bookRows, shot } from "./support";
+
+import { admin, assertDisposableFixture, bookRows, shot } from "./support";
 
 const DEV_EMAIL = FLAGS.DEV_USER_EMAIL;
+
+// Mirrors lib/hooks/use-auth.ts: an empty NEXT_PUBLIC_DEV_PASSWORD means the default.
+function devPassword() {
+  const configured = process.env.NEXT_PUBLIC_DEV_PASSWORD;
+  return configured !== undefined && configured !== "" ? configured : "development";
+}
 
 function watch(page: Page) {
   const problems: string[] = [];
@@ -22,14 +30,15 @@ function watch(page: Page) {
 }
 
 test("dev mode uses the signed-in dev account's own id and provisions once", async ({ browser }) => {
-  // Deleting the dev account cascades to its books: disposable stacks only.
-  test.skip(process.env.PBK30_DISPOSABLE !== "1", "set PBK30_DISPOSABLE=1 on a disposable stack (scripts/local-supabase.sh reset)");
+  // Deleting the dev account cascades to its books: only on the marked,
+  // disposable fixture stack (throws otherwise, before any delete).
+  assertDisposableFixture();
   // Recreate the dev account with a random id (not FLAGS.DEV_USER_ID).
   const { data: list } = await admin().auth.admin.listUsers({ page: 1, perPage: 1000 });
   for (const u of list.users.filter((u) => u.email === DEV_EMAIL)) await admin().auth.admin.deleteUser(u.id);
   const { data, error } = await admin().auth.admin.createUser({
     email: DEV_EMAIL,
-    password: process.env.NEXT_PUBLIC_DEV_PASSWORD || "development",
+    password: devPassword(),
     email_confirm: true,
   });
   if (error) throw error;

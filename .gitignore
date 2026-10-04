@@ -43,3 +43,6 @@ mcp/node_modules/
 
 # PBK-30 local-stack runtime evidence (scripts/pbk30-verify.sh)
 /.pbk30/
+
+# PBK-30 disposable fixture stack workdir (scripts/pbk30-stack.sh)
+/.pbk30-stack/
