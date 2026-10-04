@@ -179,6 +179,15 @@ export async function finish(code, result) {
         new Promise((r) => setTimeout(() => r(null), 5000)),
       ]);
       if (source) writeFileSync(path.join(ARTIFACTS, "failure.html"), source);
+      // Visible text in the log too, for when artifacts cannot be fetched.
+      const text = await Promise.race([
+        browser.execute(() => document.body?.innerText.slice(0, 1200) ?? ""),
+        new Promise((r) => setTimeout(() => r(null), 5000)),
+      ]);
+      if (text !== null) {
+        report.failure_ui_text = text;
+        log("visible UI at failure:", JSON.stringify(text));
+      }
     } catch {}
   }
   report.cleanup = await cleanup();

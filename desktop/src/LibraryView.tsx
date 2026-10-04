@@ -339,7 +339,9 @@ export default function LibraryView({
           )}
         </section>
       )}
-      {loading && <p role="status">Loading your library…</p>}
+      {/* Nothing to load before a folder is chosen; showing this above the
+          first-run form only shifts its button under the pointer. */}
+      {loading && libraryPath && <p role="status">Loading your library…</p>}
       {filter === "cleanup" && (
         <div className="cleanup-toolbar">
           <div>

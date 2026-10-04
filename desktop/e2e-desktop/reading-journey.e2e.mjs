@@ -299,6 +299,34 @@ async function appAlive(what) {
   check(alive, `app went blank ${what}; page errors: ${JSON.stringify(await pageErrors())}`);
 }
 
+// First-run indexing as a user does it: form shown, path typed, button
+// enabled, click, then the scan's own status before the cards.
+async function indexThroughForm() {
+  await waitFor(
+    "first-run form",
+    () => browser.execute(() => Boolean(document.querySelector(".path-form input"))),
+    30000,
+  );
+  await setInput(".path-form input", libraryDir);
+  await waitFor(
+    "enabled Index button",
+    () =>
+      browser.execute(() => {
+        const button = document.querySelector('.path-form button[type="submit"]');
+        return Boolean(button && !button.disabled);
+      }),
+    RESPONSIVE_MS,
+  );
+  await browser.$('.path-form button[type="submit"]').click();
+  const status = await waitFor(
+    "scan status",
+    () => browser.execute(() => document.querySelector(".status")?.textContent.trim() || null),
+    30000,
+  );
+  check(/^Indexed \d+ books/.test(status), `scan reported: ${status}`);
+  return { status, ...(await waitTitles(ALL, 30000)) };
+}
+
 const near = (a, b) => typeof a === "number" && typeof b === "number" && Math.abs(a - b) < 1e-9;
 
 // --- run --------------------------------------------------------------------
@@ -363,9 +391,7 @@ try {
   await step("index synthetic library through the first-run form", async () => {
     const fresh = await invoke("get_library_state");
     check(fresh.library_path === null, `app-data not fresh: library_path=${fresh.library_path}`);
-    await setInput(".path-form input", libraryDir);
-    await browser.$('.path-form button[type="submit"]').click();
-    return waitTitles(ALL, 30000);
+    return indexThroughForm();
   });
 
   await step("C4 linked catalog entries render once (no duplicate file cards)", async () => {
@@ -703,9 +729,7 @@ try {
     await launchApp();
     const fresh = await invoke("get_library_state");
     check(fresh.library_path === null, `index not rebuilt from scratch: ${fresh.library_path}`);
-    await setInput(".path-form input", libraryDir);
-    await browser.$('.path-form button[type="submit"]').click();
-    const indexed = await waitTitles(ALL, 30000);
+    const indexed = await indexThroughForm();
     check(JSON.stringify(stateDigest()) === JSON.stringify(digestBeforeRebuild), "re-indexing rewrote reading state");
     return { ...indexed, sidecars_unchanged: digestBeforeRebuild.length };
   });

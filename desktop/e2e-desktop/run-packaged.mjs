@@ -150,6 +150,12 @@ try {
 
   await step("index fixture library through the first-run form", async () => {
     await setInput(".path-form input", libraryDir);
+    // A WebDriver click on a still-disabled button is silently ignored.
+    await waitFor(
+      "enabled Index button",
+      () => browser.execute(() => document.querySelector('.path-form button[type="submit"]')?.disabled === false),
+      RESPONSIVE_MS,
+    );
     await browser.$('.path-form button[type="submit"]').click();
     return waitTitles(EXPECTED_TITLES, 30000);
   });
