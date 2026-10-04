@@ -118,7 +118,7 @@
       "criterion": "F8 exact-head CI and handoff",
       "action": "CI run 37216424582 on 2f9a850",
       "expected": "success",
-      "observed": "see ci",
+      "observed": "CI run 37216424582 on 2f9a850: success, all 6 jobs; PR #23 subscription removed at handoff",
       "verdict": "Pass",
       "platform": "GitHub Actions ubuntu",
       "evidence": [
@@ -231,7 +231,7 @@
   "ci": {
     "run_url": "https://github.com/nadeemramli/properbooky/actions/runs/37216424582",
     "head_sha": "2f9a850843573c482d0dcd82dae7f2f155338d0d",
-    "conclusion": "in progress at 16:35Z: desktop, web, web-e2e, library-mcp success; desktop-e2e steps through the PBK-26 highlights journey success, libraries/upgrade/failures running; web-local-supabase running"
+    "conclusion": "success: all 6 jobs (desktop: tsc + cargo test; web; web-e2e; web-local-supabase; library-mcp; desktop-e2e incl. the seeded-upgrade journey with the frontmatter steps; artifact desktop-e2e-evidence), completed 2026-10-04T16:43:40Z"
   },
   "artifacts": [
     {

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-04T16:40:00Z",
+  "updated_at": "2026-10-04T16:45:00Z",
   "worker": "cloud Claude Code session https://claude.ai/code/session_01VwUGjwXZJw5HhspdBBzDgB (sole product writer, new chat for the PBK-26 legacy export review repair; previous session_01RNsLigHcU5SWHvzXzLoNx3 stopped at cap 2 after PR #22)",
   "model_observed": "claude-opus-5-5 (runtime get_session: configured_model, session_context.model, last_served_model)",
   "release_target": "Current approved release: desktop local-first reader plus PBK-30 web runtime verification on a local Supabase stack. Excludes PBK-7 sync/mobile, PBK-10 research, PBK-12 phases 2-3.",
@@ -32,7 +32,7 @@
     "pr": "https://github.com/nadeemramli/properbooky/pull/23 (draft, base claude/pbk15-pbk26-integration)",
     "report": ".agent-delivery/batches/pbk26-frontmatter-repair/report.json",
     "plan": ".agent-delivery/batches/pbk26-frontmatter-repair/plan.md",
-    "ci": "see report.json ci"
+    "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37216424582: success on tested head 2f9a850 (all 6 jobs)"
   },
   "completed_cloud_batches": [
     {
