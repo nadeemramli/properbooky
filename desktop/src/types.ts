@@ -120,6 +120,10 @@ export interface Highlight {
     page?: number;
     quote?: { exact: string; prefix: string; suffix: string };
     position?: { start: number; end: number };
+    /** EPUB: spine section, its TOC label and the book fraction at creation. */
+    href?: string;
+    chapter?: string;
+    percent?: number;
   };
   created_at: number;
   updated_at: number;

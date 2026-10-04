@@ -3,7 +3,14 @@ import type { Highlight } from "../types";
 
 function locationLabel(highlight: Highlight): string {
   if (highlight.anchor.page != null) return `page ${highlight.anchor.page}`;
-  if (highlight.anchor.cfi) return "epub location";
+  if (highlight.anchor.cfi) {
+    const { chapter, percent } = highlight.anchor;
+    const parts = [
+      chapter,
+      typeof percent === "number" ? `${Math.round(percent * 100)}%` : null,
+    ].filter(Boolean);
+    return parts.length ? parts.join(" · ") : "epub location";
+  }
   if (highlight.anchor.type === "article") return "article";
   return "";
 }
@@ -41,10 +48,16 @@ export default function HighlightsPanel({
         <ul>
           {highlights.map((highlight) => (
             <li key={highlight.id}>
-              <blockquote onClick={() => onJump(highlight)} title="Go to highlight">
-                {highlight.text.length > 220
-                  ? `${highlight.text.slice(0, 220)}…`
-                  : highlight.text}
+              <blockquote>
+                <button
+                  className="highlight-jump"
+                  onClick={() => onJump(highlight)}
+                  title="Go to highlight"
+                >
+                  {highlight.text.length > 220
+                    ? `${highlight.text.slice(0, 220)}…`
+                    : highlight.text}
+                </button>
               </blockquote>
               <div className="highlight-row-meta">
                 <span>{locationLabel(highlight)}</span>

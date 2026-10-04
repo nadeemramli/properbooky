@@ -663,6 +663,16 @@ body {
   inset: 0;
 }
 
+/* EPUB highlights are painted by epub.js in an SVG pane over the book
+   iframe with pointer events off; it proxies clicks from listeners on the
+   sandboxed book document, which WebKit never runs. Let our painted shapes
+   take the click themselves (it opens the highlights panel). */
+.reader g.pb-highlight,
+.reader g.pb-highlight rect {
+  pointer-events: visiblePainted;
+  cursor: pointer;
+}
+
 .pdf-overlay {
   position: absolute;
   inset: 0;
@@ -866,6 +876,21 @@ body {
 
 .highlights-panel blockquote:hover {
   border-left-color: var(--accent);
+}
+
+/* the quote is the "go to" control: a real button, keyboard reachable */
+.highlight-jump {
+  all: unset;
+  display: block;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.highlight-jump:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .highlight-row-meta {
