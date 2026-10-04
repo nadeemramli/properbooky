@@ -199,6 +199,9 @@ try {
       // then put the recorded position back so the stored contract is unchanged.
       await browser.$('.reader-bar button[aria-label="Next page"]').click();
       epubWrongPosition = await sidecarPosition(epubPath, (p) => isCfi(p) && p !== position && p !== opened, "later EPUB CFI");
+      // Leave the reader first: while open it may still (correctly) record
+      // where it is, e.g. once its locations finish generating.
+      await browser.$(".tab-library").click();
       await invoke("save_progress", { path: epubPath, position, percent: null });
       await sidecarPosition(epubPath, (p) => p === position, "recorded EPUB CFI restored");
     }
