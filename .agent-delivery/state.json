@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-04T16:30:00Z",
+  "updated_at": "2026-10-04T16:40:00Z",
   "worker": "cloud Claude Code session https://claude.ai/code/session_01VwUGjwXZJw5HhspdBBzDgB (sole product writer, new chat for the PBK-26 legacy export review repair; previous session_01RNsLigHcU5SWHvzXzLoNx3 stopped at cap 2 after PR #22)",
   "model_observed": "claude-opus-5-5 (runtime get_session: configured_model, session_context.model, last_served_model)",
   "release_target": "Current approved release: desktop local-first reader plus PBK-30 web runtime verification on a local Supabase stack. Excludes PBK-7 sync/mobile, PBK-10 research, PBK-12 phases 2-3.",
@@ -9,9 +9,10 @@
     "direct_cursor": 1029
   },
   "authorized_queue": {
-    "provenance": "Properbooky PBK-26 legacy export preservation review repair, 4 October 2026 (coordinator; Direct PBK-26 Doing v11, coordinator claim). This chat: lifetime task 1, cap 2 (feedback involved); objective 1 complete at handoff, no further scope accepted.",
+    "provenance": "Task 1: PBK-26 legacy export preservation review repair (Direct PBK-26 v11). Task 2: PBK-26 frontmatter preservation, coordinator-confirmed escalation (Direct PBK-26 v13). Chat lifetime cap 2/2 reached; no further scope.",
     "dispatched_batches": [
-      "pbk26-legacy-export-repair"
+      "pbk26-legacy-export-repair",
+      "pbk26-frontmatter-repair"
     ],
     "previous_chat": {
       "session": "session_01RNsLigHcU5SWHvzXzLoNx3",
@@ -24,13 +25,13 @@
   },
   "remote_main": "44e96b67d05213b53185d97d740f7d392e0c0c3f",
   "current_batch": {
-    "batch_id": "pbk26-legacy-export-repair",
+    "batch_id": "pbk26-frontmatter-repair",
     "branch": "claude/sharp-archimedes-s3rdeu",
-    "base": "cfb40a529ba132a461b101251c5a32cc5dbd5b51 (PR #22 exact head; stacked, not independently mergeable)",
-    "tested_head": "9e7ad7f67e92549fd57f90edafdaf5e432161424",
+    "base": "e20d8664fe9fc95a03834b3c1d04948a298ebe97 (task-1 handoff; stack PR #22 cfb40a5 -> task 1 -> task 2)",
+    "tested_head": "2f9a850843573c482d0dcd82dae7f2f155338d0d",
     "pr": "https://github.com/nadeemramli/properbooky/pull/23 (draft, base claude/pbk15-pbk26-integration)",
-    "report": ".agent-delivery/batches/pbk26-legacy-export-repair/report.json",
-    "plan": ".agent-delivery/batches/pbk26-legacy-export-repair/plan.md",
+    "report": ".agent-delivery/batches/pbk26-frontmatter-repair/report.json",
+    "plan": ".agent-delivery/batches/pbk26-frontmatter-repair/plan.md",
     "ci": "see report.json ci"
   },
   "completed_cloud_batches": [
@@ -81,16 +82,22 @@
       "batch_id": "pbk26-legacy-export-repair",
       "kind": "review repair + packaged E2E (stacked on PR #22)",
       "pr_url": "https://github.com/nadeemramli/properbooky/pull/23",
-      "status": "awaiting coordinator review"
+      "status": "tested 9e7ad7f, CI 37214563269 success; awaiting coordinator review in PR #23"
+    },
+    {
+      "batch_id": "pbk26-frontmatter-repair",
+      "kind": "review repair + packaged E2E (same PR #23)",
+      "pr_url": "https://github.com/nadeemramli/properbooky/pull/23",
+      "status": "tested 2f9a850; awaiting coordinator review"
     }
   ],
   "criterion_gaps": [
-    "PBK-26 legacy export preservation: repaired and verified on the Linux packaged build (tested 9e7ad7f); Windows/WebView2 unverified (coordinator, deferred).",
-    "PBK-15/PBK-26 other criteria: as in the integration report (tested 5d8be40); affected journeys re-run on 9e7ad7f."
+    "PBK-26 legacy export and frontmatter preservation: repaired and verified on the Linux packaged build (tested 2f9a850); Windows/WebView2 unverified (coordinator, deferred).",
+    "PBK-15/PBK-26 other criteria: as in the integration report (tested 5d8be40); affected journeys re-run on 2f9a850."
   ],
   "pending_local_checks": [
-    "Coordinator independent review of PR #23 (and of PR #22 beneath it), then decide the merge path",
-    "Coordinator Windows walkthrough including a legacy Obsidian note edited by the user (see report local_verification_required)"
+    "Coordinator independent review of PR #23 at its final head (and PR #22 beneath it), then the merge path",
+    "Coordinator Windows walkthroughs in both PBK-26 repair reports (legacy note and frontmatter)"
   ],
   "pending_human_checks": [
     "PBK-15 owner acceptance",
@@ -103,10 +110,9 @@
     "PBK-24 interpretation: Continue reading includes unread books with saved progress > 0 (opening a PDF counts as started) - owner may prefer another rule",
     "PBK-15: nested libraries are refused by design; owner may prefer allowing them",
     "Narrow assetProtocol.scope ['**'] to open library folders (security-sensitive capability change; not made)",
-    "PBK-26 repair design choice: strict proof requires the generated blank line after each legacy entry; text typed directly under a highlight is refused (no write) rather than migrated. Coordinator may prefer accepting a missing blank line.",
-    "Adjacent (reported, not changed): frontmatter re-serialization when Properbooky's own keys change - see report escalations."
+    "PBK-26 repair design choice: strict proof requires the generated blank line after each legacy entry; text typed directly under a highlight is refused (no write) rather than migrated. Coordinator may prefer accepting a missing blank line."
   ],
-  "next_action": "Coordinator: review PR #23 at its final head (tested 9e7ad7f + evidence), confirm CI, decide merge path for #22/#23, Windows walkthrough. This chat completed its objective and stopped (no subscriptions or reminders left).",
+  "next_action": "Coordinator: review PR #23 (tested 2f9a850 + evidence), confirm CI, decide merge path for #22/#23, Windows walkthrough. This chat reached cap 2/2 and stopped; no subscriptions or reminders remain.",
   "pbk26_record_from_pr20": {
     "current_batch": {
       "batch_id": "pbk26-highlights-export",

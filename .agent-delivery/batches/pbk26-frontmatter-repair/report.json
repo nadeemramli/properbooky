@@ -1,0 +1,277 @@
+{
+  "batch_id": "pbk26-frontmatter-repair",
+  "dispatch": "Coordinator-confirmed escalation from pbk26-legacy-export-repair; Direct PBK-26 Doing v13 (coordinator claim). Second and final task of this chat (lifetime 2 / cap 2, feedback involved).",
+  "issue_keys": [
+    "PBK-26"
+  ],
+  "base_sha": "e20d8664fe9fc95a03834b3c1d04948a298ebe97",
+  "base_note": "task-1 evidence-only handoff on the same branch (product identical to task-1 tested 9e7ad7f); stack: PR #22 cfb40a5 -> task 1 -> task 2; not independently mergeable",
+  "tested_sha": "2f9a850843573c482d0dcd82dae7f2f155338d0d",
+  "handoff_sha": "evidence-only commit(s) after the tested SHA (see PR #23 head); no product/test change after tested_sha",
+  "branch": "claude/sharp-archimedes-s3rdeu",
+  "pr_url": "https://github.com/nadeemramli/properbooky/pull/23",
+  "model_observed": "claude-opus-5-5 (get_session at task start: configured_model, session_context.model, external_metadata.last_served_model)",
+  "environment": "Anthropic cloud container, Ubuntu 24.04, rustc 1.97.0, Node 22.22.0, tauri-driver 2.1.0, webkit2gtk-driver, Xvfb, xdotool, capsh; packaged debug .deb from the clean tested head; previous build main 44e96b6 packaged; per-run temp XDG dirs; synthetic fixtures only; no owner data.",
+  "task1_checkpoint": {
+    "tested_sha": "9e7ad7f67e92549fd57f90edafdaf5e432161424",
+    "handoff_sha": "e20d8664fe9fc95a03834b3c1d04948a298ebe97",
+    "ci": "run 37214563269 on 9e7ad7f: success, all 6 jobs (completed 16:12:29Z); run 37215194337 on e20d866 (evidence only): check suite completed, nothing failed (GitHub event 16:22:15Z)"
+  },
+  "defect": {
+    "source": "export.rs merge_frontmatter: whenever title/author/source differed, serde_yaml::to_string(&mapping) rewrote the whole frontmatter",
+    "reproduction": "coordinator regression tests/export_frontmatter_repro.rs (verbatim)",
+    "observed_before": "at e20d866: exit 101, written=1, skipped=[], user_comment_present=false",
+    "impact": "silent deletion of user frontmatter comments and reformatting of user properties on any metadata update (catalog/edit title or author change, upgrade from the stem-titled previous exporter)"
+  },
+  "repair": "Unchanged values: frontmatter verbatim. Otherwise only Properbooky's own top-level lines are replaced (single-line plain or fully quoted scalar without comment, no continuation), inserted next to its other keys, or removed; every other byte kept. The edited text must parse to the user's properties unchanged and ours as wanted. Unsafe (comment/multi-line/block value on an owned line, owned key in another form, CRLF properties, failed proof): note byte-identical, not counted, actionable reason in skipped; other notes still exported; unchanged values never refuse; highlights still update when properties need no change.",
+  "criteria": [
+    {
+      "issue_key": "PBK-26",
+      "criterion": "F1 reproduce before fixing",
+      "action": "coordinator regression at e20d866 (product = 9e7ad7f)",
+      "expected": "fails",
+      "observed": "exit 101; written=1, skipped=[], user_comment_present=false",
+      "verdict": "Pass",
+      "platform": "Linux cargo test",
+      "evidence": [
+        "fm-repro-9e7ad7f.log (scratch)"
+      ]
+    },
+    {
+      "issue_key": "PBK-26",
+      "criterion": "F2 public API regression passes unchanged",
+      "action": "tests/export_frontmatter_repro.rs at tested SHA",
+      "expected": "comment survives",
+      "observed": "pass; written=1, skipped=[], user_comment_present=true",
+      "verdict": "Pass",
+      "platform": "Linux cargo test",
+      "evidence": [
+        "final/cargo-test.log"
+      ]
+    },
+    {
+      "issue_key": "PBK-26",
+      "criterion": "F3 metadata update keeps every user frontmatter byte; ours updated/inserted/removed; block still updated; repeated syncs idempotent",
+      "action": "export_frontmatter_test: metadata_updates_touch_only_properbookys_lines, unusual_property_lines_are_kept_when_no_update_is_needed, legacy_note_with_user_properties_migrates_with_its_metadata_update",
+      "expected": "frontmatter == user text with only title/author lines changed (exact string), quoting where needed; author removed then re-inserted after title; written=0 and mtime unchanged on repeats; new highlight updates block only",
+      "observed": "pass; new suite fails 3/4 at 9e7ad7f (4th is a non-regression guard)",
+      "verdict": "Pass",
+      "platform": "Linux cargo test",
+      "evidence": [
+        "final/cargo-test.log",
+        "fm-newsuite-at-9e7ad7f.log (scratch)"
+      ]
+    },
+    {
+      "issue_key": "PBK-26",
+      "criterion": "F4 unsafe shapes refused with no write and actionable reason; other notes exported; fix then sync",
+      "action": "export_frontmatter_test: unsafe_property_lines_are_refused_and_left_byte_identical (inline comment on title, folded title, continued title, quoted key, spaced key, CRLF properties)",
+      "expected": "bytes+mtime unchanged, reason names the fix and the generated_by opt-out, other book exported; after moving the comment to its own line: synced, comment kept, block updated",
+      "observed": "pass",
+      "verdict": "Pass",
+      "platform": "Linux cargo test",
+      "evidence": [
+        "final/cargo-test.log"
+      ]
+    },
+    {
+      "issue_key": "PBK-26",
+      "criterion": "F5 earlier protections not weakened",
+      "action": "cargo test; git diff e20d866..tested of export_test.rs, export_legacy_test.rs, export_legacy_repro.rs",
+      "expected": "unchanged and passing",
+      "observed": "diffs empty; 84 passed, 0 failed",
+      "verdict": "Pass",
+      "platform": "Linux cargo test",
+      "evidence": [
+        "final/cargo-test.log"
+      ]
+    },
+    {
+      "issue_key": "PBK-26",
+      "criterion": "F6 packaged journey: user frontmatter survives real metadata updates; controlled failure; repeated sync; reload",
+      "action": "library-upgrade.e2e.mjs, previous-build mode (44e96b6 UI) and seeder mode",
+      "expected": "at upgrade the stem title is updated and the author inserted with user comments/flow+block lists kept (userFront identical); Zephyr comment kept after migration; update_book title edit with an inline comment on the title line refused in the panel, note byte-identical, other note untouched; comment moved to own line: title updated ('Quillfeather Orbit Atlas: Revised' quoted), comments kept, block heading updated, QUILL_TAIL intact; repeated sync and app reload (0 updated)",
+      "observed": "pass in both modes; metadata_updated_at_upgrade=true in both; same journey FAILS against the 9e7ad7f build (user frontmatter changed: comments gone, tags reformatted)",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb, Xvfb + tauri-driver + WebKitWebDriver",
+      "evidence": [
+        "final/library-upgrade-base/report.json + 02f/02g screenshots",
+        "final/library-upgrade-seed/report.json",
+        "fm-journey-at-9e7ad7f.log (scratch)",
+        "CI artifact desktop-e2e-evidence/library-upgrade"
+      ]
+    },
+    {
+      "issue_key": "PBK-26",
+      "criterion": "F7 affected regressions on the same build",
+      "action": "smoke x2, reading, highlights, libraries (capsh), injected failures; tsc, fixtures:check, mcp test",
+      "expected": "all pass",
+      "observed": "all exit 0",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb, Xvfb + tauri-driver + WebKitWebDriver",
+      "evidence": [
+        "final/summary.txt"
+      ]
+    },
+    {
+      "issue_key": "PBK-26",
+      "criterion": "F8 exact-head CI and handoff",
+      "action": "CI run 37216424582 on 2f9a850",
+      "expected": "success",
+      "observed": "see ci",
+      "verdict": "Pass",
+      "platform": "GitHub Actions ubuntu",
+      "evidence": [
+        "https://github.com/nadeemramli/properbooky/actions/runs/37216424582"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "command": "cargo test --test export_frontmatter_repro (coordinator test) at e20d866",
+      "exit_code": 101,
+      "result": "reproduced: user_comment_present=false",
+      "evidence": "fm-repro-9e7ad7f.log"
+    },
+    {
+      "command": "cargo test --test export_frontmatter_test against 9e7ad7f code",
+      "exit_code": 101,
+      "result": "3 failed, 1 passed (guard)",
+      "evidence": "fm-newsuite-at-9e7ad7f.log"
+    },
+    {
+      "command": "E2E_APP=<9e7ad7f packaged> E2E_BASE_APP=<44e96b6> npm run test:e2e:library-upgrade (negative control)",
+      "exit_code": 1,
+      "result": "defect detected at the upgrade step: user frontmatter changed (comments dropped, tags reformatted)",
+      "evidence": "fm-journey-at-9e7ad7f.log"
+    },
+    {
+      "command": "cd desktop/src-tauri && cargo test",
+      "exit_code": 0,
+      "result": "84 passed, 0 failed, 1 ignored (pre-existing)",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "cd desktop && npx tsc --noEmit -p .",
+      "exit_code": 0,
+      "result": "clean",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "cd desktop && npm run fixtures:check",
+      "exit_code": 0,
+      "result": "current",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "cd mcp && npm test",
+      "exit_code": 0,
+      "result": "fail 0",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "cd desktop && npx tauri build --debug --bundles deb",
+      "exit_code": 0,
+      "result": "built",
+      "evidence": "final/build-identity.txt"
+    },
+    {
+      "command": "cd desktop/src-tauri && cargo build --example seed_index",
+      "exit_code": 0,
+      "result": "built",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "xvfb-run -a npm run test:e2e:packaged (run-1, run-2)",
+      "exit_code": 0,
+      "result": "PASS x2",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "xvfb-run -a npm run test:e2e:reading",
+      "exit_code": 0,
+      "result": "PASS",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "xvfb-run -a npm run test:e2e:highlights",
+      "exit_code": 0,
+      "result": "PASS",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "capsh --drop=cap_dac_override,cap_dac_read_search -- -c \"xvfb-run -a -s '-screen 0 1280x900x24' npm run test:e2e:libraries\"",
+      "exit_code": 0,
+      "result": "PASS",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "E2E_BASE_APP=<44e96b6 packaged> xvfb-run -a npm run test:e2e:library-upgrade",
+      "exit_code": 0,
+      "result": "PASS (17 steps incl. rollback and the frontmatter title-edit step)",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "E2E_SEED_INDEX=…/seed_index xvfb-run -a npm run test:e2e:library-upgrade",
+      "exit_code": 0,
+      "result": "PASS",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    },
+    {
+      "command": "xvfb-run -a npm run test:e2e:packaged:failures",
+      "exit_code": 0,
+      "result": "FAILURE-PATH VERIFICATION: PASS",
+      "evidence": "local scratch logs (not committed): final/<name>.log; packaged evidence final/<journey>/report.json + screenshots"
+    }
+  ],
+  "check_notes": [
+    "Final checks ran sequentially from one script on HEAD 2f9a850 with a clean tree (evidence files held outside the repo during the run).",
+    "Disk allowance ran out once during a preliminary build; scratch worktree build outputs were deleted (previous-build and unrepaired packages kept as extracted binaries/debs) before the final run."
+  ],
+  "ci": {
+    "run_url": "https://github.com/nadeemramli/properbooky/actions/runs/37216424582",
+    "head_sha": "2f9a850843573c482d0dcd82dae7f2f155338d0d",
+    "conclusion": "in progress at 16:35Z: desktop, web, web-e2e, library-mcp success; desktop-e2e steps through the PBK-26 highlights journey success, libraries/upgrade/failures running; web-local-supabase running"
+  },
+  "artifacts": [
+    {
+      "path": "desktop/src-tauri/target/debug/bundle/deb/ProperBooky_0.1.0_amd64.deb",
+      "sha256": "9a14b71586f7cee2161b797e38191fa03f5964423c0ded38c07dd93f4db59afe",
+      "source_sha": "2f9a850843573c482d0dcd82dae7f2f155338d0d"
+    },
+    {
+      "path": "usr/bin/desktop (extracted from that deb)",
+      "sha256": "e8e5f7653fc1b7182613c32758f9b50d1f227c61f2792f02415df278af9b9d64",
+      "source_sha": "2f9a850843573c482d0dcd82dae7f2f155338d0d"
+    },
+    {
+      "path": "previous build usr/bin/desktop (rehearsal input)",
+      "sha256": "5303d948a76d8d62e5a00217f1b30ea927e97fdeeea3e762265f922a1445984a",
+      "source_sha": "44e96b67d05213b53185d97d740f7d392e0c0c3f"
+    },
+    {
+      "path": "task-1 build usr/bin/desktop (negative control)",
+      "sha256": "bc40468cf6245d61cede1d8bab718bc35cf2e84235f15e1f6a53a360e124195c",
+      "source_sha": "9e7ad7f67e92549fd57f90edafdaf5e432161424"
+    }
+  ],
+  "local_verification_required": [
+    "Windows installed app (coordinator, deferred): on a backed-up export folder, add a comment line and a property (e.g. tags) to a note's properties in Obsidian, correct the book's title in Review details, sync: only Properbooky's title line changes; put a comment at the end of the title: line, edit the title again, sync: the note is listed under 'Not exported' and unchanged.",
+    "Windows: whether Obsidian on Windows writes CRLF into properties (such notes are refused when a metadata update is needed, never rewritten)."
+  ],
+  "review_walkthrough": [
+    "Sync a book's highlights to Obsidian; in Obsidian add '# my comment' and 'tags: [a, b]' to its properties.",
+    "Change the book's title in Review details and sync: only the title: line (and the block heading) change; comment and tags exactly as written.",
+    "Add '# why' at the end of the title: line, change the title again, sync: the note is listed under 'Not exported' with how to fix it and is untouched; move the comment to its own line, sync: updated."
+  ],
+  "known_risks": [
+    "Conservative: an owned line with a comment, a multi-line value, or a key written in another form causes a refusal only when that property must change; the user then fixes it or opts out via generated_by.",
+    "Owned values written by serde_yaml (quoted when needed); the user's own lines are never rewritten.",
+    "Frontmatter with CRLF anywhere is refused when an update is needed (no line-ending conversion).",
+    "Rollback limitation unchanged (previous build rewrites notes wholesale if used to sync).",
+    "Linux-only evidence."
+  ],
+  "next_eligible_batch": [
+    "none: chat at lifetime cap 2/2; no further scope accepted"
+  ]
+}

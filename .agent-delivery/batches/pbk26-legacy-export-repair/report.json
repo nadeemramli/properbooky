@@ -118,7 +118,7 @@
       "criterion": "L8 exact-head CI and delivery manifest",
       "action": "CI on PR #23 head 9e7ad7f",
       "expected": "all jobs success",
-      "observed": "see ci",
+      "observed": "CI run 37214563269 on 9e7ad7f: success, all 6 jobs",
       "verdict": "Pass",
       "platform": "GitHub Actions ubuntu",
       "evidence": [
@@ -243,7 +243,7 @@
   "ci": {
     "run_url": "https://github.com/nadeemramli/properbooky/actions/runs/37214563269",
     "head_sha": "9e7ad7f67e92549fd57f90edafdaf5e432161424",
-    "conclusion": "pending"
+    "conclusion": "success: all 6 jobs (desktop: tsc + cargo test; web; web-e2e; web-local-supabase; library-mcp; desktop-e2e incl. the extended seeded-upgrade journey; artifact desktop-e2e-evidence), completed 2026-10-04T16:12:29Z"
   },
   "artifacts": [
     {
@@ -295,10 +295,11 @@
         "line-level edit of only Properbooky's keys when they are simple one-line scalars, else refuse with a reason",
         "refuse to change frontmatter that would not round-trip, report in skipped"
       ],
-      "recommendation": "line-level edit with refusal fallback, as a separate shaped issue; not done here to keep this repair bounded"
+      "recommendation": "line-level edit with refusal fallback, as a separate shaped issue; not done here to keep this repair bounded",
+      "status": "confirmed by the coordinator (Direct PBK-26 v13) and repaired as task 2 of this chat: see ../pbk26-frontmatter-repair/report.json"
     }
   ],
   "next_eligible_batch": [
-    "none: this chat completed its single objective and stops (cap 2 with feedback; no further scope accepted)"
+    "pbk26-frontmatter-repair (task 2 of this chat, dispatched by the coordinator after confirming the escalation)"
   ]
 }
