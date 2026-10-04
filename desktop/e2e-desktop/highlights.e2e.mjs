@@ -405,7 +405,8 @@ function exportDir() {
 
 function exportFiles() {
   const dir = exportDir();
-  return existsSync(dir) ? readdirSync(dir).sort() : [];
+  // Notes only: the folder also holds PBK-15's ownership marker.
+  return existsSync(dir) ? readdirSync(dir).filter((n) => n.endsWith(".md")).sort() : [];
 }
 
 function exportText(name) {
@@ -749,6 +750,12 @@ try {
     const pdfNote = "Synthetic Harbormaster - Tidewater Echo Ledger.md";
     const epubNote = "Synthetic Fixture - Zephyr Lantern Field Notes.md";
     check(JSON.stringify(files) === JSON.stringify([pdfNote, epubNote].sort()), `export files ${JSON.stringify(files)}`);
+    // The folder holds exactly these notes plus PBK-15's ownership marker,
+    // which names the open library.
+    const everything = readdirSync(exportDir()).sort();
+    check(JSON.stringify(everything) === JSON.stringify([".properbooky-library", pdfNote, epubNote].sort()), `export folder ${JSON.stringify(everything)}`);
+    const owner = JSON.parse(readFileSync(path.join(exportDir(), ".properbooky-library"), "utf8"));
+    check(owner.library_id === (await invoke("get_library_state")).library_id, `export marker ${JSON.stringify(owner)}`);
     const pdfText = exportText(pdfNote);
     const epubText = exportText(epubNote);
     for (const [k, v] of [["title", "Tidewater Echo Ledger"], ["author", "Synthetic Harbormaster"], ["source", PDF_REL], ["generated_by", "properbooky"]]) {
@@ -905,7 +912,14 @@ try {
     check(epub.length === 2 && epub.filter((h) => h.deleted).length === 1, `EPUB records ${JSON.stringify(epub)}`);
     check([...pdf, ...epub].every((h) => isUuid(h.id) && h.updated_at >= h.created_at), "ids/timestamps");
     const appData = listTree(dataDir).map((f) => f.path);
-    check(!appData.some((p) => p.endsWith(".json")), `JSON state in app-data: ${JSON.stringify(appData)}`);
+    // PBK-15's library list is the only JSON in app-data; no reading state.
+    check(!appData.some((p) => p.endsWith(".json") && !/(^|\/)settings(\.previous)?\.json$/.test(p)), `JSON state in app-data: ${JSON.stringify(appData)}`);
+    for (const list of appData.filter((p) => /(^|\/)settings(\.previous)?\.json$/.test(p))) {
+      const text = readFileSync(path.join(dataDir, list), "utf8");
+      const keys = Object.keys(JSON.parse(text)).sort().join(",");
+      check(keys === "active,libraries,version" || keys === "libraries,version", `library list keys ${keys}`);
+      check(!/position|highlight|percent|anchor/.test(text), `reading state in the library list ${list}`);
+    }
     report.sidecars = { pdf, epub };
     report.export_notes = Object.fromEntries(exportFiles().map((n) => [n, exportText(n)]));
     return { pdf: pdf.length, epub: epub.length, export_notes: exportFiles() };
