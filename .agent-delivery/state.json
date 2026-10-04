@@ -31,7 +31,7 @@
     "pr": "https://github.com/nadeemramli/properbooky/pull/24 (draft, base claude/sharp-archimedes-s3rdeu)",
     "report": ".agent-delivery/batches/pbk19-catalog-import/report.json",
     "plan": ".agent-delivery/batches/pbk19-catalog-import/plan.md",
-    "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37228706900 (tested head; see report ci)"
+    "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37228706900: success on tested head 58aebe4 (all 6 jobs)"
   },
   "completed_cloud_batches": [
     {

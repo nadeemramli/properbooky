@@ -239,7 +239,8 @@
  "ci": {
   "run_url": "https://github.com/nadeemramli/properbooky/actions/runs/37228706900",
   "head_sha": "58aebe4e91e8985a7313ca3c1f1f8d06059beeb7",
-  "conclusion": "PENDING"
+  "conclusion": "success: all 6 jobs (desktop: tsc + cargo test; web; web-e2e; web-local-supabase; library-mcp; desktop-e2e incl. the new PBK-19 catalog import journey step), completed 2026-10-04T19:59:02Z",
+  "evidence_heads": "44d5c58 (evidence only): run 37229601699 web-local-supabase failed in setup (runner port 54322 already in use before any test; commented on PR #24); the next evidence-only head reruns CI."
  },
  "artifacts": [
   {
