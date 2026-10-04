@@ -2,6 +2,7 @@
 // failures, and a wishlist CSV import, each checked browser -> local Supabase
 // (PostgREST + storage) -> reload.
 import { test, expect, type Page } from "@playwright/test";
+
 import {
   admin,
   bookRows,
@@ -143,9 +144,9 @@ test("bulk queue: outcomes shown match what persisted; failures stay queued and 
   rows = await bookRows(user.id);
   for (const r of rows.filter((r) => r.file_url)) {
     const name = { "basalt-ledger-handbook": PDF_OK, "quillfeather-orbit-atlas": PDF_FLAKY, "Zephyr Lantern Field Notes": EPUB }[
-      r.title as string
+      r.title
     ];
-    if (name) expect(await downloadSha(r.file_url)).toBe(fileSha256(fixturePath(name)));
+    if (name !== undefined) expect(await downloadSha(r.file_url)).toBe(fileSha256(fixturePath(name)));
   }
   expect((await storedObjects(user.id)).length).toBe(rows.filter((r) => r.file_url?.includes("/books/")).length);
 });
@@ -182,7 +183,7 @@ test("wishlist CSV import persists accepted rows and reports the rejected one", 
     files: Object.fromEntries(
       all
         .filter((r) => r.file_url?.includes("/books/"))
-        .map((r) => [r.id, fileSha256(fixturePath({ "basalt-ledger-handbook": PDF_OK, "quillfeather-orbit-atlas": PDF_FLAKY }[r.title as string] ?? EPUB))])
+        .map((r) => [r.id, fileSha256(fixturePath({ "basalt-ledger-handbook": PDF_OK, "quillfeather-orbit-atlas": PDF_FLAKY }[r.title] ?? EPUB))])
     ),
   });
 });

@@ -1,7 +1,9 @@
 // PBK-30 criterion 4: sign-up confirmation and password reset against local
 // GoTrue with Mailpit email capture, in production mode (real auth).
 import { randomUUID } from "node:crypto";
+
 import { test, expect, type Browser, type Page } from "@playwright/test";
+
 import {
   admin,
   createConfirmedUser,

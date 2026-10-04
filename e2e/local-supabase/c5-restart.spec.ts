@@ -2,6 +2,7 @@
 // stopped and started again (data volumes kept), everything criteria 2-3
 // persisted is still there, through the UI and in the database.
 import { test, expect, type Page } from "@playwright/test";
+
 import {
   admin,
   bookRows,
@@ -10,23 +11,24 @@ import {
   sha256,
   shot,
   waitForCard,
+  type FixtureMetadata,
 } from "./support";
 
-type C2 = {
+interface C2 {
   email: string;
   userId: string;
   bookId: string;
   wishId: string;
-  metadata: Record<string, any>;
-  wishMetadata: Record<string, any>;
+  metadata: FixtureMetadata;
+  wishMetadata: FixtureMetadata;
   highlightRows: Array<Record<string, unknown>>;
-};
-type C3 = {
+}
+interface C3 {
   email: string;
   userId: string;
   books: Array<{ id: string; title: string; status: string; file_url: string | null; metadata: unknown }>;
   files: Record<string, string>;
-};
+}
 
 const state = () => readRestartState() as { c2: C2; c3: C3 };
 

@@ -2,9 +2,11 @@
 // wiping highlights, bookmarks, TOC or recommendations; spectrum, rating and
 // wishlist fields persist; a second recommendation keeps the first.
 import { test, expect, type Page } from "@playwright/test";
+
 import {
   admin,
   createConfirmedUser,
+  type FixtureMetadata,
   loginThroughUi,
   newId,
   recordForRestart,
@@ -40,7 +42,7 @@ let highlightRows: Array<Record<string, unknown>>;
 async function metadataOf(id: string) {
   const { data, error } = await admin().from("books").select("metadata").eq("id", id).single();
   if (error) throw error;
-  return data.metadata as Record<string, any>;
+  return (data as { metadata: FixtureMetadata }).metadata;
 }
 
 async function openDetails(page: Page, title: string) {
@@ -100,8 +102,9 @@ test.beforeAll(async () => {
     ])
     .select("id, title");
   if (error) throw error;
-  bookId = data.find((b) => b.title === BOOK)!.id;
-  wishId = data.find((b) => b.title === WISH)!.id;
+  const inserted = data as Array<{ id: string; title: string }>;
+  bookId = inserted.find((b) => b.title === BOOK)!.id;
+  wishId = inserted.find((b) => b.title === WISH)!.id;
   firstRec.book_id = bookId;
   await admin().from("books").update({ metadata: { ...(await metadataOf(bookId)), recommendations: [firstRec] } }).eq("id", bookId);
 
@@ -114,7 +117,7 @@ test.beforeAll(async () => {
     ])
     .select("*");
   if (rows.error) throw rows.error;
-  highlightRows = rows.data;
+  highlightRows = rows.data as Array<Record<string, unknown>>;
 });
 
 test("editing one metadata field keeps highlights, bookmarks, TOC and recommendations", async ({ page }) => {
@@ -241,7 +244,7 @@ test("adding a second recommendation keeps the first", async ({ page }) => {
   await shot(page, "c2-recommendations-after-reload");
 
   const meta = await metadataOf(bookId);
-  expect(meta.recommendations.map((r: { recommender_name: string }) => r.recommender_name)).toEqual([
+  expect((meta.recommendations ?? []).map((r) => r.recommender_name)).toEqual([
     "Recommender One",
     "Recommender Two",
   ]);
