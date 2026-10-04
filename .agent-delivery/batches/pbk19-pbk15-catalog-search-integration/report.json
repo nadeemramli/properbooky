@@ -1,0 +1,482 @@
+{
+  "batch_id": "pbk19-pbk15-catalog-search-integration",
+  "dispatch": "Coordinator assignment 5 Oct 2026 MYT, recorded on Direct PBK-19/PBK-15 heartbeat 2202: new chat, two issue objectives (PBK-19 catalog integration, PBK-15 search repair integration), lifetime count 2/cap 2 (fills the cap; no later implementation scope in this chat). Previous session session_01JbygKhhQHafSKbabnod2K8 finished/stopped at 2/2; coordinator keeps the Direct claims. No Direct access from cloud.",
+  "issue_keys": [
+    "PBK-19",
+    "PBK-15"
+  ],
+  "base_sha": "103510130c25161fa0df2e15d3c6828bc4826959",
+  "base_note": "Exact PR #24 head (claude/gallant-darwin-bbt4jb; evidence only over tested 58aebe4e91e8985a7313ca3c1f1f8d06059beeb7; its base 94faa40 = PR #23 head). Stacked: carries the unmerged PR #20/#21/#22/#23/#24 ancestry. Not independently mergeable.",
+  "sources": {
+    "pr24": {
+      "pr": "https://github.com/nadeemramli/properbooky/pull/24",
+      "branch": "claude/gallant-darwin-bbt4jb",
+      "head": "103510130c25161fa0df2e15d3c6828bc4826959",
+      "tested": "58aebe4e91e8985a7313ca3c1f1f8d06059beeb7",
+      "base": "94faa40b50104380bc942dad3b45fc50c7601673"
+    },
+    "pr25": {
+      "pr": "https://github.com/nadeemramli/properbooky/pull/25",
+      "branch": "claude/pbk15-search-empty-state",
+      "head": "5f4fc33ad654d6b860f8986df236082e9d423296",
+      "tested": "c2e157ff0a9829ba427372dcfc592d3bcd16653d",
+      "base": "fee7d17c1f4831b4b36f3c2a4b6b1235ebb409d4"
+    },
+    "pr22_existing_integration": "fee7d17c1f4831b4b36f3c2a4b6b1235ebb409d4 (PR #22 head when this batch started; tree equals 94faa40's)",
+    "merge_method": "git merge --no-ff 5f4fc33 (merge commit 1a93b70); PR #25's exact commits are ancestors (provenance by graph, no duplicate patches). desktop/package.json conflict resolved keeping both scripts; LibraryView.tsx and ci.yml merged without a textual conflict and the merged LibraryView carries exactly both change sets (verified by diffing each side's +/- lines).",
+    "later_upstream": "Coordinator notice during this batch: PR #25 was merged into PR #22's branch claude/pbk15-pbk26-integration at e8166deee210644734810157fdf572cdfe547d86 (22:22:16 UTC). Verified: 5f4fc33 is its ancestor, tree(e8166de) == tree(5f4fc33), and merging e8166de into this branch yields this branch's tree unchanged. Not rebased or duplicated; main and PR #24 (1035101) unchanged when verified."
+  },
+  "tested_sha": "0dfc440af852a064bc4dc840255d27c0b5ec658d",
+  "handoff_sha": "the evidence-only commit that adds this report and the state update (see PR #26 head); no product/test change after tested_sha",
+  "branch": "claude/bold-ritchie-1xa5z8 (session-designated branch; reset from main 44e96b6, which it had not advanced, to the exact PR #24 head)",
+  "pr_url": "https://github.com/nadeemramli/properbooky/pull/26 (draft, base claude/gallant-darwin-bbt4jb)",
+  "model_observed": "claude-opus-5-5 (get_session at batch start: configured_model, session_context.model and external_metadata.last_served_model all claude-opus-5-5; re-checked before handoff after a worker restart (worker_epoch 2): unchanged)",
+  "environment": "Anthropic cloud container (root; journeys needing enforced folder permissions run under capsh --drop=cap_dac_override,cap_dac_read_search), Ubuntu 24.04, rustc/cargo 1.97.0, Node 22.22.0, tauri-driver 2.1.0, webkit2gtk-driver (WebKitWebDriver), Xvfb, xdotool; packaged debug .deb built from the clean tested head with a scratch CARGO_TARGET_DIR; per-run temp XDG dirs and temp synthetic libraries and CSVs. No owner data, owner library, real export or Windows.",
+  "overlap_resolution": {
+    "product_edits_beyond_merge": "none (the merge result is the integration; no defect found in the combination)",
+    "grid_and_count": "PR #25's shown = failed ? [] : visible, where visible includes PR #24's status/rating facets",
+    "zero_states": "settled + query + 0 books -> 'No books match “q”.' + Clear search; settled + no query + 0 books -> empty-library note; settled + books + 0 visible (shelf, author/topic, status or rating facet) -> 'Nothing here…'; failed listing for the current query -> alert, no cards",
+    "badges": "PR #24's availability + catalog status badges on every card in shown",
+    "import_refresh": "PR #24's onImported refresh goes through the same settled/failed listing state; its own .catch(setStatus) kept like PR #25's other non-search callers (known risk below)"
+  },
+  "baseline": [
+    {
+      "build": "PR #24 head 1035101 (product = 58aebe4)",
+      "deb_sha256": "a5a8c3336c3f819e3933686d43ab443d53d353ca50fcc235836cdc871b6b0d9c",
+      "app_sha256": "12396df320d1a22622bd873f2b553c116a576e8349b4331426f0260360793a0b",
+      "command": "capsh ... E2E_APP=<pr24 build> npm run test:e2e:catalog-search",
+      "exit_code": 1,
+      "observed": "fails at B1: view {query:'zzqx', cardCount:0, count:'0 items', noMatch:null, emptyLibrary:null, failure:null} - the coordinator-confirmed blank grid (screenshot shows only '0 items')"
+    },
+    {
+      "build": "PR #25 head 5f4fc33 (product = c2e157f)",
+      "deb_sha256": "0a90b3f9bc317ab1b0f0b49fbc77e9bb4657955f8428b85009b052d6d447c1bc",
+      "app_sha256": "a38af4889ef923a069fbfcb4c5ade0a53635c38212f5b6bcf72b3a27214ce2b9",
+      "command": "same journey",
+      "exit_code": 1,
+      "observed": "B1 passes (repair present); fails at I1-I3: button 'Import catalog' missing - neither source alone delivers the combined journey"
+    }
+  ],
+  "negative_controls": [
+    {
+      "mutation": "M1: no-match decided from visible instead of books (facet zero merged into search zero), on the merged tree 1a93b70",
+      "deb_sha256": "5bfba129de0e69965fbbdeae3c6dbfe4103a4242cfff55bf1fc1a932b4d0abb2",
+      "app_sha256": "2b84063188db17e4fb30850350733ca90de9061bc2ec21ea0bce478a1839b1fa",
+      "exit_code": 1,
+      "observed": "fails at I7: an author search hidden by the queued facet shows both 'No books match' and 'Nothing here for …'"
+    },
+    {
+      "mutation": "M2: PR #24's side of the two overlapping lines (grid and count from visible, shown removed)",
+      "deb_sha256": "a96b33afab2f632ca7c9c4157f332103474ea906beb31c45fafb4c0b38a98b9d",
+      "app_sha256": "8868379b8b2e7c0463310937a5523bf55a78de59861c067be99c8b3da6169011",
+      "exit_code": 1,
+      "observed": "fails at I11: failed listing shows the alert beside 1693 stale cards and '1693 items'"
+    },
+    {
+      "mutation": "Rust: identity_key without lowercasing",
+      "command": "cargo test --test catalog_import_test a_representative",
+      "exit_code": 101,
+      "observed": "1714 profiles created, want 1690 (case variants no longer collapse); source restored, tree clean"
+    },
+    {
+      "note": "Mutated builds were made in a scratch worktree and never committed; the tested binary is built from the clean tested head."
+    }
+  ],
+  "sheet": {
+    "sha256": "1712e3a56736779c4ba95108f36668d27bb4bd26da2ebd86fb6bd99729a99288",
+    "bytes": 287696,
+    "rows": 1716,
+    "unique": 1690,
+    "duplicates": 24,
+    "rejected": 2,
+    "statuses": {
+      "available": 595,
+      "queued": 255,
+      "wishlist": 840
+    },
+    "with_latticework": 846
+  },
+  "criteria": [
+    {
+      "issue_key": "PBK-15",
+      "criterion": "B1 baseline: server-filtered books=[] for a non-empty unmatched query left a blank grid",
+      "action": "combined journey on the PR #24 build",
+      "expected": "journey fails at the zero-match step",
+      "observed": "exit 1 at B1, blank grid (see baseline)",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "baseline[0]"
+      ]
+    },
+    {
+      "issue_key": "PBK-19",
+      "criterion": "C1 catalog CSV creates one Markdown entry per normalized unique title+author",
+      "action": "import the 1716-row synthetic sheet through Import catalog",
+      "expected": "1690 profiles; 24 duplicate rows and 2 rejected rows named",
+      "observed": "'Created 1690 profiles · 0 already in the catalog · 24 duplicate rows · 2 not imported'; Catalog holds exactly 1690 .md files, one per identity; duplicate and Not imported lists match line by line",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "desktop/e2e-desktop/catalog-search.e2e.mjs (final/catalog-search-1, -2)",
+        "CI desktop-e2e step 'PBK-19 + PBK-15 catalog search integration'"
+      ]
+    },
+    {
+      "issue_key": "PBK-19",
+      "criterion": "C2 YAML retains title/author/date/type/topics/recommendation/rating/status; Latticework body preserved",
+      "action": "read every profile back from disk (strict frontmatter reader) and compare with its first row; Rust test parses every profile with serde_yaml",
+      "expected": "exact keys and values; body = trimmed Latticework",
+      "observed": "all 1690 profiles match (846 with multi-line/quoted/Unicode/'---' Latticework); Rust a_representative_1700_row_sheet… passes",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "desktop/e2e-desktop/catalog-search.e2e.mjs",
+        "desktop/src-tauri/tests/catalog_import_test.rs a_representative_1700_row_sheet_imports_each_book_once_and_reruns_unchanged"
+      ]
+    },
+    {
+      "issue_key": "PBK-19",
+      "criterion": "C3 Downloaded->available, Need to read now->queued, all other/empty->wishlist",
+      "action": "panel Status table, indexed statuses and frontmatter for case/spacing variants and near misses ('Not downloaded', 'Need to read', 'Reading', 'Done', empty)",
+      "expected": "mapping per rule",
+      "observed": "status table equals the computed table; indexed {'available': 595, 'queued': 255, 'wishlist': 840}",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "desktop/e2e-desktop/catalog-search.e2e.mjs (final/catalog-search-1, -2)",
+        "CI desktop-e2e step 'PBK-19 + PBK-15 catalog search integration'"
+      ]
+    },
+    {
+      "issue_key": "PBK-19",
+      "criterion": "C4 duplicate normalized title+author collapses; rerun creates no files and leaves existing bytes unchanged",
+      "action": "case/space duplicate rows; import again before and after restart; digest (sha256 + mtime) of every library file",
+      "expected": "first row wins; 'Created 0 profiles'; no file changed",
+      "observed": "'Created 0 profiles · 1690 already in the catalog'; no 'Kept unchanged, the sheet differs'; whole-library digest identical after the rerun, two libraries switches, the failed listing, restart and the post-restart import",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "desktop/e2e-desktop/catalog-search.e2e.mjs (final/catalog-search-1, -2)",
+        "CI desktop-e2e step 'PBK-19 + PBK-15 catalog search integration'"
+      ]
+    },
+    {
+      "issue_key": "PBK-19",
+      "criterion": "C5 rescan indexes catalog alongside regular files",
+      "action": "Rescan button; list_books",
+      "expected": "catalog and files listed, profiles untouched",
+      "observed": "'Indexed 1693 books'; 1690 catalog + 3 files indexed with author/status/rating/topics as in the frontmatter; Catalog digest unchanged",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "desktop/e2e-desktop/catalog-search.e2e.mjs (final/catalog-search-1, -2)",
+        "CI desktop-e2e step 'PBK-19 + PBK-15 catalog search integration'"
+      ]
+    },
+    {
+      "issue_key": "PBK-19",
+      "criterion": "C5 status/rating filters work (with counts)",
+      "action": "Status and Rating facets, alone and combined",
+      "expected": "option counts match the frontmatter; grid narrows",
+      "observed": "status and rating option texts equal the computed counts; queued, queued+★5 and Clear browse filters show the computed counts",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "desktop/e2e-desktop/catalog-search.e2e.mjs (final/catalog-search-1, -2)",
+        "CI desktop-e2e step 'PBK-19 + PBK-15 catalog search integration'"
+      ]
+    },
+    {
+      "issue_key": "PBK-19",
+      "criterion": "C5 title/author search returns catalog",
+      "action": "search a title (4+-letter words) and an author's full name, and 'élan'",
+      "expected": "exactly the computed matching profiles",
+      "observed": "cards equal the computed sets (author search >= 3 profiles)",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "desktop/e2e-desktop/catalog-search.e2e.mjs (final/catalog-search-1, -2)",
+        "CI desktop-e2e step 'PBK-19 + PBK-15 catalog search integration'"
+      ]
+    },
+    {
+      "issue_key": "PBK-19",
+      "criterion": "C5 card badges match frontmatter",
+      "action": "for every card in the title/author/Unicode searches and after restart",
+      "expected": "[availability, status label from the profile's frontmatter]",
+      "observed": "every card's badges match its profile on disk",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "desktop/e2e-desktop/catalog-search.e2e.mjs (final/catalog-search-1, -2)",
+        "CI desktop-e2e step 'PBK-19 + PBK-15 catalog search integration'"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "Zero match shows query-specific no-results with Clear search (preserved after integration)",
+      "action": "search 'zzqx' in the 1693-item library, then Clear search",
+      "expected": "'No books match “zzqx”.', '0 items', no empty-library/facet message; Clear search restores all",
+      "observed": "as expected; all 1693 titles back",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "desktop/e2e-desktop/catalog-search.e2e.mjs (final/catalog-search-1, -2)",
+        "CI desktop-e2e step 'PBK-19 + PBK-15 catalog search integration'"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "Distinct empty-library, query no-match and facet states",
+      "action": "empty library (note -> no-match -> note); queued+★1 facet zero; author search hidden by the queued facet; no-match under a facet",
+      "expected": "empty-library note; 'Nothing here.' / 'Nothing here for “q”.' for facets; 'No books match' only for a query with no listed book",
+      "observed": "as expected; M1 negative control fails here",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "desktop/e2e-desktop/catalog-search.e2e.mjs (final/catalog-search-1, -2)",
+        "CI desktop-e2e step 'PBK-19 + PBK-15 catalog search integration'"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "Restart/readback",
+      "action": "close and relaunch the same binary",
+      "expected": "alpha reopens; profiles, badges, facets, search and no-match as before",
+      "observed": "as expected; import after restart creates 0, digest unchanged",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "desktop/e2e-desktop/catalog-search.e2e.mjs (final/catalog-search-1, -2)",
+        "CI desktop-e2e step 'PBK-19 + PBK-15 catalog search integration'"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "Two libraries / isolation",
+      "action": "beta (fixture files, no catalog) and an empty library",
+      "expected": "alpha's catalog never shown or searchable there; their folders get no Catalog; alpha intact",
+      "observed": "beta: facets 'All statuses'/'All ratings' only, alpha's author is a no-match, beta's own file found; no Catalog in beta/empty; alpha digest unchanged",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "desktop/e2e-desktop/catalog-search.e2e.mjs (final/catalog-search-1, -2)",
+        "CI desktop-e2e step 'PBK-19 + PBK-15 catalog search integration'"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "Rapid query cancellation/replacement",
+      "action": "two scripted bursts of input events, 20ms (within debounce) and 170ms apart (overlapping requests)",
+      "expected": "the settled view answers the last query and stays so 1.5s later; no no-match for another query",
+      "observed": "as expected; burst observer {'observed': 23, 'loading': 6, 'no_match': 4}",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "desktop/e2e-desktop/catalog-search.e2e.mjs (final/catalog-search-1, -2)",
+        "CI desktop-e2e step 'PBK-19 + PBK-15 catalog search integration'"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "Failed listing and recovery",
+      "action": "library folder made unreadable during a search (DAC dropped), then restored",
+      "expected": "alert naming the search and cause; no cards, no no-match; recovery with catalog results",
+      "observed": "'Searching for “…” failed: … cannot be read …', '0 items'; title and author searches recover; M2 negative control fails here",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "desktop/e2e-desktop/catalog-search.e2e.mjs (final/catalog-search-1, -2)",
+        "CI desktop-e2e step 'PBK-19 + PBK-15 catalog search integration'"
+      ]
+    },
+    {
+      "issue_key": "PBK-15",
+      "criterion": "Loading message truthfulness",
+      "action": "DOM observer over the whole run",
+      "expected": "'Loading your library…' never with a no-match/empty/facet/failure state and gone once settled; import panel 'Working…' never beside its summary",
+      "observed": "136 states recorded, none untruthful; loading observed during the large listings; 'Working…' observed during the import",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "desktop/e2e-desktop/catalog-search.e2e.mjs (final/catalog-search-1, -2)",
+        "CI desktop-e2e step 'PBK-19 + PBK-15 catalog search integration'"
+      ]
+    },
+    {
+      "issue_key": "PBK-19/PBK-15",
+      "criterion": "Prior protections: library isolation, annotations/export source bytes/locations, legacy-metadata no-clobber",
+      "action": "existing packaged journeys on the same final binary",
+      "expected": "all pass",
+      "observed": "catalog-import, search-states, smoke x2, reading, highlights, libraries, library-upgrade, injected failures: all exit 0 (see checks)",
+      "verdict": "Pass",
+      "platform": "Linux packaged debug .deb (Ubuntu 24.04 container, tauri-driver/WebKitWebDriver, Xvfb), fresh XDG app-data, synthetic libraries",
+      "evidence": [
+        "checks"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "command": "cd desktop/src-tauri && cargo test",
+      "exit_code": 0,
+      "result": "exit 0 in 4s; 97 tests passed, 0 failed across all targets",
+      "evidence": "local log final/cargo-test.log (scratch, not committed)"
+    },
+    {
+      "command": "cd desktop && npx tsc --noEmit -p .",
+      "exit_code": 0,
+      "result": "exit 0 in 3s",
+      "evidence": "local log final/tsc.log (scratch, not committed)"
+    },
+    {
+      "command": "cd desktop && npm run fixtures:check",
+      "exit_code": 0,
+      "result": "exit 0 in 0s",
+      "evidence": "local log final/fixtures-check.log (scratch, not committed)"
+    },
+    {
+      "command": "cd mcp && npm ci && npm test",
+      "exit_code": 0,
+      "result": "exit 0 in 3s",
+      "evidence": "local log final/mcp-test.log (scratch, not committed)"
+    },
+    {
+      "command": "cd desktop && npx tauri build --debug --bundles deb (CARGO_TARGET_DIR shared scratch target; deb extracted)",
+      "exit_code": 0,
+      "result": "exit 0 in 26s",
+      "evidence": "local log final/tauri-build.log (scratch, not committed)"
+    },
+    {
+      "command": "cd desktop/src-tauri && cargo build --example seed_index --example import_catalog",
+      "exit_code": 0,
+      "result": "exit 0 in 8s",
+      "evidence": "local log final/examples.log (scratch, not committed)"
+    },
+    {
+      "command": "capsh --drop=cap_dac_override,cap_dac_read_search -- -c 'E2E_APP=<final> xvfb-run -a -s \"-screen 0 1280x900x24\" npm run test:e2e:catalog-search' (run 1)",
+      "exit_code": 0,
+      "result": "exit 0 in 30s; journey pass (21 steps, app sha256 26391a916f52325b0f1931dadac660004e9df3a4e0b6b97b281febfaa16c5bde)",
+      "evidence": "local log final/catalog-search-1.log (scratch, not committed)"
+    },
+    {
+      "command": "same, run 2 (fresh app-data and libraries)",
+      "exit_code": 0,
+      "result": "exit 0 in 30s; journey pass (21 steps, app sha256 26391a916f52325b0f1931dadac660004e9df3a4e0b6b97b281febfaa16c5bde)",
+      "evidence": "local log final/catalog-search-2.log (scratch, not committed)"
+    },
+    {
+      "command": "E2E_APP=<final> E2E_IMPORT_CLI=<import_catalog> xvfb-run -a npm run test:e2e:catalog-import",
+      "exit_code": 0,
+      "result": "exit 0 in 18s; journey pass (25 steps, app sha256 26391a916f52325b0f1931dadac660004e9df3a4e0b6b97b281febfaa16c5bde)",
+      "evidence": "local log final/catalog-import.log (scratch, not committed)"
+    },
+    {
+      "command": "capsh ... -c 'E2E_APP=<final> xvfb-run -a npm run test:e2e:search-states'",
+      "exit_code": 0,
+      "result": "exit 0 in 9s; journey pass (14 steps, app sha256 26391a916f52325b0f1931dadac660004e9df3a4e0b6b97b281febfaa16c5bde)",
+      "evidence": "local log final/search-states.log (scratch, not committed)"
+    },
+    {
+      "command": "E2E_APP=<final> xvfb-run -a npm run test:e2e:packaged (run-1)",
+      "exit_code": 0,
+      "result": "exit 0 in 7s",
+      "evidence": "local log final/smoke-1.log (scratch, not committed)"
+    },
+    {
+      "command": "E2E_APP=<final> xvfb-run -a npm run test:e2e:packaged (run-2)",
+      "exit_code": 0,
+      "result": "exit 0 in 7s",
+      "evidence": "local log final/smoke-2.log (scratch, not committed)"
+    },
+    {
+      "command": "E2E_APP=<final> xvfb-run -a npm run test:e2e:reading",
+      "exit_code": 0,
+      "result": "exit 0 in 20s; journey pass (32 steps, app sha256 26391a916f52325b0f1931dadac660004e9df3a4e0b6b97b281febfaa16c5bde)",
+      "evidence": "local log final/reading.log (scratch, not committed)"
+    },
+    {
+      "command": "E2E_APP=<final> xvfb-run -a npm run test:e2e:highlights",
+      "exit_code": 0,
+      "result": "exit 0 in 19s; journey pass (30 steps, app sha256 26391a916f52325b0f1931dadac660004e9df3a4e0b6b97b281febfaa16c5bde)",
+      "evidence": "local log final/highlights.log (scratch, not committed)"
+    },
+    {
+      "command": "capsh ... -c 'E2E_APP=<final> xvfb-run -a -s \"-screen 0 1280x900x24\" npm run test:e2e:libraries'",
+      "exit_code": 0,
+      "result": "exit 0 in 36s; journey pass (44 steps, app sha256 26391a916f52325b0f1931dadac660004e9df3a4e0b6b97b281febfaa16c5bde)",
+      "evidence": "local log final/libraries.log (scratch, not committed)"
+    },
+    {
+      "command": "E2E_APP=<final> E2E_SEED_INDEX=<seed_index> xvfb-run -a npm run test:e2e:library-upgrade",
+      "exit_code": 0,
+      "result": "exit 0 in 17s; journey pass (15 steps, app sha256 26391a916f52325b0f1931dadac660004e9df3a4e0b6b97b281febfaa16c5bde)",
+      "evidence": "local log final/library-upgrade.log (scratch, not committed)"
+    },
+    {
+      "command": "E2E_APP=<final> xvfb-run -a npm run test:e2e:packaged:failures",
+      "exit_code": 0,
+      "result": "exit 0 in 213s",
+      "evidence": "local log final/failures.log (scratch, not committed)"
+    }
+  ],
+  "harness_fix": {
+    "commit": "0dfc440 (Desktop E2E harness: closeApp waits for the app's WebKit helpers to exit)",
+    "why": "CI run 37240658049 on the earlier head 54cdc0c failed in the PBK-26 highlights journey's 'rebuild index from empty app-data' step: rmSync of app-data hit ENOTEMPTY on .../com.nadeemramli.properbooky/storage (all other desktop-e2e steps before it passed; web, web-e2e, desktop and library-mcp jobs green). Root cause: closeApp waited only for the app binary; its WebKitNetworkProcess (owner of that storage) and WebKitWebProcess, marked with the run id, were observed alive 1-105ms after closeApp returned in 3/3 local probes.",
+    "change": "closeApp waits (same 10s bound) until only tauri-driver/WebKitWebDriver remain marked and names any helper that does not exit; no assertion relaxed. 5/5 local probes afterwards: no helper alive at return (112-422ms).",
+    "effect_on_earlier_evidence": "54cdc0c's local final run is superseded (it also overlapped a diagnostic probe during its failures check). Baseline and negative-control runs failed at assertions before the journey's first closeApp (B1, I1-I3, I7, I11), so the harness change cannot alter their outcomes; they ran the identical catalog-search journey file."
+  },
+  "check_notes": [
+    "Final checks ran sequentially from one script on the tested head with a clean tree before and after (head=0dfc440af852a064bc4dc840255d27c0b5ec658d status_lines=0); evidence held outside the repo.",
+    "Development detour (journey, not product): the first combined run stopped at its own guard because a title query's token '2' also occurred in the random temp path; queries now use 4+-letter words and skip rows whose terms occur in the path.",
+    "Injected failures: all 10 cases (assert, missing/corrupt fixture, stall, stall after slow setup, wrong restore, lost position, lost tombstone, launch timeout, early-timeout control) failed as designed with no leftover processes.",
+    "The final binary (usr/bin/desktop 26391a91…) is byte-identical to the development build of merge 1a93b70 used during journey development; product sources are unchanged from 1a93b70 to the tested head. Debs differ only in packaging metadata.",
+    "Web jobs (lint/jest/next build, Playwright, local Supabase) were not run locally: no web code changed; CI runs them on the tested head."
+  ],
+  "ci": {
+    "run_url": "https://github.com/nadeemramli/properbooky/actions/runs/37241327975",
+    "head_sha": "0dfc440af852a064bc4dc840255d27c0b5ec658d",
+    "conclusion": "success: all 6 jobs (desktop: tsc + cargo test; web; web-e2e; web-local-supabase; library-mcp; desktop-e2e incl. the new 'PBK-19 + PBK-15 catalog search integration' step, run non-root), completed 2026-10-04T23:14:50Z",
+    "superseded": "run 37240658049 on 54cdc0c: failure in desktop-e2e (PBK-26 highlights journey ENOTEMPTY on app-data storage after close; root-caused and fixed in 0dfc440, see harness_fix); its other five jobs were green"
+  },
+  "artifacts": [
+    {
+      "path": "desktop/src-tauri/target/debug/bundle/deb/ProperBooky_0.1.0_amd64.deb (built with a scratch CARGO_TARGET_DIR)",
+      "sha256": "e0a93f40c0fa8f9c3b4a96681715479285f953192f99943f1fcf3981fbd22b09",
+      "source_sha": "0dfc440af852a064bc4dc840255d27c0b5ec658d"
+    },
+    {
+      "path": "usr/bin/desktop (extracted from that deb)",
+      "sha256": "26391a916f52325b0f1931dadac660004e9df3a4e0b6b97b281febfaa16c5bde",
+      "source_sha": "0dfc440af852a064bc4dc840255d27c0b5ec658d"
+    },
+    {
+      "path": "baseline/negative-control builds (not delivered)",
+      "sha256": "see baseline[] and negative_controls[]",
+      "source_sha": "1035101, 5f4fc33, 1a93b70 + mutation"
+    }
+  ],
+  "local_verification_required": [
+    "Windows installed app on a disposable library (coordinator-owned, deferred): Import catalog with a synthetic sheet -> search a title and an author -> search a word with no match -> Clear search -> Status/Rating facets -> restart.",
+    "Owner's actual export: dry run on a COPY of the real Catalog folder first (PR #24 D1-D4); never run here and no count or compatibility is claimed."
+  ],
+  "review_walkthrough": [
+    "Import catalog -> choose a sheet -> Import: summary and named rows; cards show availability + status badges.",
+    "Search an author: their profiles; search a word that matches nothing: 'No books match “word”.' + Clear search; press it: whole library back.",
+    "Pick Status Queued and Rating ★1 (none): 'Nothing here.', not the no-match message."
+  ],
+  "known_risks": [
+    "Facet option counts (author/topic/status/rating) describe the last successful listing even while a later listing has failed (grid and count are empty then).",
+    "Non-search callers of the listing (Rescan, Save URL, undo, Organize, review save and now the post-import refresh) keep their own status line on failure, so a failed listing there can show two messages (as PR #25 reported).",
+    "The failure alert reuses the .status style (PR #25).",
+    "Synthetic data only: the owner's actual export and the existing real-library migration remain untested (PR #24 D1-D6 open with the coordinator).",
+    "Linux-only evidence; Windows/WebView2 unverified."
+  ],
+  "stack_dependency": "PR #26 -> PR #24 (1035101) -> PR #23 (94faa40) -> PR #22 -> PR #20/#21; PR #25 is merged here by its exact commits and is now also in PR #22 (e8166de).",
+  "merge_order": "Recommended: PR #20/#21 -> PR #22 (now including #23 and #25 at e8166de) -> PR #24 -> PR #26. Merging PR #22 at e8166de before PR #24/#26 adds no change to this branch's tree. Merging PR #24 alone into a line that has PR #25 needs the same LibraryView/package.json resolution as 1a93b70; prefer merging PR #26 right after PR #24.",
+  "status": "CLOUD CHECKS: see checks/ci. LOCAL DELIVERY PENDING (coordinator, Windows). HUMAN ACCEPTANCE PENDING. Review-pending; not Agent Pass, not production readiness, not owner acceptance.",
+  "next_eligible_batch": [
+    "none: chat at cap 2/2; stop after this handoff"
+  ]
+}
