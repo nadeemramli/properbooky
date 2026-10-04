@@ -1,0 +1,4 @@
+# Fixture bytes are format data (PDF xref byte offsets, EPUB ZIP CRCs).
+# Never convert line endings, even with core.autocrlf=true on Windows.
+library/*.pdf binary
+library/*.epub binary

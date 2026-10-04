@@ -9,6 +9,10 @@
     "preview": "vite preview",
     "test:e2e:desktop": "node e2e-desktop/smoke.e2e.mjs",
     "test:e2e:review": "node e2e-desktop/library-review.e2e.mjs",
+    "test:e2e:packaged": "node e2e-desktop/run-packaged.mjs",
+    "test:e2e:packaged:failures": "node e2e-desktop/verify-failures.mjs",
+    "fixtures:generate": "node e2e-desktop/fixtures/generate.mjs",
+    "fixtures:check": "node e2e-desktop/fixtures/generate.mjs --check",
     "tauri": "tauri"
   },
   "dependencies": {
