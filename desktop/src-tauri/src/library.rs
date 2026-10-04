@@ -24,6 +24,8 @@ pub struct Details {
     pub metadata_source: Option<crate::enrich::Accepted>,
     pub browse_authors: Vec<String>,
     pub browse_topics: Vec<String>,
+    /// Fraction read, from the asset's sidecar (the files are the truth).
+    pub progress: Option<f64>,
 }
 
 #[derive(Clone, Serialize)]
@@ -639,7 +641,20 @@ pub fn list(conn: &Connection, root: &Path, query: Option<&str>) -> Result<Vec<B
                 .extend(group.iter().filter(|other| *other != id).cloned());
         }
     }
+    let state_files: HashMap<_, _> = registry
+        .records
+        .iter()
+        .filter_map(|r| Some((r.id.as_str(), r.state_file.as_deref()?)))
+        .collect();
+    let state_dir = root.join(".properbooky/state");
     for book in &mut books {
+        book.details.progress = book
+            .details
+            .asset_id
+            .as_deref()
+            .and_then(|id| state_files.get(id))
+            .and_then(|name| crate::annotations::load(&state_dir.join(name)).percent)
+            .filter(|p| p.is_finite() && (0.0..=1.0).contains(p));
         if let Some(metadata) = curation.metadata.get(&book.details.stable_id) {
             book.details.metadata_source = Some(metadata.clone());
             if let Some(cover) = &metadata.cover {
