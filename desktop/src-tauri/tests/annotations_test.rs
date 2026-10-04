@@ -88,3 +88,64 @@ fn sidecar_tolerates_legacy_progress_only_files() {
     annotations::add_highlight(&sidecar, "q".into(), None, None, json!({})).unwrap();
     assert_eq!(annotations::live_highlights(&sidecar).len(), 1);
 }
+
+#[test]
+fn unreadable_sidecar_is_set_aside_not_overwritten() {
+    let dir = tempfile::tempdir().unwrap();
+    let sidecar = dir.path().join("asset-x.json");
+    let corrupt = br#"{"position": "2", "highlights": [ {"id": "keep-me""#;
+    fs::write(&sidecar, corrupt).unwrap();
+
+    // The reader's load reports the problem and starts from empty state.
+    let loaded = annotations::load_checked(&sidecar).unwrap();
+    assert!(loaded.position.is_none());
+    let notice = loaded.notice.expect("corruption is reported");
+    assert!(notice.contains("asset-x.json.unreadable-"), "{notice}");
+
+    // The original bytes survive beside the sidecar, never as live *.json.
+    let kept: Vec<_> = fs::read_dir(dir.path())
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p != &sidecar)
+        .collect();
+    assert_eq!(kept.len(), 1);
+    assert_eq!(fs::read(&kept[0]).unwrap(), corrupt);
+    assert_ne!(kept[0].extension().and_then(|e| e.to_str()), Some("json"));
+
+    // A write after corruption (even without a prior load) never clobbers.
+    fs::write(&sidecar, b"not json").unwrap();
+    annotations::set_position(&sidecar, "3".into(), Some(0.5)).unwrap();
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 3);
+    let saved = annotations::load_checked(&sidecar).unwrap();
+    assert_eq!(saved.position.as_deref(), Some("3"));
+    assert!(saved.notice.is_none());
+    // The notice is never persisted.
+    assert!(!fs::read_to_string(&sidecar).unwrap().contains("notice"));
+}
+
+#[test]
+fn unwritable_sidecar_reports_an_error_and_keeps_existing_state() {
+    let dir = tempfile::tempdir().unwrap();
+    // A directory where the sidecar should be: reads and writes both fail
+    // (even as root), unlike permission bits.
+    let blocked = dir.path().join("blocked.json");
+    fs::create_dir(&blocked).unwrap();
+    let read = annotations::load_checked(&blocked).unwrap_err();
+    assert!(format!("{read:#}").contains("cannot read reading state"));
+    let write = annotations::set_position(&blocked, "1".into(), None).unwrap_err();
+    assert!(format!("{write:#}").contains("blocked.json"));
+    assert!(
+        blocked.is_dir(),
+        "a failed write must not remove what was there"
+    );
+
+    // A failed atomic save leaves the previous sidecar byte-identical.
+    let sidecar = dir.path().join("ok.json");
+    annotations::set_position(&sidecar, "5".into(), Some(0.5)).unwrap();
+    let before = fs::read(&sidecar).unwrap();
+    let state = dir.path().join("state");
+    fs::write(&state, b"a file where a directory is expected").unwrap();
+    let nested = state.join("child.json");
+    assert!(annotations::set_position(&nested, "6".into(), None).is_err());
+    assert_eq!(fs::read(&sidecar).unwrap(), before);
+}
