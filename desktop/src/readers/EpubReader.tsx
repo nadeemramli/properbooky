@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import ePub, { Rendition } from "epubjs";
 import HighlightsPanel from "./HighlightsPanel";
-import type { Highlight, Sidecar } from "../types";
+import { pageTurn, useReadingState, validPercent } from "./readingState";
+import type { Highlight } from "../types";
 
 const HIGHLIGHT_FILL = "rgba(200, 162, 63, 0.35)";
 
@@ -48,6 +49,7 @@ export default function EpubReader({
   const [pending, setPending] = useState<PendingSelection | null>(null);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [showPanel, setShowPanel] = useState(false);
+  const { load, save, notices } = useReadingState(path);
 
   // Keep the latest callback out of the load effect's dependencies —
   // a changing identity there re-loads the whole book (reload loop).
@@ -114,18 +116,37 @@ export default function EpubReader({
   useEffect(() => {
     let disposed = false;
     let book: ReturnType<typeof ePub> | null = null;
+    // Resolves once epub.js has finished its own background loading.
+    let settled: Promise<unknown> = Promise.resolve();
 
-    (async () => {
+    const loading = (async () => {
       try {
-        const sidecar = await invoke<Sidecar>("get_sidecar", { path });
+        const sidecar = await load();
         const response = await fetch(convertFileSrc(path));
         if (!response.ok)
           throw new Error(`could not read file (${response.status})`);
         const buffer = await response.arrayBuffer();
+        if (buffer.byteLength === 0) throw new Error("the file is empty (0 bytes)");
         if (disposed || !containerRef.current) return;
 
-        book = ePub(buffer);
-        const rendition = book.renderTo(containerRef.current, {
+        // Open explicitly: an invalid archive rejects here instead of
+        // leaving the rendition waiting forever on "Opening…".
+        const opened = ePub();
+        book = opened;
+        await opened.open(buffer, "binary");
+        settled = opened.ready;
+        if (disposed || !containerRef.current) return;
+
+        // Until locations are generated epub.js reports no percentage; keep
+        // the stored one rather than erasing it from the sidecar and ribbon.
+        let known = validPercent(sidecar.percent);
+        // epub.js fills locations incrementally and sets their total last, so
+        // a fraction read mid-generation is 0; trust only finished locations.
+        let locationsReady = false;
+        setPercent(known);
+        onProgressRef.current(path, known);
+
+        const rendition = opened.renderTo(containerRef.current, {
           width: "100%",
           height: "100%",
           flow: "paginated",
@@ -138,27 +159,23 @@ export default function EpubReader({
         rendition.themes.fontSize("112%");
 
         rendition.on("relocated", (location: any) => {
+          if (disposed) return;
           const cfi: string | undefined = location?.start?.cfi;
-          const pct: number | undefined = location?.start?.percentage;
-          const percentValue =
-            typeof pct === "number" && pct > 0 ? Math.min(pct, 1) : null;
-          setPercent(percentValue);
-          onProgressRef.current(path, percentValue);
-          if (cfi) {
-            invoke("save_progress", {
-              path,
-              position: cfi,
-              percent: percentValue,
-            }).catch(() => {});
+          if (cfi && locationsReady) {
+            known = validPercent(opened.locations.percentageFromCfi(cfi)) ?? known;
           }
+          setPercent(known);
+          onProgressRef.current(path, known);
+          if (cfi) save(cfi, known);
         });
         rendition.on("selected", (cfiRange: string, contents: any) => {
           const text = contents?.window?.getSelection()?.toString() ?? "";
           if (text.trim()) setPending({ cfiRange, text: text.trim() });
         });
         rendition.on("keydown", (e: KeyboardEvent) => {
-          if (e.key === "ArrowRight") rendition.next();
-          if (e.key === "ArrowLeft") rendition.prev();
+          const direction = pageTurn(e);
+          if (direction === "next") rendition.next();
+          if (direction === "prev") rendition.prev();
         });
 
         await rendition.display(sidecar.position || undefined);
@@ -168,8 +185,24 @@ export default function EpubReader({
         for (const highlight of sidecar.highlights) {
           paintHighlightRef.current(highlight);
         }
-        // Percentages need generated locations; do it in the background.
-        book.locations.generate(600).catch(() => {});
+        // Percentages need generated locations; do it in the background,
+        // then record the exact fraction for the page already on screen.
+        opened.locations
+          .generate(600)
+          .then(() => {
+            if (disposed) return;
+            locationsReady = true;
+            const cfi = (rendition.currentLocation() as any)?.start?.cfi;
+            const exact = cfi
+              ? validPercent(opened.locations.percentageFromCfi(cfi))
+              : null;
+            if (!cfi || exact === null) return;
+            known = exact;
+            setPercent(exact);
+            onProgressRef.current(path, exact);
+            save(cfi, exact);
+          })
+          .catch(() => {});
       } catch (e) {
         if (!disposed) setError(String(e));
       }
@@ -178,9 +211,20 @@ export default function EpubReader({
     return () => {
       disposed = true;
       renditionRef.current = null;
-      book?.destroy();
+      // epub.js throws when destroyed mid-open/display, and an exception in
+      // an effect cleanup unmounts the whole app; tear down once it settles.
+      loading
+        .then(() => settled)
+        .catch(() => {})
+        .finally(() => {
+          try {
+            book?.destroy();
+          } catch {
+            /* already torn down */
+          }
+        });
     };
-  }, [path]);
+  }, [path, load, save]);
 
   const saveHighlight = useCallback(async () => {
     if (!pending) return;
@@ -210,8 +254,8 @@ export default function EpubReader({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight") turn("next");
-      if (e.key === "ArrowLeft") turn("prev");
+      const direction = pageTurn(e);
+      if (direction) turn(direction);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -227,6 +271,11 @@ export default function EpubReader({
 
   return (
     <div className="reader">
+      {notices.map((notice) => (
+        <p key={notice} className="reader-notice" role="alert">
+          {notice}
+        </p>
+      ))}
       <div className="reader-page" ref={containerRef}>
         {!ready && <p className="reader-loading">Opening…</p>}
       </div>
