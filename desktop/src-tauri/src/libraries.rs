@@ -499,7 +499,7 @@ pub fn quarantine(path: &Path) -> Result<PathBuf> {
 }
 
 /// Import the single library of a pre-PBK-15 install from its `library.db`,
-/// opened read-only. The legacy file is left byte-for-byte unchanged so the
+/// read from a copy. The legacy files are left byte-for-byte unchanged so the
 /// previous build keeps working (rollback); the new index is rebuilt from the
 /// library folder, where reading state and corrections already live.
 fn import_legacy(dir: &Path) -> Loaded {
@@ -511,8 +511,17 @@ fn import_legacy(dir: &Path) -> Loaded {
         };
     }
     let read = || -> Result<(Option<String>, Option<String>)> {
+        // Even a read-only open makes SQLite create -wal/-shm beside a WAL
+        // database; read a private copy so the original is never opened.
+        let scratch = tempfile::tempdir()?;
+        let copy = scratch.path().join(LEGACY_DB);
+        fs::copy(&legacy, &copy)?;
+        let wal = dir.join(format!("{LEGACY_DB}-wal"));
+        if wal.is_file() {
+            fs::copy(&wal, scratch.path().join(format!("{LEGACY_DB}-wal")))?;
+        }
         let conn = rusqlite::Connection::open_with_flags(
-            &legacy,
+            &copy,
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )?;
         let has_settings: bool = conn.query_row(

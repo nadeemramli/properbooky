@@ -399,11 +399,52 @@ fn single_library_install_is_imported_without_touching_its_database() {
         after, hash,
         "legacy database is left byte-for-byte unchanged (rollback)"
     );
+    for side in ["library.db-wal", "library.db-shm"] {
+        assert!(
+            !data.join(side).exists(),
+            "{side} created beside the legacy database"
+        );
+    }
     assert_eq!(tree(Path::new(&a)), files_before);
 
     // Imported once: the next start reads the saved list, same id.
     let again = libraries::load(&data).unwrap().settings;
     assert_eq!(again, s);
+}
+
+#[test]
+fn legacy_settings_still_in_the_wal_are_imported_and_the_wal_kept() {
+    let parent = temp("legacy-wal");
+    let data = temp("legacy-wal-data");
+    let a = library(&parent, "Crashed");
+    // A previous build that crashed leaves its last writes in the WAL.
+    let conn = db::open(&data.join(libraries::LEGACY_DB)).unwrap();
+    conn.pragma_update(None, "wal_autocheckpoint", 0).unwrap();
+    db::set_setting(&conn, "library_path", &a).unwrap();
+    assert!(fs::metadata(data.join("library.db-wal")).unwrap().len() > 0);
+    // Snapshot main file + WAL as a crash would leave them (no -shm).
+    let crashed = temp("legacy-wal-crashed");
+    for name in ["library.db", "library.db-wal"] {
+        fs::copy(data.join(name), crashed.join(name)).unwrap();
+    }
+    drop(conn);
+    let hash = |name: &str| {
+        format!(
+            "{:x}",
+            Sha256::digest(fs::read(crashed.join(name)).unwrap())
+        )
+    };
+    let (main, wal) = (hash("library.db"), hash("library.db-wal"));
+
+    let s = libraries::load(&crashed).unwrap().settings;
+    assert_eq!(
+        s.listed().next().unwrap().path,
+        a,
+        "setting only in the WAL was read"
+    );
+    assert_eq!(hash("library.db"), main);
+    assert_eq!(hash("library.db-wal"), wal);
+    assert!(!crashed.join("library.db-shm").exists());
 }
 
 #[test]
