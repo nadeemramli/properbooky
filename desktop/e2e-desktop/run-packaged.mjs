@@ -144,7 +144,8 @@ try {
   await step("fresh app-data has no configured library", async () => {
     const state = await invoke("get_library_state");
     check(state.library_path === null, `app-data not fresh: library_path=${state.library_path}`);
-    check(await browser.$(".path-form").isExisting(), "first-run library form not shown");
+    // The launcher replaces "Loading your libraries…" once the list loads.
+    await waitFor("first-run library form", () => browser.execute(() => Boolean(document.querySelector(".path-form"))), RESPONSIVE_MS);
     return state;
   });
 

@@ -439,8 +439,17 @@ export async function launchApp() {
           connectionRetryTimeout: LAUNCH_TIMEOUT_MS + 5000,
           capabilities: { alwaysMatch: { "tauri:options": { application: APP } } },
         });
-        await browser.$(".tab-rail").waitForExist({ timeout: 30000 });
-        check(await browser.$(".tab-library").isExisting(), "Library tab missing from the tab rail");
+        // DOM queries, not element handles: the rail is re-rendered once the
+        // saved library list loads (PBK-15), which would stale a handle.
+        await browser.waitUntil(() => browser.execute(() => Boolean(document.querySelector(".tab-rail"))), {
+          timeout: 30000,
+          interval: 100,
+          timeoutMsg: "tab rail not rendered within 30000ms",
+        });
+        check(
+          await browser.execute(() => Boolean(document.querySelector(".tab-library"))),
+          "Library tab missing from the tab rail",
+        );
       })(),
     ]);
   } finally {
