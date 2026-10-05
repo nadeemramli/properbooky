@@ -9,7 +9,22 @@ interface DropOutcome {
   result: string;
   title: string | null;
   destination: string | null;
+  reason?: string;
 }
+
+// What happened to a file that was not filed (PBK-21 Drop safety).
+const NOT_FILED: Record<string, string> = {
+  "left-unmatched": "no matching book; left in Drop",
+  "left-ambiguous": "matches more than one book; left in Drop",
+  "left-conflict": "not filed; left in Drop",
+  "left-unsafe": "not a plain file; left in Drop",
+  "left-incomplete": "incomplete; left in Drop",
+  returned: "returned to Drop",
+  pending: "filing not finished",
+  error: "failed; left in Drop",
+};
+
+const FILED = new Set(["filed", "recovered"]);
 
 interface DropReport {
   filed: number;
@@ -109,16 +124,28 @@ export default function AcquirePanel({
         </p>
         {report && (
           <p className="acquire-report">
-            Filed {report.filed}, left {report.left} in Drop
+            Filed {report.filed}, {report.left} not filed
             {report.outcomes
-              .filter((o) => o.result === "filed")
+              .filter((o) => FILED.has(o.result))
               .slice(0, 5)
-              .map((o) => (
-                <span key={o.filename} className="acquire-filed">
+              .map((o, i) => (
+                <span key={`${i}-${o.filename}`} className="acquire-filed">
                   ✓ {o.title ?? o.filename}
                 </span>
               ))}
           </p>
+        )}
+        {report && report.left > 0 && (
+          <ul className="status" aria-label="Not filed">
+            {report.outcomes
+              .filter((o) => !FILED.has(o.result))
+              .map((o, i) => (
+                <li key={`${i}-${o.filename}`} data-result={o.result}>
+                  {o.filename}: {NOT_FILED[o.result] ?? o.result}
+                  {o.reason ? ` (${o.reason})` : ""}
+                </li>
+              ))}
+          </ul>
         )}
         {error && <p className="status">{error}</p>}
       </div>
