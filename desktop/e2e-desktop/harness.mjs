@@ -482,10 +482,20 @@ export async function closeApp() {
   await browser.deleteSession();
   browser = null;
   // The app exits with its session; only the driver should remain marked.
+  // Its WebKit helpers (network/web processes, which own app-data storage)
+  // can outlive it briefly: wait for them too, so a journey that deletes or
+  // inspects app-data next never races a helper still writing there.
   const app = realpathSync(launched);
+  const driverSide = (p) => /(^|\/)(tauri-driver|WebKitWebDriver)$/.test(p.exe);
+  let left = [];
   for (let i = 0; i < 100; i++) {
-    if (!markedProcesses().some((p) => p.exe === app)) return;
+    left = markedProcesses().filter((p) => !driverSide(p));
+    if (!left.length) return;
     await new Promise((r) => setTimeout(r, 100));
   }
-  throw new Error("app process still running 10s after session close");
+  throw new Error(
+    left.some((p) => p.exe === app)
+      ? "app process still running 10s after session close"
+      : `app helper processes still running 10s after session close: ${left.map((p) => path.basename(p.exe)).join(", ")}`,
+  );
 }

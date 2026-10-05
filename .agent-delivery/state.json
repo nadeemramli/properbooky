@@ -1,37 +1,41 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-04T20:00:00Z",
-  "worker": "cloud Claude Code session https://claude.ai/code/session_01JbygKhhQHafSKbabnod2K8 (sole product writer, new chat for PBK-19; previous session_01VwUGjwXZJw5HhspdBBzDgB stopped at cap 2/2 after PR #23)",
-  "model_observed": "claude-opus-5-5 (runtime get_session: configured_model, session_context.model, last_served_model; re-verified after a worker restart)",
+  "updated_at": "2026-10-04T23:30:00Z",
+  "worker": "cloud Claude Code session https://claude.ai/code/session_01T72QU5hNRLp2eYFax7zNtw (sole product writer; new chat for the PBK-19 + PBK-15 integration; previous session_01JbygKhhQHafSKbabnod2K8 finished/stopped at cap 2/2 after PR #24 and PR #25)",
+  "model_observed": "claude-opus-5-5 (runtime get_session: configured_model, session_context.model, last_served_model; checked at start and before handoff)",
   "release_target": "Current approved release: desktop local-first reader plus PBK-30 web runtime verification on a local Supabase stack. Excludes PBK-7 sync/mobile, PBK-10 research, PBK-12 phases 2-3.",
   "issue_snapshot": {
-    "date": "2026-10-04 MYT",
-    "direct_cursor": 1029
+    "date": "2026-10-05 MYT",
+    "direct_cursor": "heartbeat 2202 (coordinator handoff on PBK-19/PBK-15)"
   },
   "authorized_queue": {
-    "provenance": "Objective 1: PBK-19 catalog CSV import (Direct PBK-19 Doing v7, coordinator claim codex-product-coordinator). Chat cap 3 (2 if review feedback enters); 1 used. No queue continuation.",
+    "provenance": "Coordinator assignment 5 Oct 2026 MYT recorded on Direct PBK-19/PBK-15 heartbeat 2202: two issue objectives (PBK-19 catalog integration, PBK-15 search repair integration) in one batch; lifetime count 2/cap 2 (fills the chat cap). Not a blanket backlog grant; no later implementation scope in this chat.",
     "dispatched_batches": [
-      "pbk19-catalog-import"
+      "pbk19-pbk15-catalog-search-integration"
     ],
     "previous_chat": {
-      "session": "session_01VwUGjwXZJw5HhspdBBzDgB",
+      "session": "session_01JbygKhhQHafSKbabnod2K8",
       "batches": [
-        "pbk26-legacy-export-repair",
-        "pbk26-frontmatter-repair"
+        "pbk19-catalog-import",
+        "pbk15-search-empty-state"
       ],
-      "status": "stopped at cap 2/2"
+      "status": "finished/stopped at cap 2/2"
     }
   },
-  "remote_main": "44e96b67d05213b53185d97d740f7d392e0c0c3f",
+  "remote_main": "44e96b67d05213b53185d97d740f7d392e0c0c3f (unchanged)",
   "current_batch": {
-    "batch_id": "pbk19-catalog-import",
-    "branch": "claude/gallant-darwin-bbt4jb",
-    "base": "94faa40b50104380bc942dad3b45fc50c7601673 (PR #23 head; stack PR #20/#21 -> #22 -> #23 -> #24)",
-    "tested_head": "58aebe4e91e8985a7313ca3c1f1f8d06059beeb7",
-    "pr": "https://github.com/nadeemramli/properbooky/pull/24 (draft, base claude/sharp-archimedes-s3rdeu)",
-    "report": ".agent-delivery/batches/pbk19-catalog-import/report.json",
-    "plan": ".agent-delivery/batches/pbk19-catalog-import/plan.md",
-    "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37228706900: success on tested head 58aebe4 (all 6 jobs)"
+    "batch_id": "pbk19-pbk15-catalog-search-integration",
+    "kind": "integration (PR #24 + PR #25) + packaged E2E",
+    "branch": "claude/bold-ritchie-1xa5z8",
+    "base": "103510130c25161fa0df2e15d3c6828bc4826959 (exact PR #24 head; tested 58aebe4)",
+    "merged_source": "PR #25 head 5f4fc33ad654d6b860f8986df236082e9d423296 (tested c2e157f) via merge commit 1a93b70",
+    "tested_head": "0dfc440af852a064bc4dc840255d27c0b5ec658d",
+    "pr": "https://github.com/nadeemramli/properbooky/pull/26 (draft, base claude/gallant-darwin-bbt4jb)",
+    "report": ".agent-delivery/batches/pbk19-pbk15-catalog-search-integration/report.json",
+    "plan": ".agent-delivery/batches/pbk19-pbk15-catalog-search-integration/plan.md",
+    "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37241327975: success: all 6 jobs (desktop: tsc + cargo test; web; web-e2e; web-local-supabase; library-mcp; desktop-e2e incl. the new 'PBK-19 + PBK-15 catalog search integration' step, run non-root), completed 2026-10-04T23:14:50Z on tested head 0dfc440af852a064bc4dc840255d27c0b5ec658d",
+    "upstream_note": "Coordinator merged PR #25 into PR #22's branch at e8166de during this batch; tree(e8166de) == tree(5f4fc33) and merging it here is a no-op. Not rebased.",
+    "evidence_note": "This integration's evidence is only in its own report (tested head above). PR #24's report (tested 58aebe4) and PR #25's report (tested c2e157f) describe those branches alone and are not evidence for the integrated build."
   },
   "completed_cloud_batches": [
     {
@@ -87,16 +91,39 @@
       "batch_id": "pbk26-frontmatter-repair",
       "kind": "review repair + packaged E2E (same PR #23)",
       "pr_url": "https://github.com/nadeemramli/properbooky/pull/23",
-      "status": "tested 2f9a850, CI 37216424582 success; awaiting coordinator review (PR #23 head 94faa40 is the base of PR #24)"
+      "status": "tested 2f9a850, CI 37216424582 success; PR #23 merged into PR #22's branch (fee7d17)"
+    },
+    {
+      "batch_id": "pbk19-catalog-import",
+      "kind": "implementation + packaged E2E (stacked on PR #23)",
+      "pr_url": "https://github.com/nadeemramli/properbooky/pull/24",
+      "status": "draft PR #24 head 1035101 (tested 58aebe4, CI 37228706900 success), awaiting coordinator review; base of PR #26",
+      "report": ".agent-delivery/batches/pbk19-catalog-import/report.json"
+    },
+    {
+      "batch_id": "pbk15-search-empty-state",
+      "kind": "review repair + packaged E2E (stacked on PR #22)",
+      "pr_url": "https://github.com/nadeemramli/properbooky/pull/25",
+      "status": "PR #25 head 5f4fc33 (tested c2e157f, CI 37231596578 success); coordinator-reviewed and merged into PR #22's branch at e8166de; merged into PR #26 by its exact commits",
+      "report": ".agent-delivery/batches/pbk15-search-empty-state/report.json"
+    },
+    {
+      "batch_id": "pbk19-pbk15-catalog-search-integration",
+      "kind": "integration + packaged E2E (stacked on PR #24)",
+      "pr_url": "https://github.com/nadeemramli/properbooky/pull/26",
+      "status": "tested 0dfc440, CI success: all 6 jobs (desktop: tsc + cargo test; web; web-e2e; web-local-supabase; library-mcp; desktop-e2e incl. the new 'PBK-19 + PBK-15 catalog search integration' step, run non-root), completed 2026-10-04T23:14:50Z; review-pending (not Agent Pass, not human acceptance)",
+      "report": ".agent-delivery/batches/pbk19-pbk15-catalog-search-integration/report.json"
     }
   ],
   "criterion_gaps": [
-    "PBK-19: C1-C5 and shaping checks pass on synthetic CSVs with the Linux packaged build (tested 58aebe4); real ~1700-row export reconciliation and Windows are local pending; contradictions D1-D6 in the PBK-19 report.",
+    "PBK-19 + PBK-15 integration: all mapped criteria pass on the Linux packaged build at 0dfc440 with synthetic data (~1700-row sheet); owner's actual export and real-library migration untested (D1-D6 open); Windows/WebView2 unverified (coordinator, deferred).",
     "PBK-26 legacy export and frontmatter preservation: repaired and verified on the Linux packaged build (tested 2f9a850); Windows/WebView2 unverified (coordinator, deferred).",
     "PBK-15/PBK-26 other criteria: as in the integration report (tested 5d8be40); affected journeys re-run on 2f9a850."
   ],
   "pending_local_checks": [
-    "PBK-19: dry run of the real export on a COPY of the Catalog folder (report D1-D4), then Windows walkthrough; coordinator review of PR #24 after the stack beneath it",
+    "Coordinator review of PR #26 at its final head (after PR #24 and the stack beneath it); merge order PR #20/#21 -> PR #22 (now incl. #23, #25 at e8166de) -> PR #24 -> PR #26",
+    "PBK-19: dry run of the real export on a COPY of the Catalog folder (PR #24 D1-D4) before any real import",
+    "Windows walkthrough on a disposable library: Import catalog -> search title/author -> no match + Clear search -> Status/Rating facets -> restart (coordinator-owned, deferred)",
     "Coordinator independent review of PR #23 at its final head (and PR #22 beneath it), then the merge path",
     "Coordinator Windows walkthroughs in both PBK-26 repair reports (legacy note and frontmatter)"
   ],
@@ -116,7 +143,7 @@
     "PBK-19 D1: strict import identity creates profiles for rows the earlier importer merged by punctuation-blind key (recommend dry run + review, option A)",
     "PBK-19 D2-D4: blank-author rows and non-integer ratings rejected and named; exact status spellings (verify on the real export)"
   ],
-  "next_action": "Coordinator: review PR #24 (tested 58aebe4 + evidence) after PR #23/#22, decide D1-D6, run the real-export dry run on a copy, Windows walkthrough. This chat stopped after objective 1 (cap 3); no subscriptions or reminders remain.",
+  "next_action": "Coordinator: review PR #26 (tested head in current_batch, evidence-only head after it) together with PR #24; decide PBK-19 D1-D6; real-export dry run on a copy; Windows walkthrough. This chat stopped at cap 2/2 after the handoff; its PR subscription and monitors were cancelled; no reminders exist.",
   "pbk26_record_from_pr20": {
     "current_batch": {
       "batch_id": "pbk26-highlights-export",
@@ -138,5 +165,17 @@
       "Unused books columns (knowledge_spectrum, manual_rating, wishlist_*) vs metadata storage — PBK-5 candidate",
       "PBK-15 multi-library picker in or out of the current release"
     ]
+  },
+  "pbk19_record_from_pr24": {
+    "current_batch": {
+      "batch_id": "pbk19-catalog-import",
+      "branch": "claude/gallant-darwin-bbt4jb",
+      "base": "94faa40b50104380bc942dad3b45fc50c7601673 (PR #23 head; stack PR #20/#21 -> #22 -> #23 -> #24)",
+      "tested_head": "58aebe4e91e8985a7313ca3c1f1f8d06059beeb7",
+      "pr": "https://github.com/nadeemramli/properbooky/pull/24 (draft, base claude/sharp-archimedes-s3rdeu)",
+      "report": ".agent-delivery/batches/pbk19-catalog-import/report.json",
+      "plan": ".agent-delivery/batches/pbk19-catalog-import/plan.md",
+      "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37228706900: success on tested head 58aebe4 (all 6 jobs)"
+    }
   }
 }

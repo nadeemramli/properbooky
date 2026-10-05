@@ -1,0 +1,264 @@
+{
+ "batch_id": "pbk15-search-empty-state",
+ "dispatch": "Coordinator assignment 5 Oct 2026 MYT: PBK-15 search empty-state review repair. Objective 2 of cap 2 (final) in this chat; objective 1 was PBK-19 (PR #24). Coordinator owns the Direct PBK-15/PBK-19 claims.",
+ "issue_keys": [
+  "PBK-15"
+ ],
+ "base_sha": "fee7d17c1f4831b4b36f3c2a4b6b1235ebb409d4",
+ "base_note": "PR #22 head (claude/pbk15-pbk26-integration). Stacked and unmerged; PR #22 and PR #24 branches unchanged (PR #22 still fee7d17, PR #24 still 1035101 at publication).",
+ "tested_sha": "c2e157ff0a9829ba427372dcfc592d3bcd16653d",
+ "handoff_sha": "this evidence-only commit (see PR #25 head); no product/test change after tested_sha",
+ "branch": "claude/pbk15-search-empty-state",
+ "pr_url": "https://github.com/nadeemramli/properbooky/pull/25 (draft, base claude/pbk15-pbk26-integration)",
+ "model_observed": "claude-opus-5-5 (get_session at objective start, worker epoch 3: configured_model, session_context.model, last_served_model)",
+ "environment": "Anthropic cloud container (root; journeys needing enforced folder permissions run under capsh --drop=cap_dac_override,cap_dac_read_search), Ubuntu 24.04, rustc 1.97.0, Node 22.22.0, tauri-driver 2.1.0, WebKitWebDriver, Xvfb; packaged debug .deb; per-run temp XDG dirs and synthetic libraries only; no owner data or install.",
+ "defect": {
+  "source": "desktop/src/LibraryView.tsx at fee7d17: books come from the query-filtered list_books; empty-library note requires !query, no-results line requires books.length > 0. Also present in PR #24 (1035101).",
+  "reproduction": "search-states.e2e.mjs R2 against the fee7d17 build (app sha256 e8e5f7653fc1b7182613c32758f9b50d1f227c61f2792f02415df278af9b9d64)",
+  "observed_before": "exit 1 at R2; view {cards: [], count: '0 items', noMatch: null, emptyLibrary: null, failure: null} (blank grid); failure.png"
+ },
+ "repair": "LibraryView records the query its listing answers (listedQuery) and the failure of the latest listing (listError). Settled + query + 0 books: 'No books match “q”.' with Clear search. Settled + no query + 0 books: existing empty-library note. Settled + books + 0 visible: existing 'Nothing here…' line. Failed listing for the current query: role=alert 'Searching for “q” failed: <reason>' (or 'Your library could not be listed') and no cards. Nothing is decided while a request is in flight. Whitespace-only queries count as no query, as the backend treats them.",
+ "criteria": [
+  {
+   "issue_key": "PBK-15",
+   "criterion": "R1 regression fails on fee7d17",
+   "action": "search-states journey on the base build",
+   "expected": "fail at the zero-match step",
+   "observed": "exit 1 at R2 with a blank grid (two runs: base-repro, base-repro2)",
+   "verdict": "Pass",
+   "evidence": [
+    "base-repro2/report.json, failure.png (scratch)"
+   ]
+  },
+  {
+   "issue_key": "PBK-15",
+   "criterion": "R2 zero-match search shows query-specific feedback",
+   "action": "search 'zzqx' in alpha",
+   "expected": "'No books match “zzqx”.', 0 items, no empty-library note",
+   "observed": "as expected",
+   "verdict": "Pass",
+   "evidence": [
+    "final/search-states-1/01-no-match.png"
+   ]
+  },
+  {
+   "issue_key": "PBK-15",
+   "criterion": "R3 clearing/replacing the query recovers",
+   "action": "Clear search button; valid search 'ledger'; zero -> 'orbit'; zero -> emptied field",
+   "expected": "full grid / matching cards, message gone",
+   "observed": "as expected",
+   "verdict": "Pass",
+   "evidence": [
+    "final/search-states-1/report.json"
+   ]
+  },
+  {
+   "issue_key": "PBK-15",
+   "criterion": "R4 no flash of no-results during loading or for another query",
+   "action": "MutationObserver records every DOM change through R2-R3",
+   "expected": "every no-results state names the settled query, not loading, no cards, no failure",
+   "observed": "29 states recorded, 6 with no-results, 0 out of place",
+   "verdict": "Pass",
+   "evidence": [
+    "final/search-states-1/report.json"
+   ]
+  },
+  {
+   "issue_key": "PBK-15",
+   "criterion": "R5 facet-filtered zero results distinct",
+   "action": "Finished shelf (no members), then with query 'ledger'",
+   "expected": "'Nothing here.' / 'Nothing here for “ledger”.', no search no-results",
+   "observed": "as expected",
+   "verdict": "Pass",
+   "evidence": [
+    "final/search-states-1/report.json"
+   ]
+  },
+  {
+   "issue_key": "PBK-15",
+   "criterion": "R6 empty library",
+   "action": "empty folder: no query, query 'anything', Clear search",
+   "expected": "note; 'No books match “anything”.'; note again",
+   "observed": "as expected",
+   "verdict": "Pass",
+   "evidence": [
+    "final/search-states-1/03-empty-library-search.png"
+   ]
+  },
+  {
+   "issue_key": "PBK-15",
+   "criterion": "R7 two libraries / isolation preserved",
+   "action": "zero-match in alpha, switch to beta (query not carried), alpha's title not found in beta, beta's own found, back to alpha",
+   "expected": "each library only its own results; query resets on switch",
+   "observed": "as expected",
+   "verdict": "Pass",
+   "evidence": [
+    "final/search-states-1/02-beta-search.png"
+   ]
+  },
+  {
+   "issue_key": "PBK-15",
+   "criterion": "R8 failed search is not labelled no results",
+   "action": "alpha folder chmod 000, search 'ledger'; restore, search 'basalt'",
+   "expected": "alert naming the search and cause, 0 cards, never no-results; recovery",
+   "observed": "'Searching for “ledger” failed: The folder for “alpha-lib” … cannot be read (Permission denied …)'; recovered; observer saw no no-results state",
+   "verdict": "Pass",
+   "evidence": [
+    "final/search-states-1/04-failed-search.png"
+   ]
+  },
+  {
+   "issue_key": "PBK-15",
+   "criterion": "R9 no regression on the same build",
+   "action": "cargo test, tsc, fixtures:check, mcp test, smoke x2, reading, highlights, libraries, upgrade, injected failures",
+   "expected": "all exit 0",
+   "observed": "all exit 0",
+   "verdict": "Pass",
+   "evidence": [
+    "final/summary.txt"
+   ]
+  }
+ ],
+ "checks": [
+  {
+   "command": "capsh ... E2E_APP=<fee7d17 build> npm run test:e2e:search-states",
+   "exit_code": 1,
+   "result": "defect reproduced at R2 (blank grid)"
+  },
+  {
+   "command": "cd desktop/src-tauri && cargo test",
+   "exit_code": 0,
+   "result": "84 passed, 0 failed, 1 ignored (pre-existing)"
+  },
+  {
+   "command": "cd desktop && npx tsc --noEmit -p .",
+   "exit_code": 0,
+   "result": "clean"
+  },
+  {
+   "command": "cd desktop && npm run fixtures:check",
+   "exit_code": 0,
+   "result": "current"
+  },
+  {
+   "command": "cd mcp && npm test",
+   "exit_code": 0,
+   "result": "pass 4, fail 0"
+  },
+  {
+   "command": "cd desktop && npx tauri build --debug --bundles deb",
+   "exit_code": 0,
+   "result": "built"
+  },
+  {
+   "command": "cd desktop/src-tauri && cargo build --example seed_index",
+   "exit_code": 0,
+   "result": "built"
+  },
+  {
+   "command": "capsh ... npm run test:e2e:search-states (x2)",
+   "exit_code": 0,
+   "result": "PASS x2, 14 steps each"
+  },
+  {
+   "command": "xvfb-run -a npm run test:e2e:packaged (x2)",
+   "exit_code": 0,
+   "result": "PASS x2"
+  },
+  {
+   "command": "xvfb-run -a npm run test:e2e:reading",
+   "exit_code": 0,
+   "result": "PASS"
+  },
+  {
+   "command": "xvfb-run -a npm run test:e2e:highlights",
+   "exit_code": 0,
+   "result": "PASS"
+  },
+  {
+   "command": "capsh ... npm run test:e2e:libraries",
+   "exit_code": 0,
+   "result": "PASS"
+  },
+  {
+   "command": "E2E_SEED_INDEX=<seed_index> xvfb-run -a npm run test:e2e:library-upgrade",
+   "exit_code": 0,
+   "result": "PASS"
+  },
+  {
+   "command": "xvfb-run -a npm run test:e2e:packaged:failures",
+   "exit_code": 0,
+   "result": "injected failures exit nonzero, bounded, cleaned up"
+  }
+ ],
+ "check_notes": [
+  "Final checks ran sequentially from one script on HEAD c2e157f with a clean tree before and after (evidence held outside the repo).",
+  "Development detour, not a product finding: the journey's state probe first returned an object with an `error` key, which webdriverio interprets as a WebDriver error response; polls failed silently and R8 timed out although the alert was shown. Renamed to `failure` (commented in the journey). A role=status experiment build was made and reverted; the final binary hash equals the first repaired build.",
+  "Web jobs were not rerun locally (no web change); CI runs them."
+ ],
+ "ci": {
+  "run_url": "https://github.com/nadeemramli/properbooky/actions/runs/37231596578",
+  "head_sha": "c2e157ff0a9829ba427372dcfc592d3bcd16653d",
+  "conclusion": "success: all 6 jobs (desktop; desktop-e2e incl. the new 'PBK-15 search states' step on the hosted non-root runner; web; web-e2e; web-local-supabase; library-mcp), completed 2026-10-04T20:42:18Z"
+ },
+ "artifacts": [
+  {
+   "path": "desktop/src-tauri/target/debug/bundle/deb/ProperBooky_0.1.0_amd64.deb",
+   "sha256": "4195cb4e6000f9d75dd4129fd9b8352dc762f6d66d621022c7a3f70e59cdee3f",
+   "source_sha": "c2e157ff0a9829ba427372dcfc592d3bcd16653d"
+  },
+  {
+   "path": "usr/bin/desktop (extracted from that deb)",
+   "sha256": "4953f7636eb197fa6ad6ab4c7912fe45ecd05315f7cc7842c0bdf3288d62b625",
+   "source_sha": "c2e157ff0a9829ba427372dcfc592d3bcd16653d"
+  },
+  {
+   "path": "base usr/bin/desktop (reproduction input)",
+   "sha256": "e8e5f7653fc1b7182613c32758f9b50d1f227c61f2792f02415df278af9b9d64",
+   "source_sha": "fee7d17c1f4831b4b36f3c2a4b6b1235ebb409d4"
+  }
+ ],
+ "contradictions_for_coordinator": [
+  {
+   "id": "P1",
+   "criterion": "repair applies to 'current PR24' too",
+   "source": "assignment: base the repair on PR #22 and do not modify PR #24",
+   "impact": "PR #24 (1035101) still carries the defect, and also adds Status/Rating facets to the same component; the repair will need to be carried into PR #24's line (conflict expected in LibraryView.tsx near the grid/empty states)",
+   "options": [
+    "merge PR #22 -> PR #25 -> then merge the result into the PR #23/#24 line",
+    "cherry-pick 344fc39 + c2e157f onto PR #24 in a later objective"
+   ],
+   "recommendation": "merge order #22 -> #25, then bring it into #24 with its own run of the search-states journey"
+  }
+ ],
+ "criterion_gaps": [
+  "Windows/WebView2 unverified (rendering and the failure path on an unreadable folder).",
+  "Loading state is checked by DOM observation, not by an artificially slowed backend."
+ ],
+ "known_risks": [
+  "The failure alert reuses the existing .status style (not a distinct error colour).",
+  "Other callers of the listing (Rescan, Save URL, undo, merge) still also show their own status line on failure, so a failed listing there can show two messages."
+ ],
+ "local_verification_required": [
+  "Windows installed app on a disposable library: search a word with no match -> message and Clear search; clear -> library back."
+ ],
+ "review_walkthrough": [
+  "Search a word that matches nothing: 'No books match “word”.' with Clear search; press it: library back.",
+  "Pick a shelf with no members: 'Nothing here.' (unchanged)."
+ ],
+ "stack_dependency": "PR #25 -> PR #22 (fee7d17) -> PR #20/#21. Independent of PR #23/#24.",
+ "next_eligible_batch": [
+  "none: chat at cap 2/2; stop"
+ ],
+ "pbk19_checkpoint": {
+  "pr": "https://github.com/nadeemramli/properbooky/pull/24",
+  "head": "103510130c25161fa0df2e15d3c6828bc4826959",
+  "tested": "58aebe4e91e8985a7313ca3c1f1f8d06059beeb7",
+  "ci_tested": "run 37228706900 success (all 6 jobs)",
+  "ci_head": "run 37230375367 success (all jobs) on evidence-only head 1035101",
+  "ci_superseded": "run 37229601699 failure on evidence-only 44d5c58: web-local-supabase setup (runner port 54322 in use, before any test); commented on PR #24; superseded by the green 1035101 run",
+  "negative_control": "restored (catalog_import.rs equal to HEAD; tree clean)",
+  "subscriptions": "PR #24 subscription removed; no reminders were created",
+  "branch_not_modified_after": "1035101"
+ }
+}

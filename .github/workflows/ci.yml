@@ -143,7 +143,7 @@ jobs:
         working-directory: desktop/src-tauri
         run: cargo test
 
-  # Packaged desktop E2E (PBK-18, PBK-24 reading, PBK-26 highlights, PBK-15 libraries, PBK-19 catalog import): builds the debug
+  # Packaged desktop E2E (PBK-18, PBK-24 reading, PBK-26 highlights, PBK-15 libraries and search states, PBK-19 catalog import and its search integration): builds the debug
   # .deb, extracts the packaged binary and drives it with tauri-driver against
   # the committed synthetic fixture library and fresh per-run app-data. No dev
   # server, no personal library. Web local-Supabase checks (PBK-30) are separate.
@@ -205,6 +205,9 @@ jobs:
       - name: PBK-15 libraries journey (native picker, colliding libraries, isolation, switch/restart, rename/remove/re-add, stale results, missing/unreadable/empty folders, corrupt/unwritable settings and index)
         working-directory: desktop
         run: E2E_ARTIFACTS="$ARTIFACTS/libraries" xvfb-run -a -s "-screen 0 1280x900x24" npm run test:e2e:libraries
+      - name: PBK-15 search states (no match per query, clear/replace recovery, filtered zero, empty library, two libraries, failed listing)
+        working-directory: desktop
+        run: E2E_ARTIFACTS="$ARTIFACTS/search-states" xvfb-run -a npm run test:e2e:search-states
       - name: PBK-15 single-library upgrade on a copy (legacy app-data from the repository seeder)
         working-directory: desktop
         run: |
@@ -218,6 +221,9 @@ jobs:
           (cd ../mcp && npm ci)
           E2E_IMPORT_CLI="$PWD/src-tauri/target/debug/examples/import_catalog" \
             E2E_ARTIFACTS="$ARTIFACTS/catalog-import" xvfb-run -a npm run test:e2e:catalog-import
+      - name: PBK-19 + PBK-15 catalog search integration (~1700-row sheet import, rescan, title/author search, no match and Clear search, status/rating facets, rapid queries, rerun, other libraries, failed listing, restart)
+        working-directory: desktop
+        run: E2E_ARTIFACTS="$ARTIFACTS/catalog-search" xvfb-run -a -s "-screen 0 1280x900x24" npm run test:e2e:catalog-search
       - name: Injected failures exit nonzero, bounded, cleaned up
         working-directory: desktop
         run: E2E_ARTIFACTS="$ARTIFACTS/failures" xvfb-run -a npm run test:e2e:packaged:failures

@@ -1162,3 +1162,445 @@ fn the_library_catalog_folder_must_stay_inside_the_library() {
     fs::create_dir(root.join("Catalog")).unwrap();
     assert!(catalog_import::catalog_dir(&root).is_ok());
 }
+
+/// One row of the representative ~1700-row sheet (PBK-19/PBK-15 integration):
+/// varied status spellings, ratings, topics, sparse optional fields and
+/// multi-line Latticework, deterministic so every run checks the same rows.
+struct Representative {
+    title: String,
+    author: String,
+    released: String,
+    types: &'static str,
+    topics: String,
+    rec: &'static str,
+    rating: &'static str,
+    status: &'static str,
+    input: String,
+    lattice: String,
+}
+
+fn representative_row(i: usize) -> Representative {
+    const ADJ: [&str; 45] = [
+        "Amber",
+        "Brass",
+        "Cedar",
+        "Copper",
+        "Crimson",
+        "Dusky",
+        "Ember",
+        "Fallow",
+        "Gilded",
+        "Granite",
+        "Hollow",
+        "Indigo",
+        "Ivory",
+        "Juniper",
+        "Kestrel",
+        "Lunar",
+        "Marble",
+        "Mossy",
+        "Northern",
+        "Ochre",
+        "Pale",
+        "Quiet",
+        "Russet",
+        "Saffron",
+        "Silver",
+        "Sable",
+        "Tawny",
+        "Umber",
+        "Velvet",
+        "Verdant",
+        "Wandering",
+        "Willow",
+        "Winter",
+        "Yonder",
+        "Zinc",
+        "Ashen",
+        "Briar",
+        "Coral",
+        "Drifting",
+        "Faded",
+        "Golden",
+        "Harbor",
+        "Iron",
+        "Jade",
+        "Linen",
+    ];
+    const NOUN: [&str; 40] = [
+        "Almanac",
+        "Bridge",
+        "Chronicle",
+        "Compass",
+        "Counsel",
+        "Dialogue",
+        "Echo",
+        "Engine",
+        "Garden",
+        "Grammar",
+        "Harvest",
+        "Inquiry",
+        "Journal",
+        "Kingdom",
+        "Lexicon",
+        "Meridian",
+        "Mosaic",
+        "Narrative",
+        "Observatory",
+        "Parable",
+        "Primer",
+        "Quarry",
+        "Reckoning",
+        "Sonata",
+        "Testament",
+        "Theorem",
+        "Treatise",
+        "Uprising",
+        "Voyage",
+        "Wager",
+        "Workshop",
+        "Archive",
+        "Bestiary",
+        "Cipher",
+        "Doctrine",
+        "Expedition",
+        "Fable",
+        "Gazette",
+        "Horizon",
+        "Inventory",
+    ];
+    const FIRST: [&str; 30] = [
+        "Ada", "Bram", "Cyrus", "Dalia", "Elio", "Farah", "Gideon", "Hana", "Ilse", "Joaquín",
+        "Kenji", "Leona", "Milo", "Nadia", "Oren", "Priya", "Quentin", "Rhea", "Soren", "Tamsin",
+        "Ulla", "Viktor", "Wren", "Xiomara", "Yusuf", "Zelda", "Anouk", "Bastian", "Céline",
+        "Dmitri",
+    ];
+    const LAST: [&str; 30] = [
+        "Abernathy",
+        "Bellweather",
+        "Castellano",
+        "Drummond",
+        "Eberhardt",
+        "Fairweather",
+        "Gallagher",
+        "Holloway",
+        "Ishikawa",
+        "Jovanovic",
+        "Kowalczyk",
+        "Lindqvist",
+        "Montgomery",
+        "Nakashima",
+        "Oyelaran",
+        "Pemberton",
+        "Quintero",
+        "Rasmussen",
+        "Szymanski",
+        "Thornbury",
+        "Underhill",
+        "Valdivia",
+        "Whitcombe",
+        "Xanthos",
+        "Yamamoto",
+        "Zielinski",
+        "Achterberg",
+        "Brennan",
+        "Cavendish",
+        "Delacroix",
+    ];
+    const TOPICS: [&str; 12] = [
+        "Philosophy",
+        "History",
+        "Economics",
+        "Psychology",
+        "Biology",
+        "Mathematics",
+        "Fiction",
+        "Poetry",
+        "Engineering",
+        "Design",
+        "Music",
+        "Cartography",
+    ];
+    const STATUS: [&str; 20] = [
+        "Downloaded",
+        "Downloaded",
+        "Downloaded",
+        "Downloaded",
+        "Downloaded",
+        "Downloaded",
+        "downloaded",
+        "Need to read now",
+        "Need to read now",
+        "need to read  NOW",
+        "Reading",
+        "Not downloaded",
+        "Need to read",
+        "Done",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+    ];
+    const RATINGS: [&str; 9] = ["", "5", "4", "3", "", "2", "1", "4", "5"];
+    let adj = ADJ[i % 45];
+    let noun = NOUN[(i / 45 + i % 45) % 40];
+    let base = format!("{}{adj} {noun}", if i % 97 == 0 { "Élan " } else { "" });
+    let title = match i % 6 {
+        0 => format!("The {base}"),
+        1 => base.clone(),
+        2 => format!("{base}: Notes on Practice"),
+        3 => format!("{base}, Volume {}", 1 + i % 4),
+        4 => format!("On the {base}"),
+        _ => format!("{base} (Revised Edition)"),
+    };
+    let k = (i * 13) % 330;
+    let status = STATUS[i % 20];
+    let mut rating = RATINGS[i % 9];
+    if map_status(status) == "queued" && rating == "1" {
+        rating = "2";
+    }
+    let topics = if i % 31 == 0 {
+        "History,, Design ,".to_owned()
+    } else {
+        (0..i % 4)
+            .map(|j| TOPICS[(i + j * 5) % 12])
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let lattice = match i % 4 {
+        0 => format!(
+            "## Latticework\n\n{adj} ideas connect to the {}.\n---\nkey: {i}\n# not a heading in YAML\n  - indented line   \n\nCJK 思考 · row {i}",
+            noun.to_lowercase()
+        ),
+        1 => format!("He said \"hello\" ({i}), then left."),
+        _ => String::new(),
+    };
+    Representative {
+        title,
+        author: format!("{} {}", FIRST[k % 30], LAST[(k / 30) % 30]),
+        released: if i % 3 == 2 {
+            String::new()
+        } else {
+            (1850 + (i * 37) % 175).to_string()
+        },
+        types: ["Book", "Novel", "Essay", ""][i % 4],
+        topics,
+        rec: ["Must read", "Maybe", "", "Skim", ""][i % 5],
+        rating,
+        status,
+        input: if i % 11 == 0 {
+            String::new()
+        } else {
+            format!("2024-{:02}-{:02}", 1 + i % 12, 1 + i % 28)
+        },
+        lattice,
+    }
+}
+
+#[test]
+fn a_representative_1700_row_sheet_imports_each_book_once_and_reruns_unchanged() {
+    const UNIQUE: usize = 1690;
+    let dir = temp();
+    let root = dir.path().join("library");
+    fs::create_dir_all(root.join("Shelf")).unwrap();
+    fs::write(root.join("Shelf/Plain File.pdf"), b"%PDF-1.4 synthetic").unwrap();
+    let books: Vec<Representative> = (0..UNIQUE).map(representative_row).collect();
+    let mut csv = Csv::new(&HEADER);
+    let mut first_line = Vec::new();
+    let mut duplicates = Vec::new();
+    for (i, b) in books.iter().enumerate() {
+        first_line.push(csv.push(&row(
+            &b.title,
+            &b.author,
+            &b.released,
+            b.types,
+            &b.topics,
+            b.rec,
+            b.rating,
+            b.status,
+            &b.input,
+            &b.lattice,
+        )));
+        // A later row of the same book under case/space variants collapses into the first.
+        if i % 70 == 35 {
+            let s = i - 30;
+            let variant = match i % 3 {
+                0 => books[s].title.to_uppercase(),
+                1 => format!(
+                    "  {} ",
+                    books[s].title.split(' ').collect::<Vec<_>>().join("   ")
+                ),
+                _ => books[s].title.to_lowercase(),
+            };
+            let author = books[s].author.to_lowercase();
+            let line = csv.push(&row(
+                &variant,
+                &author,
+                "",
+                "",
+                "",
+                "",
+                "1",
+                "Downloaded",
+                "",
+                "a later note",
+            ));
+            duplicates.push((line, first_line[s]));
+        }
+        if i == 400 {
+            csv.push(&row(
+                "No Author Here",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "Downloaded",
+                "",
+                "",
+            ));
+        }
+        if i == 1200 {
+            csv.push(&row(
+                "Half Stars",
+                "Rater",
+                "",
+                "",
+                "",
+                "",
+                "4.5",
+                "",
+                "",
+                "",
+            ));
+        }
+    }
+    assert!(
+        (1700..=1730).contains(&csv.rows.len()),
+        "{} rows",
+        csv.rows.len()
+    );
+    let csv_path = write_csv(dir.path(), "export.csv", &csv.text);
+    let catalog_dir = catalog_import::catalog_dir(&root).unwrap();
+
+    let report = import(&csv_path, &catalog_dir, false).unwrap();
+    assert_eq!(report.created.len(), UNIQUE);
+    assert_eq!(report.rejected.len(), 2, "{:?}", report.rejected);
+    assert!(
+        report.near_duplicates.is_empty(),
+        "{:?}",
+        report.near_duplicates
+    );
+    let got: Vec<(u64, u64)> = report
+        .duplicates
+        .iter()
+        .map(|d| (d.line, d.first_line))
+        .collect();
+    assert_eq!(got, duplicates);
+    assert_eq!(md_files(&catalog_dir).len(), UNIQUE);
+
+    // Every profile: valid YAML, every field of its (first) row, body whole.
+    let profiles = by_title(&catalog_dir);
+    assert_eq!(profiles.len(), UNIQUE);
+    for b in &books {
+        let (name, entry, body) = profiles
+            .get(&b.title)
+            .unwrap_or_else(|| panic!("no profile for {}", b.title));
+        let opt = |s: &str| (!s.is_empty()).then(|| s.to_owned());
+        assert_eq!(entry.author.as_deref(), Some(b.author.as_str()), "{name}");
+        assert_eq!(entry.status, map_status(b.status), "{name}");
+        assert_eq!(entry.rating, b.rating.parse().ok(), "{name}");
+        assert_eq!(entry.recommendation, opt(b.rec), "{name}");
+        assert_eq!(entry.r#type, opt(b.types), "{name}");
+        assert_eq!(entry.published, opt(&b.released), "{name}");
+        assert_eq!(entry.added, opt(&b.input), "{name}");
+        let topics: Vec<String> = b
+            .topics
+            .split(',')
+            .map(str::trim)
+            .filter(|t| !t.is_empty())
+            .map(ToOwned::to_owned)
+            .collect();
+        assert_eq!(entry.topics, topics, "{name}");
+        assert_eq!(
+            entry.extra.get("source_status").and_then(|v| v.as_str()),
+            opt(b.status).as_deref(),
+            "{name}"
+        );
+        assert_eq!(body.trim_start_matches('\n'), b.lattice.trim(), "{name}");
+    }
+
+    // Rerun: nothing created, every byte and modification time unchanged.
+    let before = snapshot(&catalog_dir);
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let again = import(&csv_path, &catalog_dir, false).unwrap();
+    assert!(again.created.is_empty());
+    assert_eq!(again.existing.len(), UNIQUE);
+    assert!(again.existing.iter().all(|e| e.differs.is_empty()));
+    assert_eq!(snapshot(&catalog_dir), before);
+
+    // Rescan indexes the catalog beside the file; statuses, ratings and search.
+    let conn = db::open(&dir.path().join("index/library.db")).unwrap();
+    let scan = scanner::scan_library(&conn, &root).unwrap();
+    assert_eq!(scan.indexed, UNIQUE + 1);
+    let listed = library::list(&conn, &root, None).unwrap();
+    let count = |s: &str| {
+        listed
+            .iter()
+            .filter(|b| b.status.as_deref() == Some(s))
+            .count()
+    };
+    let want = |s: &str| books.iter().filter(|b| map_status(b.status) == s).count();
+    for s in ["available", "queued", "wishlist"] {
+        assert_eq!(count(s), want(s), "{s}");
+    }
+    let rated = |r: Option<i64>| {
+        listed
+            .iter()
+            .filter(|b| b.kind == "catalog" && b.rating == r)
+            .count()
+    };
+    for r in [None, Some(1), Some(2), Some(3), Some(4), Some(5)] {
+        assert_eq!(
+            rated(r),
+            books.iter().filter(|b| b.rating.parse().ok() == r).count(),
+            "{r:?}"
+        );
+    }
+    let titles = |q: &str| {
+        let mut t: Vec<String> = library::list(&conn, &root, Some(q))
+            .unwrap()
+            .into_iter()
+            .map(|b| b.title)
+            .collect();
+        t.sort();
+        t
+    };
+    let author = books[777].author.clone();
+    let mut by_author: Vec<String> = books
+        .iter()
+        .filter(|b| b.author == author)
+        .map(|b| b.title.clone())
+        .collect();
+    by_author.sort();
+    assert!(by_author.len() >= 3);
+    assert_eq!(
+        titles(&author.to_lowercase()),
+        by_author,
+        "search by author"
+    );
+    assert_eq!(
+        titles("ivory wager volume"),
+        ["Ivory Wager, Volume 2"],
+        "search by title"
+    );
+    assert!(titles("zzqx").is_empty());
+    assert_eq!(
+        snapshot(&catalog_dir),
+        before,
+        "scan and search write no profile"
+    );
+}
