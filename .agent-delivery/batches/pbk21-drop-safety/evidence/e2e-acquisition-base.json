@@ -1,0 +1,137 @@
+{
+  "run_id": "pbk-e2e-eb163fe0-0a4d-4b46-93ae-01a2a2dd3cbe",
+  "fault": null,
+  "started_at": "2026-10-05T08:33:01.438Z",
+  "platform": "linux 6.18.44-fc-v70",
+  "app": {
+    "path": "<scratch>/basepkg/usr/bin/desktop",
+    "sha256": "efee5c9cb177c8284336cc9c47bfd7c54796831e019c1bba22c3503449d9fdc3",
+    "bytes": 358382088
+  },
+  "fixtures": [
+    {
+      "name": "Zephyr Lantern Field Notes.epub",
+      "sha256": "5367dbd4615e17ad73e20147199dba34470ee7215ee473a4ec0b465f98d34347"
+    },
+    {
+      "name": "basalt-ledger-handbook.pdf",
+      "sha256": "5f0fc1f7d63e678edf01d2624acb3a3b1b7998c3cf8b85a40e52f39fa621409c"
+    }
+  ],
+  "steps": [
+    {
+      "name": "app binary and fixtures",
+      "ok": true,
+      "ms": 1196,
+      "detail": {
+        "app_sha256": "efee5c9cb177c8284336cc9c47bfd7c54796831e019c1bba22c3503449d9fdc3"
+      }
+    },
+    {
+      "name": "synthetic library: fixtures, catalog profiles, Drop arrivals; permissions are enforced",
+      "ok": true,
+      "ms": 4,
+      "detail": {
+        "library": "/tmp/pbk-e2e-eb163fe0-0a4d-4b46-93ae-01a2a2dd3cbe-LDaj7Q/library",
+        "drop": [
+          "Synthetic Courier - Halfway Arrival Manual.pdf",
+          "Synthetic Courier - Hollow Empty Treatise.epub",
+          "Synthetic Courier - Lumen Harbour Chronicle (2021, Fixture Press) - libgen.li.epub",
+          "Synthetic Courier - Mirror Link Compendium.pdf",
+          "Synthetic Courier - Occupied Shelf Primer (Z-Library).pdf",
+          "random-notes-2015.pdf"
+        ]
+      }
+    },
+    {
+      "name": "tauri-driver ready",
+      "ok": true,
+      "ms": 41
+    },
+    {
+      "name": "launch packaged app: tab rail visible",
+      "ok": true,
+      "ms": 1162
+    },
+    {
+      "name": "embedded frontend (no dev server)",
+      "ok": true,
+      "ms": 248,
+      "detail": {
+        "origin": "tauri://localhost"
+      }
+    },
+    {
+      "name": "index the synthetic library through the first-run form",
+      "ok": true,
+      "ms": 582,
+      "detail": {
+        "badge": "No local file"
+      }
+    },
+    {
+      "name": "S1 Process Drop folder: the confident match is filed; link, empty, truncated, occupied and unmatched files stay in Drop with reasons",
+      "ok": false,
+      "ms": 233,
+      "error": "summary: {\"error\":null,\"notFiled\":[],\"summary\":\"Filed 4, left 2 in Drop✓ Halfway Arrival Manual✓ Lumen Harbour Chronicle✓ Hollow Empty Treatise✓ Mirror Link Compendium\",\"filed\":[\"✓ Halfway Arrival Manual\",\"✓ Lumen Harbour Chronicle\",\"✓ Hollow Empty Treatise\",\"✓ Mirror Link Compendium\"]}"
+    }
+  ],
+  "cleanup": {
+    "run_marker": "pbk-e2e-eb163fe0-0a4d-4b46-93ae-01a2a2dd3cbe",
+    "marked_before": 5,
+    "session_closed": true,
+    "driver_started": true,
+    "driver_exited": true,
+    "signalled": [],
+    "leftover": [],
+    "checked_at": "2026-10-05T08:33:06.381Z"
+  },
+  "result": "fail",
+  "exit_code": 1,
+  "failure_ui_text": "ProperBooky\nLibrary: library. Switch or manage libraries ▾\nLibrary\nRescan\nAcquire\nSave URL\nObsidian\nImport catalog\nOrganize library\nEverything\nOn the shelf\nWishlist\nUp next\nWant to read\nContinue reading\nFinished\nDocuments\nLibrary cleanup\n1 items\nIndexed 15 books\nAuthor\nTopic\nStatus\nRating\nOn the shelf\nAvailable\nLumen Harbour Chronicle\nEPUB · Unread · Up Next\n\nSynthetic Courier\nunrated\nRead\nReview details\nAcquire — today's 10\n×\nProcess Drop folder\nSave downloads into /tmp/pbk-e2e-eb163fe0-0a4d-4b46-93ae-01a2a2dd3cbe-LDaj7Q/library/Drop — processing matches, renames, and shelves them automatically.\nFiled 4, left 2 in Drop\n✓ Halfway Arrival Manual\n✓ Lumen Harbour Chronicle\n✓ Hollow Empty Treatise\n✓ Mirror Link Compendium\nOccupied Shelf Primer — Synthetic Courier\n0.33 · queued · unrated\nSearch again\nCopper Tide Ledger — Synthetic Courier\n0.33 · unrated\nSearch & queue",
+  "app_data_listing": [
+    {
+      "path": "com.nadeemramli.properbooky/CacheStorage/salt",
+      "bytes": 8
+    },
+    {
+      "path": "com.nadeemramli.properbooky/WebKitCache/Version 17/salt",
+      "bytes": 8
+    },
+    {
+      "path": "com.nadeemramli.properbooky/hsts-storage.sqlite",
+      "bytes": 12288
+    },
+    {
+      "path": "com.nadeemramli.properbooky/libraries/9e1f22ec-adb7-4089-813d-3bf0a19684c8/library.db",
+      "bytes": 77824
+    },
+    {
+      "path": "com.nadeemramli.properbooky/mediakeys/v1/salt",
+      "bytes": 8
+    },
+    {
+      "path": "com.nadeemramli.properbooky/settings.json",
+      "bytes": 379
+    },
+    {
+      "path": "com.nadeemramli.properbooky/settings.previous.json",
+      "bytes": 345
+    },
+    {
+      "path": "com.nadeemramli.properbooky/storage/salt",
+      "bytes": 8
+    }
+  ],
+  "library_state_listing": [
+    {
+      "path": "identities.json",
+      "bytes": 5807
+    },
+    {
+      "path": "identities.previous.json",
+      "bytes": 5558
+    }
+  ],
+  "duration_ms": 4971
+}
