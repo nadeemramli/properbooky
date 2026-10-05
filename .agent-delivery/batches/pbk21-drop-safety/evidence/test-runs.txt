@@ -1,0 +1,68 @@
+# PBK-21 Drop safety: red/green test runs (synthetic libraries; Linux cloud container, root with DAC capabilities dropped for E2E)
+
+## RED: tests at f638b52 (new tests, unchanged acquire.rs)
+$ cargo test --no-fail-fast --test acquire_safety_test --test acquire_recovery_test --test acquire_test   # exit 101
+error[E0432]: unresolved import `acquire::Step`
+error: could not compile `desktop` (test "acquire_recovery_test") due to 1 previous error
+$ cargo test --no-fail-fast --test acquire_safety_test --test acquire_test   # exit 101
+test a_colon_in_a_dropped_name_is_still_filed ... ok
+test a_leading_dot_title_is_filed_as_a_visible_indexed_file ... FAILED
+test a_folder_named_like_a_book_is_left_in_drop ... FAILED
+test a_dangling_symlink_does_not_abort_the_batch ... FAILED
+test a_linked_catalog_is_refused_before_anything_moves ... FAILED
+test a_name_longer_than_the_filesystem_allows_does_not_abort_the_batch ... FAILED
+test a_linked_drop_folder_is_refused_before_anything_moves ... FAILED
+test a_linked_inbox_is_refused_before_anything_moves ... FAILED
+test a_pdf_without_its_end_marker_is_left_incomplete ... FAILED
+test an_unreadable_file_is_reported_and_the_rest_still_filed ... ok
+test an_empty_file_is_left_incomplete ... FAILED
+test an_occupied_destination_is_never_overwritten ... ok
+test an_epub_without_its_zip_directory_is_left_incomplete ... FAILED
+test complete_pdf_and_epub_are_filed_with_their_hash ... ok
+test ordinary_names_are_unchanged ... ok
+test symlink_to_a_file_outside_the_library_is_left_in_drop ... FAILED
+test two_formats_of_one_book_in_one_run_link_once_and_orphan_nothing ... FAILED
+test result: FAILED. 5 passed; 12 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.74s
+test set_status_updates_markdown_and_index ... ok
+test queue_ranks_by_lindy_recommendation_rating_spectrum ... ok
+test drop_processing_files_matches_and_leaves_strangers ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+## GREEN: head 2e5fb89
+$ cargo test --no-fail-fast   # exit 0 (21 test binaries; totals: passed 119, failed 0, ignored 1 [pre-existing])
+     Running tests/acquire_recovery_test.rs (target/debug/deps/acquire_recovery_test-f1e1c990f29bb6d8)
+test an_intent_that_escapes_the_library_is_reported_and_never_acted_on ... ok
+test an_uninterrupted_run_files_and_leaves_no_intent ... ok
+test a_profile_linked_elsewhere_meanwhile_gets_the_file_returned_to_drop ... ok
+test a_failed_catalog_write_is_pending_and_the_neighbour_is_still_filed ... ok
+test a_crash_at_any_step_converges_on_the_next_run_and_retries_are_idempotent ... ok
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.89s
+     Running tests/acquire_safety_test.rs (target/debug/deps/acquire_safety_test-363b1b4faeebacc8)
+test a_folder_named_like_a_book_is_left_in_drop ... ok
+test a_colon_in_a_dropped_name_is_still_filed ... ok
+test a_dangling_symlink_does_not_abort_the_batch ... ok
+test a_linked_catalog_is_refused_before_anything_moves ... ok
+test a_linked_drop_folder_is_refused_before_anything_moves ... ok
+test a_linked_inbox_is_refused_before_anything_moves ... ok
+test an_empty_file_is_left_incomplete ... ok
+test a_pdf_without_its_end_marker_is_left_incomplete ... ok
+test an_unreadable_file_is_reported_and_the_rest_still_filed ... ok
+test an_epub_without_its_zip_directory_is_left_incomplete ... ok
+test a_name_longer_than_the_filesystem_allows_does_not_abort_the_batch ... ok
+test an_occupied_destination_is_never_overwritten ... ok
+test symlink_to_a_file_outside_the_library_is_left_in_drop ... ok
+test complete_pdf_and_epub_are_filed_with_their_hash ... ok
+test ordinary_names_are_unchanged ... ok
+test two_formats_of_one_book_in_one_run_link_once_and_orphan_nothing ... ok
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+     Running tests/acquire_test.rs (target/debug/deps/acquire_test-c64734586c774266)
+test set_status_updates_markdown_and_index ... ok
+test queue_ranks_by_lindy_recommendation_rating_spectrum ... ok
+test drop_processing_files_matches_and_leaves_strangers ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+     Running tests/matcher_test.rs
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+## Packaged E2E (desktop/e2e-desktop/acquisition.e2e.mjs, xvfb-run, capsh --drop=cap_dac_override,cap_dac_read_search)
+head 2e5fb89 binary sha256 2a701c6f9df73451ac99d2fec09dcb2802af2a878a3529da41b86b7e59faeb07 (deb 0bab975734e129b1a68e682fde105605cdcafe63011b48af49c33792e9db8ea5): PASS exit 0, 14/14 steps (evidence/e2e-acquisition.json); rerun PASS exit 0 (evidence/e2e-acquisition-rerun.json); smoke run-packaged.mjs PASS exit 0 (evidence/e2e-smoke.json)
+base 5618819 binary sha256 efee5c9cb177c8284336cc9c47bfd7c54796831e019c1bba22c3503449d9fdc3, same journey: FAIL exit 1 at S1: 'Filed 4, left 2 in Drop' -- truncated PDF, empty EPUB and the link to bytes outside the library were filed (evidence/e2e-acquisition-base.json)

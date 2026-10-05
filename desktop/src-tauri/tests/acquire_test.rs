@@ -47,7 +47,8 @@ fn drop_processing_files_matches_and_leaves_strangers() {
     // A downloaded file with shadow-library naming, and an unrelated one.
     fs::write(
         root.join("Drop/George D. Taylor - The Taylor Trading Technique (1994, Traders Press) - libgen.li.pdf"),
-        b"%PDF-1.4 x",
+        // A complete PDF: an unfinished download (no %%EOF) stays in Drop.
+        b"%PDF-1.4 x\n%%EOF\n",
     )
     .unwrap();
     fs::write(root.join("Drop/random-paper-2015.pdf"), b"%PDF-1.4 y").unwrap();
