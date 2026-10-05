@@ -3,6 +3,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import AcquirePanel from "./AcquirePanel";
 import ObsidianPanel from "./ObsidianPanel";
 import BookReview from "./BookReview";
+import CatalogImport from "./CatalogImport";
 import OrganizeLibrary from "./OrganizeLibrary";
 import { authorKey, authorLabels, topicKey, topicLabels } from "./bookMetadata";
 import { useLibrary } from "./library";
@@ -60,6 +61,24 @@ function matchesFilter(book: Book, filter: ShelfFilter): boolean {
 }
 
 const READABLE = new Set(["epub", "pdf"]);
+
+/** Catalog status of a book profile (PBK-19), as its badge shows it. */
+const STATUS_LABELS: Record<string, string> = {
+  wishlist: "Wishlist",
+  queued: "Queued",
+  available: "Available",
+  reading: "Reading",
+  done: "Done",
+};
+export const statusLabel = (status: string) =>
+  STATUS_LABELS[status] ?? status.charAt(0).toUpperCase() + status.slice(1);
+const STATUS_ORDER = Object.keys(STATUS_LABELS);
+
+function facetCounts(values: string[]) {
+  const counts = new Map<string, number>();
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+  return counts;
+}
 
 function browseOptions(
   books: Book[],
@@ -124,6 +143,7 @@ export default function LibraryView({
   const [showSaveUrl, setShowSaveUrl] = useState(false);
   const [showObsidian, setShowObsidian] = useState(false);
   const [showOrganize, setShowOrganize] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [savingUrl, setSavingUrl] = useState(false);
   const [review, setReview] = useState<Book | null>(null);
@@ -136,6 +156,8 @@ export default function LibraryView({
   const [listError, setListError] = useState<{ query: string; message: string } | null>(null);
   const [authorFilter, setAuthorFilter] = useState("");
   const [topicFilter, setTopicFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [ratingFilter, setRatingFilter] = useState("");
   const request = useRef(0);
 
   const refreshBooks = useCallback(async (search: string) => {
@@ -211,6 +233,21 @@ export default function LibraryView({
 
   const authorOptions = browseOptions(books, authorLabels, authorKey);
   const topicOptions = browseOptions(books, topicLabels, topicKey);
+  const catalogBooks = books.filter((b) => b.kind === "catalog");
+  const statusOptions = [
+    ...facetCounts(catalogBooks.map((b) => b.status ?? "wishlist")),
+  ].sort(
+    (a, b) =>
+      (STATUS_ORDER.indexOf(a[0]) + 1 || 99) -
+        (STATUS_ORDER.indexOf(b[0]) + 1 || 99) || a[0].localeCompare(b[0]),
+  );
+  const ratingOptions = [
+    ...facetCounts(
+      catalogBooks.map((b) => (b.rating == null ? "unrated" : String(b.rating))),
+    ),
+  ].sort((a, b) =>
+    a[0] === "unrated" ? 1 : b[0] === "unrated" ? -1 : Number(b[0]) - Number(a[0]),
+  );
   const visible = books.filter(
     (b) =>
       matchesFilter(b, filter) &&
@@ -218,6 +255,11 @@ export default function LibraryView({
         authorLabels(b).some((a) => authorKey(a) === authorFilter)) &&
       (!topicFilter ||
         topicLabels(b).some((t) => topicKey(t) === topicFilter)) &&
+      (!statusFilter ||
+        (b.kind === "catalog" && (b.status ?? "wishlist") === statusFilter)) &&
+      (!ratingFilter ||
+        (b.kind === "catalog" &&
+          (b.rating == null ? "unrated" : String(b.rating)) === ratingFilter)) &&
       (filter !== "cleanup" ||
         !cleanupReason ||
         b.issues.includes(cleanupReason)),
@@ -259,6 +301,9 @@ export default function LibraryView({
             </button>
             <button onClick={() => setShowSaveUrl((s) => !s)}>Save URL</button>
             <button onClick={() => setShowObsidian(true)}>Obsidian</button>
+            <button className="import-open" onClick={() => setShowImport(true)}>
+              Import catalog
+            </button>
             <button onClick={() => setShowOrganize(true)}>
               Organize library
             </button>
@@ -343,11 +388,43 @@ export default function LibraryView({
               ))}
             </select>
           </label>
-          {(authorFilter || topicFilter) && (
+          <label>
+            Status
+            <select
+              aria-label="Filter by status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">All statuses</option>
+              {statusOptions.map(([value, count]) => (
+                <option key={value} value={value}>
+                  {statusLabel(value)} ({count})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Rating
+            <select
+              aria-label="Filter by rating"
+              value={ratingFilter}
+              onChange={(e) => setRatingFilter(e.target.value)}
+            >
+              <option value="">All ratings</option>
+              {ratingOptions.map(([value, count]) => (
+                <option key={value} value={value}>
+                  {value === "unrated" ? "Unrated" : `★${value}`} ({count})
+                </option>
+              ))}
+            </select>
+          </label>
+          {(authorFilter || topicFilter || statusFilter || ratingFilter) && (
             <button
               onClick={() => {
                 setAuthorFilter("");
                 setTopicFilter("");
+                setStatusFilter("");
+                setRatingFilter("");
               }}
             >
               Clear browse filters
@@ -417,15 +494,25 @@ export default function LibraryView({
               className={`card ${openable ? "card-openable" : ""}`}
             >
               <div className="card-top">
-                <span
-                  className={`badge badge-${book.availability === "local" ? "available" : "wishlist"}`}
-                >
-                  {book.availability === "local"
-                    ? "On the shelf"
-                    : book.availability === "missing"
-                      ? "File missing"
-                      : "No local file"}
-                </span>
+                <div className="card-badges">
+                  <span
+                    className={`badge badge-${book.availability === "local" ? "available" : "wishlist"}`}
+                  >
+                    {book.availability === "local"
+                      ? "On the shelf"
+                      : book.availability === "missing"
+                        ? "File missing"
+                        : "No local file"}
+                  </span>
+                  {book.kind === "catalog" && (
+                    <span
+                      className={`badge badge-status badge-status-${book.status ?? "wishlist"}`}
+                      title="Catalog status"
+                    >
+                      {statusLabel(book.status ?? "wishlist")}
+                    </span>
+                  )}
+                </div>
                 {book.cover && (
                   <img
                     className="card-cover"
@@ -545,6 +632,12 @@ export default function LibraryView({
         />
       )}
       {showObsidian && <ObsidianPanel onClose={() => setShowObsidian(false)} />}
+      {showImport && (
+        <CatalogImport
+          onClose={() => setShowImport(false)}
+          onImported={() => refreshBooks(query).catch((e) => setStatus(String(e)))}
+        />
+      )}
       {showOrganize && (
         <OrganizeLibrary
           onClose={() => setShowOrganize(false)}

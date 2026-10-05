@@ -37,6 +37,9 @@ Linux/WSL build deps: `libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicato
 - `src-tauri/src/lib.rs` — Tauri commands (library list, `scan_library`, `list_books`, reading state, export)
 - `src-tauri/src/libraries.rs` — known-library list, recovery and the pre-PBK-15 import
 - `src-tauri/src/scanner.rs` — folder walk + metadata extraction
+- `src-tauri/src/catalog_import.rs` — Library of Books CSV export → `Catalog/*.md` profiles (PBK-19); only adds
+  files, never changes an existing profile. In the app: **Import catalog**; CLI:
+  `cargo run --example import_catalog -- [--dry-run] <csv> <catalog-dir>`
 - `src-tauri/src/db.rs` — SQLite schema (books + FTS5 + settings)
 
 Windows installers are built by CI, not locally (see repo AGENTS.md).
