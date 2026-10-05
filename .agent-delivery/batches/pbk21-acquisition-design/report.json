@@ -1,0 +1,311 @@
+{
+  "batch_id": "pbk21-acquisition-design",
+  "kind": "design + synthetic gap probe (no product change)",
+  "issue_keys": [
+    "PBK-21"
+  ],
+  "related_keys_read_only": [
+    "PBK-28",
+    "PBK-29",
+    "PBK-20",
+    "PBK-23"
+  ],
+  "dispatch": "Coordinator dispatch 5 Oct 2026: PBK-21 Doing, live claim actor codex-product-coordinator (local Direct, unreachable from cloud); new chat, lifetime objective 1/3 (cap 2 if review feedback).",
+  "base_sha": "82c573a26ce2c9a5e79a2f2ce3c176e3f9a06411",
+  "base_note": "Integrated PR #24 head (branch claude/gallant-darwin-bbt4jb after PR #26 merged into it); not main.",
+  "tested_sha": "82c573a26ce2c9a5e79a2f2ce3c176e3f9a06411",
+  "tested_note": "Product code under test is exactly the base; this batch only adds .agent-delivery files. Probe source: probe/src/main.rs (sha256 in artifacts).",
+  "handoff_sha": "50153f8b0b986cb3f1290d5d862b9857e73e2ced (plan/report commit; this PR-URL commit follows it, evidence only)",
+  "branch": "claude/admiring-cannon-rzrojv",
+  "pr_url": "https://github.com/nadeemramli/properbooky/pull/27",
+  "model_observed": "claude-opus-5-5 (get_session: configured_model, session_context.model, last_served_model)",
+  "environment": "Linux 6.18 cloud container, rustc/cargo 1.97.0, libwebkit2gtk-4.1-dev + libgtk-3-dev installed for the Tauri crate build; synthetic throwaway libraries under the session scratchpad; no owner data, no network use by the probe, no Direct access.",
+  "criteria": [
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Queue shows today's top 10 wishlist",
+      "action": "probe of existing code on synthetic fixtures (see probe ids)",
+      "expected": "criterion holds",
+      "observed": "Partial (top 10 holds; no daily set: recomputed per open) | Q2: HOLDS; Q4: INFO",
+      "verdict": "Probe-only (not a delivery verdict): Partial",
+      "platform": "Linux, library-crate level (no packaged app)",
+      "evidence": [
+        "probe-results.json#Q2",
+        "probe-results.json#Q4"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Sorted by recommendation weight times rating, descending",
+      "action": "probe of existing code on synthetic fixtures (see probe ids)",
+      "expected": "criterion holds",
+      "observed": "Fail (ships PBK-29 v2 weighted score; conflict D-A) | Q1: GAP",
+      "verdict": "Probe-only (not a delivery verdict): Fail",
+      "platform": "Linux, library-crate level (no packaged app)",
+      "evidence": [
+        "probe-results.json#Q1"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Clickable search links",
+      "action": "probe of existing code on synthetic fixtures (see probe ids)",
+      "expected": "criterion holds",
+      "observed": "Unverified at runtime (static: hard-coded external target; opener failure swallowed; D-F) | Q5: STATIC",
+      "verdict": "Probe-only (not a delivery verdict): Unverified",
+      "platform": "Linux, library-crate level (no packaged app)",
+      "evidence": [
+        "probe-results.json#Q5"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Queued status",
+      "action": "probe of existing code on synthetic fixtures (see probe ids)",
+      "expected": "criterion holds",
+      "observed": "Holds in shipped command (up_next pinned, '· queued'); tested QUEUE_SQL diverges | Q3: INFO",
+      "verdict": "Probe-only (not a delivery verdict): Holds",
+      "platform": "Linux, library-crate level (no packaged app)",
+      "evidence": [
+        "probe-results.json#Q3"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Excludes lower-ranked entries",
+      "action": "probe of existing code on synthetic fixtures (see probe ids)",
+      "expected": "criterion holds",
+      "observed": "Holds | Q2: HOLDS",
+      "verdict": "Probe-only (not a delivery verdict): Holds",
+      "platform": "Linux, library-crate level (no packaged app)",
+      "evidence": [
+        "probe-results.json#Q2"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Drop files match queued before other wishlist",
+      "action": "probe of existing code on synthetic fixtures (see probe ids)",
+      "expected": "criterion holds",
+      "observed": "Fail (candidate set ignores status/up_next; tie left ambiguous) | D3: GAP; D3b: INFO",
+      "verdict": "Probe-only (not a delivery verdict): Fail",
+      "platform": "Linux, library-crate level (no packaged app)",
+      "evidence": [
+        "probe-results.json#D3",
+        "probe-results.json#D3b"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Rename Author - Title.ext preserving extension",
+      "action": "probe of existing code on synthetic fixtures (see probe ids)",
+      "expected": "criterion holds",
+      "observed": "Holds for ordinary names (extension lower-cased); fails for >255-byte and leading-dot names | D1: HOLDS; D1x: INFO; D7b: GAP; D8b: GAP",
+      "verdict": "Probe-only (not a delivery verdict): Holds",
+      "platform": "Linux, library-crate level (no packaged app)",
+      "evidence": [
+        "probe-results.json#D1",
+        "probe-results.json#D1x",
+        "probe-results.json#D7b",
+        "probe-results.json#D8b"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Move to category folder",
+      "action": "probe of existing code on synthetic fixtures (see probe ids)",
+      "expected": "criterion holds",
+      "observed": "Fail (always Library/00 Inbox by 2026-07-13 design; conflict D-B) | D2: GAP",
+      "verdict": "Probe-only (not a delivery verdict): Fail",
+      "platform": "Linux, library-crate level (no packaged app)",
+      "evidence": [
+        "probe-results.json#D2"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Link file and set available without manual bookkeeping",
+      "action": "probe of existing code on synthetic fixtures (see probe ids)",
+      "expected": "criterion holds",
+      "observed": "Holds on happy path incl. restart; fails on partial/empty/symlink/mid-batch/crash/missing-link paths | D1: HOLDS; D10: HOLDS; D5b: GAP; D5c: GAP; D7: GAP; D7c: GAP; D9: GAP; D14: GAP",
+      "verdict": "Probe-only (not a delivery verdict): Holds",
+      "platform": "Linux, library-crate level (no packaged app)",
+      "evidence": [
+        "probe-results.json#D1",
+        "probe-results.json#D10",
+        "probe-results.json#D5b",
+        "probe-results.json#D5c",
+        "probe-results.json#D7",
+        "probe-results.json#D7c",
+        "probe-results.json#D9",
+        "probe-results.json#D14"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "command": "cd desktop/src-tauri && cargo test --test acquire_test --test matcher_test",
+      "exit_code": 0,
+      "result": "acquire_test 3 passed; matcher_test 5 passed (baseline at base)",
+      "evidence": "session log (not committed)"
+    },
+    {
+      "command": "cd .agent-delivery/batches/pbk21-acquisition-design/probe && CARGO_TARGET_DIR=../../../../desktop/src-tauri/target cargo build",
+      "exit_code": 0,
+      "result": "built pbk21-probe against desktop_lib at base",
+      "evidence": "session log"
+    },
+    {
+      "command": "desktop/src-tauri/target/debug/pbk21-probe <scratch>/pbk21-probe-run",
+      "exit_code": 0,
+      "result": "27 checks: HOLDS=8 GAP=13 INFO=5 STATIC=1",
+      "evidence": "probe-results.txt, probe-results.json"
+    },
+    {
+      "command": "desktop/src-tauri/target/debug/pbk21-probe <scratch>/pbk21-probe-run2 (fresh dir) + verdict diff",
+      "exit_code": 0,
+      "result": "identical verdicts on second fresh run",
+      "evidence": "session log"
+    }
+  ],
+  "ci": {
+    "run_url": null,
+    "head_sha": null,
+    "conclusion": "not applicable to product code (no product change); PR CI on the handoff head is reported in the PR/response if it runs"
+  },
+  "artifacts": [
+    {
+      "path": ".agent-delivery/batches/pbk21-acquisition-design/probe/src/main.rs",
+      "sha256": "c7232449024988bdc633ac8188ff8a92ec0f66308022c989b1edde31890ad996",
+      "source_sha": "82c573a26ce2c9a5e79a2f2ce3c176e3f9a06411"
+    },
+    {
+      "path": ".agent-delivery/batches/pbk21-acquisition-design/probe/Cargo.toml",
+      "sha256": "f537dbfc596756298672c95c233eb7f4cb1fe9b481f65a3ab912aa4a5e08b75e",
+      "source_sha": "82c573a26ce2c9a5e79a2f2ce3c176e3f9a06411"
+    },
+    {
+      "path": ".agent-delivery/batches/pbk21-acquisition-design/probe-results.txt",
+      "sha256": "b1152c96874abae1e7cfc4eefe683f6e43985239c5167c1cf1c8ba21537a03e4",
+      "source_sha": "82c573a26ce2c9a5e79a2f2ce3c176e3f9a06411"
+    },
+    {
+      "path": ".agent-delivery/batches/pbk21-acquisition-design/probe-results.json",
+      "sha256": "13e361e8a957ed78d5874cc9467c372bfb1c6a4293241667899c71a9328ffe43",
+      "source_sha": "82c573a26ce2c9a5e79a2f2ce3c176e3f9a06411"
+    },
+    {
+      "path": ".agent-delivery/batches/pbk21-acquisition-design/plan.md",
+      "sha256": "95ef65e8359e2caa3cb341f4f91a06451e0f5980ea3e2adda21a5814ae215007",
+      "source_sha": "82c573a26ce2c9a5e79a2f2ce3c176e3f9a06411"
+    }
+  ],
+  "probe_summary": {
+    "Q1": {
+      "verdict": "GAP"
+    },
+    "Q2": {
+      "verdict": "HOLDS"
+    },
+    "Q3": {
+      "verdict": "INFO"
+    },
+    "Q4": {
+      "verdict": "INFO"
+    },
+    "Q5": {
+      "verdict": "STATIC"
+    },
+    "D1": {
+      "verdict": "HOLDS"
+    },
+    "D1x": {
+      "verdict": "INFO"
+    },
+    "D2": {
+      "verdict": "GAP"
+    },
+    "D10": {
+      "verdict": "HOLDS"
+    },
+    "D11": {
+      "verdict": "INFO"
+    },
+    "D3": {
+      "verdict": "GAP"
+    },
+    "D3b": {
+      "verdict": "INFO"
+    },
+    "D4": {
+      "verdict": "HOLDS"
+    },
+    "D6": {
+      "verdict": "HOLDS"
+    },
+    "D5a": {
+      "verdict": "HOLDS"
+    },
+    "D5b": {
+      "verdict": "GAP"
+    },
+    "D5c": {
+      "verdict": "GAP"
+    },
+    "D7": {
+      "verdict": "GAP"
+    },
+    "D7c": {
+      "verdict": "GAP"
+    },
+    "D7b": {
+      "verdict": "GAP"
+    },
+    "D8": {
+      "verdict": "HOLDS"
+    },
+    "D8b": {
+      "verdict": "GAP"
+    },
+    "D9": {
+      "verdict": "GAP"
+    },
+    "D12": {
+      "verdict": "HOLDS"
+    },
+    "D13": {
+      "verdict": "GAP"
+    },
+    "D14": {
+      "verdict": "GAP"
+    },
+    "M1": {
+      "verdict": "GAP"
+    }
+  },
+  "decisions_required": [
+    "D-A ranking rule",
+    "D-B category folder",
+    "D-C confidence/queued preference/eligibility",
+    "D-D day snapshot and carry-over",
+    "D-E collision",
+    "D-F search target (owner)",
+    "D-G no watcher"
+  ],
+  "local_verification_required": [
+    "Windows: std::fs::rename replace semantics vs proposed no-clobber hard_link/persist_noclobber move; reserved names; hard-link fallback across volumes (after implementation)",
+    "Coordinator: reconcile live Direct PBK-21 criterion text and vault notes against plan.md section 2 before adjudication"
+  ],
+  "review_walkthrough": [
+    "Read plan.md sections 2-3 (criterion map and quantified gaps), then section 5 (decisions D-A..D-H) and section 8 (questions).",
+    "Reproduce: build and run probe/ as in checks[1..2]; compare with probe-results.txt."
+  ],
+  "known_risks": [
+    "Queue results use a line-for-line mirror of the private acquisition_queue command body (labelled); the packaged UI was not driven.",
+    "Matcher corpus (M1) is synthetic and small; thresholds proposed in D-C need a corpus test, not tuning on owner files.",
+    "Live Direct criteria and product vault not readable from this container."
+  ],
+  "next_eligible_batch": [
+    "PBK-21 implementation per plan.md section 6/7 after coordinator adjudication of D-A..D-G (safety core S1 is decision-independent: per-file isolation, no-clobber move, binding/unsafe-name/partial checks, journal recovery, full reporting)"
+  ]
+}

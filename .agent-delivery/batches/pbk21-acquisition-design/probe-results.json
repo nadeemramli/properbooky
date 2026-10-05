@@ -1,0 +1,218 @@
+[
+  {
+    "id": "Q1",
+    "area": "queue",
+    "criterion": "sorted by recommendation weight x rating, descending",
+    "expected": "Alpha (rec 1 x 3 = 3) before Beta (rec 0 x 5 = 0)",
+    "observed": "command mirror order: [\"Beta Classic Five 0.675\", \"Alpha Recommended Three 0.492\"]; QUEUE_SQL order: [\"Beta Classic Five\", \"Alpha Recommended Three\"] (PBK-29 v2 formula: 0.35 lindy + 0.25 rec + 0.25 rating + 0.15 spectrum)",
+    "verdict": "GAP"
+  },
+  {
+    "id": "Q2",
+    "area": "queue",
+    "criterion": "today's top 10; lower-ranked entries excluded",
+    "expected": "10 rows; both rating-1 wishlist rows and the owned/done rows absent",
+    "observed": "10 rows: [\"Wish 03\", \"Wish 07\", \"Wish 11\", \"Wish 02\", \"Wish 06\", \"Wish 10\", \"Wish 05\", \"Wish 09\", \"Wish 04\", \"Wish 08\"]",
+    "verdict": "HOLDS"
+  },
+  {
+    "id": "Q3",
+    "area": "queue",
+    "criterion": "queued status shown and pinned (UI path: update_book up_next)",
+    "expected": "queued entry pinned first in the shipped command; one source of truth for 'queued'",
+    "observed": "command mirror first=Some(\"Wish 01\") (pinned=true); markdown status still \"wishlist\"; QUEUE_SQL first=Some(\"Wish 03\") (pinned=false); before=Some(\"Wish 03\")",
+    "verdict": "INFO"
+  },
+  {
+    "id": "Q4",
+    "area": "queue",
+    "criterion": "today's list is a stable daily set (day rollover / carry-over)",
+    "expected": "decision needed: fixed daily snapshot vs live recompute",
+    "observed": "after filing \"Wish 03\": left=[\"Wish 03\"] entered=[\"Wish 08\"]; no date/snapshot is persisted anywhere (recomputed on every panel open)",
+    "verdict": "INFO"
+  },
+  {
+    "id": "Q5",
+    "area": "queue",
+    "criterion": "clickable search link per entry",
+    "expected": "a link per row; target and failure handling decided",
+    "observed": "openUrl(`https://z-library.sk/s/${query}`).catch(() => {}); (hard-coded external target; opener failure swallowed=true; entry is still marked queued when the opener fails)",
+    "verdict": "STATIC"
+  },
+  {
+    "id": "D1",
+    "area": "drop",
+    "criterion": "match, rename Author - Title.ext, link, set available",
+    "expected": "filed; name 'Ada Synthetic - Deep Learning Foundations Handbook.EPUB' (extension preserved); status available; hash of the filed file",
+    "observed": "Ada Synthetic - Deep Learning Foundations Handbook (2019, Fixture Press) - libgen.li.EPUB -> filed (Library/00 Inbox/Ada Synthetic - Deep Learning Foundations Handbook.epub); file=\"Library/00 Inbox/Ada Synthetic - Deep Learning Foundations Handbook.epub\"; status=available; hash matches=true; original_filename=Some(\"Ada Synthetic - Deep Learning Foundations Handbook (2019, Fixture Press) - libgen.li.EPUB\")",
+    "verdict": "HOLDS"
+  },
+  {
+    "id": "D1x",
+    "area": "drop",
+    "criterion": "rename preserves the extension",
+    "expected": ".EPUB kept as dropped (or a decided normalisation)",
+    "observed": "extension written: Some(\"epub\")",
+    "verdict": "INFO"
+  },
+  {
+    "id": "D2",
+    "area": "drop",
+    "criterion": "move into the entry's category folder",
+    "expected": "a folder derived from the entry's category (topics: Machine Learning)",
+    "observed": "filed under Some(\"Library/00 Inbox\")",
+    "verdict": "GAP"
+  },
+  {
+    "id": "D10",
+    "area": "drop",
+    "criterion": "state survives restart/rescan; one card; asset identity kept",
+    "expected": "available + local after rescan; no Drop card; asset id == id the dropped file had",
+    "observed": "status=Some(\"available\") availability=Some(\"local\") cards_in_Drop=0 asset_id_kept=true",
+    "verdict": "HOLDS"
+  },
+  {
+    "id": "D11",
+    "area": "drop",
+    "criterion": "reversible original name",
+    "expected": "original name + original folder recorded; an undo path exists",
+    "observed": "original_filename recorded=true; original folder recorded=false (implied Drop/); restore target free=true; no undo command for a Drop filing",
+    "verdict": "INFO"
+  },
+  {
+    "id": "D3",
+    "area": "drop",
+    "criterion": "Drop files match queued entries before other wishlist",
+    "expected": "the queued entry wins a tie, or the tie is explicitly sent to review by design",
+    "observed": "Signal Patterns.pdf -> left-ambiguous; queued linked=false; wishlist linked=false (candidate set ignores status/up_next)",
+    "verdict": "GAP"
+  },
+  {
+    "id": "D3b",
+    "area": "drop",
+    "criterion": "which statuses Drop may link",
+    "expected": "decision: only wishlist/queued, or any entry without a file",
+    "observed": "Synthetic Done - Finished Fixture Without File.pdf -> filed (Library/00 Inbox/Synthetic Done - Finished Fixture Without File.pdf); status after=\"done\"",
+    "verdict": "INFO"
+  },
+  {
+    "id": "D4",
+    "area": "drop",
+    "criterion": "collision never overwrites",
+    "expected": "occupant and dropped file both byte-identical; dropped file left with a reason",
+    "observed": "Synthetic C - Collision Fixture Title (Z-Library).pdf -> left-conflict (<probe-base>/d4-collision/library/Library/00 Inbox/Synthetic C - Collision Fixture Title.pdf); both intact=true",
+    "verdict": "HOLDS"
+  },
+  {
+    "id": "D6",
+    "area": "drop",
+    "criterion": "duplicate events / re-run are idempotent",
+    "expected": "run 2 changes nothing; one link; the duplicate is not filed twice",
+    "observed": "run1: Synthetic X - Duplicate Download Fixture.pdf -> filed (Library/00 Inbox/Synthetic X - Duplicate Download Fixture.pdf); Synthetic X - Duplicate Download Fixture (1).pdf -> left-conflict (<probe-base>/d4b-duplicate/library/Library/00 Inbox/Synthetic X - Duplicate Download Fixture.pdf); run2: Synthetic X - Duplicate Download Fixture (1).pdf -> left-unmatched (filed=0); linked=Some(\"Library/00 Inbox/Synthetic X - Duplicate Download Fixture.pdf\"); files still in Drop=1",
+    "verdict": "HOLDS"
+  },
+  {
+    "id": "D5a",
+    "area": "drop",
+    "criterion": "browser temp files (.part/.crdownload) are not touched",
+    "expected": "ignored",
+    "observed": "filed=0 left=0 outcomes=[]",
+    "verdict": "HOLDS"
+  },
+  {
+    "id": "D5b",
+    "area": "drop",
+    "criterion": "a file still being written in place is not filed",
+    "expected": "left until size/mtime are stable (or a quiet period passes)",
+    "observed": "Synthetic P - Partial Arrival Fixture Volume.pdf -> filed (Library/00 Inbox/Synthetic P - Partial Arrival Fixture Volume.pdf); recorded hash stale after the write completed=true",
+    "verdict": "GAP"
+  },
+  {
+    "id": "D5c",
+    "area": "drop",
+    "criterion": "an empty/invalid file is not filed as the book",
+    "expected": "left with a reason",
+    "observed": "Synthetic Z - Zero Byte Fixture Volume.epub -> filed (Library/00 Inbox/Synthetic Z - Zero Byte Fixture Volume.epub)",
+    "verdict": "GAP"
+  },
+  {
+    "id": "D7",
+    "area": "drop",
+    "criterion": "a failure after a move is recoverable (no orphan, batch report kept)",
+    "expected": "file back in Drop or linked; other files still processed; report returned",
+    "observed": "result=Err(No such file or directory (os error 2)); broken file moved out of Drop=true; its entry linked=false; neighbour linked=false",
+    "verdict": "GAP"
+  },
+  {
+    "id": "D7c",
+    "area": "drop",
+    "criterion": "restart after a crash mid-filing converges (journal/recovery)",
+    "expected": "next run links the moved file (or moves it back); original name not lost",
+    "observed": "next run: filed=0 []; entry linked=false; original name recorded anywhere=false; profile availability=Some(\"none\"); unlinked Inbox file cards=1",
+    "verdict": "GAP"
+  },
+  {
+    "id": "D7b",
+    "area": "drop",
+    "criterion": "one unfileable name does not block the batch",
+    "expected": "that file left with a reason; the neighbour still filed",
+    "observed": "proposed name 311 bytes; result=Err(File name too long (os error 36)) (the whole report is lost); neighbour linked=true (depends on directory order)",
+    "verdict": "GAP"
+  },
+  {
+    "id": "D8",
+    "area": "drop",
+    "criterion": "traversal-shaped titles cannot write outside the destination",
+    "expected": "every filed path's parent is the destination folder",
+    "observed": "Trav One - Escaped Outside Fixture.pdf -> filed (Library/00 Inbox/Trav One - .. .. Escaped Outside Fixture.pdf); Trav Two - Escaped Backslash Fixture.pdf -> filed (Library/00 Inbox/Trav Two - .. .. Escaped Backslash Fixture.pdf); Trav Three - Absolute Path Fixture.pdf -> left-ambiguous; all inside=true; escaped file exists=false",
+    "verdict": "HOLDS"
+  },
+  {
+    "id": "D8b",
+    "area": "drop",
+    "criterion": "filed name is a normal visible file",
+    "expected": "no leading dot (the scanner skips dot-files)",
+    "observed": "hidden Leading Dot Fixture.pdf -> filed (Library/00 Inbox/.hidden Leading Dot Fixture.pdf); file=Some(\"Library/00 Inbox/.hidden Leading Dot Fixture.pdf\"); indexed asset rows=0",
+    "verdict": "GAP"
+  },
+  {
+    "id": "D9",
+    "area": "drop",
+    "criterion": "only regular files inside the bound library are filed",
+    "expected": "symlink left in Drop (refused)",
+    "observed": "Synthetic S - Outside Symlink Fixture Title.pdf -> filed (Library/00 Inbox/Synthetic S - Outside Symlink Fixture Title.pdf); entry linked to a symlink that resolves outside the library=true",
+    "verdict": "GAP"
+  },
+  {
+    "id": "D12",
+    "area": "drop",
+    "criterion": "unmatched files stay in Drop, untouched",
+    "expected": "left in place, reported",
+    "observed": "random-paper-2015.pdf -> left-unmatched; still present=true; shown as Library cards meanwhile=[\"random-paper-2015.pdf\", \"Synthetic K - Known Catalog Fixture.mobi\"]",
+    "verdict": "HOLDS"
+  },
+  {
+    "id": "D13",
+    "area": "drop",
+    "criterion": "every Drop file gets a reported outcome",
+    "expected": "the .mobi named in the report (filed or left with reason)",
+    "observed": "report mentions .mobi=false",
+    "verdict": "GAP"
+  },
+  {
+    "id": "D14",
+    "area": "drop",
+    "criterion": "anything the queue asks for can be filed by Drop",
+    "expected": "a re-download of a queued entry with a missing file is linked",
+    "observed": "in queue=true; Synthetic M - Missing File Fixture Title.pdf -> left-unmatched; entry relinked=false",
+    "verdict": "GAP"
+  },
+  {
+    "id": "M1",
+    "area": "matcher",
+    "criterion": "confidence: auto only when certain (22-file synthetic corpus, 12 entries)",
+    "expected": "0 wrong auto-matches",
+    "observed": "auto correct=9, auto WRONG=1 [\"Frank Herbert - Children of Dune.epub -> Some(\\\"Dune\\\") (1.00)\"], review=8 [\"Frank Herbert - Dune Messiah.epub (1.00)\", \"Dune (Z-Library).epub (0.75)\", \"Knuth - The Art of Computer Programming Vol 1.pdf (0.73)\", \"It.epub (0.75)\", \"Deep Work.pdf (0.75)\", \"thinking-fast-and-slow.pdf (0.75)\", \"MISSED Antifragile (Nassim Taleb).epub (0.29)\", \"Meditations on First Philosophy - Descartes.pdf (0.75)\", \"The Map of Culture.pdf (0.75)\"], missed (unmatched but in catalog)=1, correctly unmatched=3",
+    "verdict": "GAP"
+  }
+]

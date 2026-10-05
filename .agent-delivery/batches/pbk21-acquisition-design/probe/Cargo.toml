@@ -1,0 +1,19 @@
+# PBK-21 design probe: NOT part of the product or its test suite.
+# A standalone package (own [workspace]) that drives the real desktop_lib
+# acquire/matcher/scanner/library code against synthetic temp libraries and
+# reports which PBK-21 criteria and safety invariants hold today. Several
+# checks are EXPECTED to report gaps, so it exits 0 and writes a JSON result.
+[package]
+name = "pbk21-probe"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+desktop = { path = "../../../../desktop/src-tauri" }
+anyhow = "1"
+rusqlite = { version = "0.40.1", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
