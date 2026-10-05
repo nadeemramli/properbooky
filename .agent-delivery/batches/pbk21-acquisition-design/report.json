@@ -15,9 +15,9 @@
   "base_note": "Integrated PR #24 head (branch claude/gallant-darwin-bbt4jb after PR #26 merged into it); not main.",
   "tested_sha": "82c573a26ce2c9a5e79a2f2ce3c176e3f9a06411",
   "tested_note": "Product code under test is exactly the base; this batch only adds .agent-delivery files. Probe source: probe/src/main.rs (sha256 in artifacts).",
-  "handoff_sha": "see PR head (evidence-only commit after this report)",
+  "handoff_sha": "50153f8b0b986cb3f1290d5d862b9857e73e2ced (plan/report commit; this PR-URL commit follows it, evidence only)",
   "branch": "claude/admiring-cannon-rzrojv",
-  "pr_url": null,
+  "pr_url": "https://github.com/nadeemramli/properbooky/pull/27",
   "model_observed": "claude-opus-5-5 (get_session: configured_model, session_context.model, last_served_model)",
   "environment": "Linux 6.18 cloud container, rustc/cargo 1.97.0, libwebkit2gtk-4.1-dev + libgtk-3-dev installed for the Tauri crate build; synthetic throwaway libraries under the session scratchpad; no owner data, no network use by the probe, no Direct access.",
   "criteria": [

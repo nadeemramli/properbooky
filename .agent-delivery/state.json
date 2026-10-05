@@ -28,7 +28,7 @@
     "branch": "claude/admiring-cannon-rzrojv",
     "base": "82c573a26ce2c9a5e79a2f2ce3c176e3f9a06411 (integrated PR #24 head on claude/gallant-darwin-bbt4jb, after PR #26)",
     "tested_head": "82c573a26ce2c9a5e79a2f2ce3c176e3f9a06411 (product code probed = base; batch adds only .agent-delivery files)",
-    "pr": "draft PR to claude/gallant-darwin-bbt4jb (URL in PR/response)",
+    "pr": "https://github.com/nadeemramli/properbooky/pull/27 (draft, base claude/gallant-darwin-bbt4jb)",
     "report": ".agent-delivery/batches/pbk21-acquisition-design/report.json",
     "plan": ".agent-delivery/batches/pbk21-acquisition-design/plan.md",
     "probe": ".agent-delivery/batches/pbk21-acquisition-design/probe/ (standalone Cargo package, not in CI/test suite); results probe-results.{txt,json}: 27 checks HOLDS=8 GAP=13 INFO=5 STATIC=1",
@@ -114,7 +114,7 @@
     {
       "batch_id": "pbk21-acquisition-design",
       "kind": "design + probe",
-      "pr_url": null,
+      "pr_url": "https://github.com/nadeemramli/properbooky/pull/27",
       "status": "handoff for coordinator adjudication of D-A..D-G (plan.md section 8); not Agent Pass",
       "report": ".agent-delivery/batches/pbk21-acquisition-design/report.json"
     }
@@ -156,7 +156,7 @@
     "PBK-19 D1: strict import identity creates profiles for rows the earlier importer merged by punctuation-blind key (recommend dry run + review, option A)",
     "PBK-19 D2-D4: blank-author rows and non-integer ratings rejected and named; exact status spellings (verify on the real export)"
   ],
-  "next_action": "Coordinator: review draft PR (claude/admiring-cannon-rzrojv -> claude/gallant-darwin-bbt4jb), adjudicate PBK-21 plan.md section 8 questions, then dispatch implementation. This chat ends after handoff (objective 1/3); no monitors, subscriptions or reminders were created.",
+  "next_action": "Coordinator: review draft PR #27 (claude/admiring-cannon-rzrojv -> claude/gallant-darwin-bbt4jb), adjudicate PBK-21 plan.md section 8 questions, then dispatch implementation. This chat ends after handoff (objective 1/3); no monitors, subscriptions or reminders were created.",
   "pbk26_record_from_pr20": {
     "current_batch": {
       "batch_id": "pbk26-highlights-export",
