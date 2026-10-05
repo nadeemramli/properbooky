@@ -261,8 +261,29 @@ export const cardTitles = () =>
     Array.from(document.querySelectorAll(".grid .card h2")).map((h) => h.textContent.trim()),
   );
 
+// Commands that are not bound to one library (PBK-15).
+const UNBOUND = new Set([
+  "get_library_state",
+  "list_libraries",
+  "add_library",
+  "switch_library",
+  "rename_library",
+  "remove_library",
+  "relocate_library",
+]);
+
 // Calls the same Tauri command boundary the UI uses (client → Rust → files).
-export const invoke = async (command, args) => {
+// Like the UI, library-scoped calls carry the open library's id unless the
+// caller binds one explicitly.
+export const invoke = async (command, args = {}) => {
+  if (!UNBOUND.has(command) && !("libraryId" in args)) {
+    const state = await rawInvoke("get_library_state");
+    args = { ...args, libraryId: state.library_id };
+  }
+  return rawInvoke(command, args);
+};
+
+export const rawInvoke = async (command, args) => {
   const result = await browser.execute(
     async (cmd, a) => {
       try {
@@ -399,7 +420,12 @@ export async function startDriver(env) {
   ]);
 }
 
-export async function launchApp() {
+// Binary of the current session; a journey may launch another build (e.g.
+// the previous release for an upgrade/rollback rehearsal).
+let launched = APP;
+
+export async function launchApp(app = APP) {
+  launched = app;
   // A hung launch is a setup failure with its own bound; it must never be
   // absorbed by (or mistaken for) a later phase's deadline.
   let timer;
@@ -416,10 +442,19 @@ export async function launchApp() {
           logLevel: "warn",
           connectionRetryCount: 0,
           connectionRetryTimeout: LAUNCH_TIMEOUT_MS + 5000,
-          capabilities: { alwaysMatch: { "tauri:options": { application: APP } } },
+          capabilities: { alwaysMatch: { "tauri:options": { application: app } } },
         });
-        await browser.$(".tab-rail").waitForExist({ timeout: 30000 });
-        check(await browser.$(".tab-library").isExisting(), "Library tab missing from the tab rail");
+        // DOM queries, not element handles: the rail is re-rendered once the
+        // saved library list loads (PBK-15), which would stale a handle.
+        await browser.waitUntil(() => browser.execute(() => Boolean(document.querySelector(".tab-rail"))), {
+          timeout: 30000,
+          interval: 100,
+          timeoutMsg: "tab rail not rendered within 30000ms",
+        });
+        check(
+          await browser.execute(() => Boolean(document.querySelector(".tab-library"))),
+          "Library tab missing from the tab rail",
+        );
       })(),
     ]);
   } finally {
@@ -447,7 +482,7 @@ export async function closeApp() {
   await browser.deleteSession();
   browser = null;
   // The app exits with its session; only the driver should remain marked.
-  const app = realpathSync(APP);
+  const app = realpathSync(launched);
   for (let i = 0; i < 100; i++) {
     if (!markedProcesses().some((p) => p.exe === app)) return;
     await new Promise((r) => setTimeout(r, 100));

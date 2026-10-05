@@ -1,0 +1,54 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 253 >>
+stream
+BT /F1 14 Tf 72 720 Td (Tidewater Echo Ledger - page 1) Tj 0 -28 Td (Morning entry: the tide returns the ledger at first light.) Tj 0 -28 Td (A plain line between the echoes.) Tj 0 -28 Td (Evening entry: the tide returns the ledger at last light.) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 325 >>
+stream
+BT /F1 14 Tf 72 720 Td (Tidewater Echo Ledger - page 2) Tj 0 -28 Td (North pier: the tide returns the ledger before the storm.) Tj 0 -28 Td (Another plain line between the echoes.) Tj 0 -28 Td (South pier: the tide returns the ledger after the storm.) Tj 0 -28 Td (Harbor office: the tide returns the ledger once more.) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 126 >>
+stream
+BT /F1 14 Tf 72 720 Td (Tidewater Echo Ledger - page 3) Tj 0 -28 Td (Final entry: the tide returns the ledger for good.) Tj ET
+endstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000127 00000 n 
+0000000197 00000 n 
+0000000323 00000 n 
+0000000627 00000 n 
+0000000753 00000 n 
+0000001129 00000 n 
+0000001255 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R >>
+startxref
+1432
+%%EOF

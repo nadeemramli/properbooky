@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useLibrary } from "../library";
 import type { Sidecar } from "../types";
 
 /** A stored fraction is only trusted when it is a real 0..1 value. */
@@ -29,8 +29,11 @@ export function pageTurn(e: KeyboardEvent): "next" | "prev" | null {
  * that fails is reported until a later save succeeds — never swallowed.
  */
 export function useReadingState(path: string) {
+  const { invoke } = useLibrary();
   const [loadNotice, setLoadNotice] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Highlight add/remove/note failures: shown until the next one succeeds.
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async (): Promise<Sidecar> => {
     try {
@@ -52,6 +55,21 @@ export function useReadingState(path: string) {
     [path],
   );
 
-  const notices = [loadNotice, saveError].filter((n): n is string => Boolean(n));
-  return { load, save, notices };
+  /** Run a highlight write; on failure keep the UI unchanged and say why. */
+  const attempt = useCallback(
+    async <T,>(what: string, run: () => Promise<T>): Promise<T | undefined> => {
+      try {
+        const result = await run();
+        setActionError(null);
+        return result;
+      } catch (e) {
+        setActionError(`Could not ${what}: ${String(e)}`);
+        return undefined;
+      }
+    },
+    [],
+  );
+
+  const notices = [loadNotice, saveError, actionError].filter((n): n is string => Boolean(n));
+  return { load, save, attempt, notices };
 }

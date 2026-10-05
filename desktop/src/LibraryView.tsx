@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import AcquirePanel from "./AcquirePanel";
 import ObsidianPanel from "./ObsidianPanel";
 import BookReview from "./BookReview";
 import OrganizeLibrary from "./OrganizeLibrary";
 import { authorKey, authorLabels, topicKey, topicLabels } from "./bookMetadata";
+import { useLibrary } from "./library";
 import type { Book, LibraryState, ScanResult } from "./types";
 
 function formatSize(bytes: number): string {
@@ -103,16 +103,23 @@ export function openablePath(book: Book): string | null {
 
 export default function LibraryView({
   onOpen,
+  initialStatus,
+  listNotices,
 }: {
   onOpen: (book: Book) => void;
+  /** Result of indexing a library that was just opened. */
+  initialStatus: string | null;
+  /** Recovery notices about the library list itself. */
+  listNotices: string[];
 }) {
-  const [libraryPath, setLibraryPath] = useState<string | null>(null);
+  const { path: libraryPath, invoke } = useLibrary();
   const [books, setBooks] = useState<Book[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ShelfFilter>("all");
-  const [pathInput, setPathInput] = useState("");
   const [scanning, setScanning] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(initialStatus);
+  const [notices, setNotices] = useState<string[]>([]);
   const [showAcquire, setShowAcquire] = useState(false);
   const [showSaveUrl, setShowSaveUrl] = useState(false);
   const [showObsidian, setShowObsidian] = useState(false);
@@ -122,6 +129,11 @@ export default function LibraryView({
   const [review, setReview] = useState<Book | null>(null);
   const [cleanupReason, setCleanupReason] = useState("");
   const [loading, setLoading] = useState(false);
+  // The search the shown listing answers, and whether the latest listing
+  // failed: empty and no-results states are decided from these, never from
+  // a request still in flight (PBK-15).
+  const [listedQuery, setListedQuery] = useState<string | null>(null);
+  const [listError, setListError] = useState<{ query: string; message: string } | null>(null);
   const [authorFilter, setAuthorFilter] = useState("");
   const [topicFilter, setTopicFilter] = useState("");
   const request = useRef(0);
@@ -133,34 +145,37 @@ export default function LibraryView({
       const result = await invoke<Book[]>("list_books", {
         query: search || null,
       });
-      if (sequence === request.current) setBooks(result);
+      if (sequence === request.current) {
+        setBooks(result);
+        setLoaded(true);
+        setListedQuery(search);
+        setListError(null);
+      }
+    } catch (e) {
+      if (sequence === request.current) setListError({ query: search, message: String(e) });
+      throw e;
     } finally {
       if (sequence === request.current) setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    invoke<LibraryState>("get_library_state")
-      .then((state) => {
-        setLibraryPath(state.library_path);
-      })
-      .catch((e) => setStatus(String(e)));
-  }, [refreshBooks]);
+    // Recovery notices (e.g. a rebuilt index) are known once a listing ran.
+    const state = await invoke<LibraryState>("get_library_state");
+    if (sequence === request.current) setNotices(state.notices);
+  }, [invoke]);
 
   useEffect(() => {
     const handle = setTimeout(() => {
-      refreshBooks(query).catch((e) => setStatus(String(e)));
+      // A failed listing is shown by the search-error alert below.
+      refreshBooks(query).catch(() => {});
     }, 150);
     return () => clearTimeout(handle);
   }, [query, refreshBooks]);
 
   const scan = useCallback(
-    async (path: string) => {
+    async () => {
       setScanning(true);
       setStatus(null);
       try {
-        const result = await invoke<ScanResult>("scan_library", { path });
-        setLibraryPath(path);
+        const result = await invoke<ScanResult>("scan_library");
         setStatus(
           `Indexed ${result.indexed} books` +
             (result.skipped ? ` (${result.skipped} skipped)` : ""),
@@ -172,13 +187,8 @@ export default function LibraryView({
         setScanning(false);
       }
     },
-    [query, refreshBooks],
+    [invoke, query, refreshBooks],
   );
-
-  const chooseFolder = useCallback(async () => {
-    const selected = await open({ directory: true, multiple: false });
-    if (typeof selected === "string") await scan(selected);
-  }, [scan]);
 
   const saveUrl = useCallback(
     async (url: string) => {
@@ -196,7 +206,7 @@ export default function LibraryView({
         setSavingUrl(false);
       }
     },
-    [query, refreshBooks],
+    [invoke, query, refreshBooks],
   );
 
   const authorOptions = browseOptions(books, authorLabels, authorKey);
@@ -212,6 +222,10 @@ export default function LibraryView({
         !cleanupReason ||
         b.issues.includes(cleanupReason)),
   );
+  // The listing for the current search has completed (successfully).
+  const settled = loaded && !loading && !listError && listedQuery === query;
+  const failed = !loading && listError?.query === query ? listError : null;
+  const shown = failed ? [] : visible;
   const undo = async () => {
     try {
       await invoke("undo_library_edit");
@@ -232,12 +246,9 @@ export default function LibraryView({
           onChange={(e) => setQuery(e.currentTarget.value)}
           disabled={!libraryPath}
         />
-        <button onClick={chooseFolder} disabled={scanning}>
-          {libraryPath ? "Change folder" : "Choose library folder"}
-        </button>
         {libraryPath && (
           <>
-            <button onClick={() => scan(libraryPath)} disabled={scanning}>
+            <button onClick={() => scan()} disabled={scanning}>
               {scanning ? "Scanning…" : "Rescan"}
             </button>
             <button
@@ -290,11 +301,16 @@ export default function LibraryView({
               {f.label}
             </button>
           ))}
-          <span className="chip-count">{visible.length} items</span>
+          <span className="chip-count">{shown.length} items</span>
         </div>
       )}
 
       {status && <p className="status">{status}</p>}
+      {[...listNotices, ...notices].map((notice) => (
+        <p key={notice} className="launcher-notice" role="note">
+          {notice}
+        </p>
+      ))}
       {libraryPath && (
         <section className="browse-filters" aria-label="Browse your library">
           <label>
@@ -377,157 +393,150 @@ export default function LibraryView({
         </div>
       )}
 
-      {!libraryPath ? (
-        <div className="empty">
-          <p>
-            Point ProperBooky at your book folder (EPUB, PDF, Markdown). The
-            folder stays the source of truth — the index is rebuilt from it on
-            every scan.
-          </p>
-          <form
-            className="path-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const path = pathInput.trim();
-              if (path) scan(path);
-            }}
-          >
-            <input
-              type="text"
-              placeholder="…or paste a folder path (e.g. /mnt/c/Users/Nadeem/Desktop/All Books Inside Here)"
-              value={pathInput}
-              onChange={(e) => setPathInput(e.currentTarget.value)}
-            />
-            <button type="submit" disabled={scanning || !pathInput.trim()}>
-              Index this path
-            </button>
-          </form>
-        </div>
-      ) : (
-        <section className="grid">
-          {visible.map((book) => {
-            const openable = openablePath(book) !== null;
-            return (
-              <article
-                key={book.stable_id}
-                className={`card ${openable ? "card-openable" : ""}`}
-              >
-                <div className="card-top">
-                  <span
-                    className={`badge badge-${book.availability === "local" ? "available" : "wishlist"}`}
-                  >
-                    {book.availability === "local"
-                      ? "On the shelf"
-                      : book.availability === "missing"
-                        ? "File missing"
-                        : "No local file"}
-                  </span>
-                  {book.cover && (
-                    <img
-                      className="card-cover"
-                      src={convertFileSrc(book.cover)}
-                      alt=""
-                      loading="lazy"
-                    />
-                  )}
-                </div>
-                <h2>{book.title}</h2>
-                <p className="book-state">
-                  {book.assets.length
-                    ? `${[...new Set(book.assets.map((a) => a.format.toUpperCase()))].join(" / ")} · `
-                    : book.format
-                      ? `${book.format.toUpperCase()} · `
-                      : ""}
-                  {book.reading_status}
-                  {book.up_next ? " · Up next" : ""}
-                  {book.content_type !== "book"
-                    ? ` · ${book.content_type}`
-                    : ""}
-                  {book.progress !== null
-                    ? ` · ${Math.round(book.progress * 100)}% read`
-                    : ""}
-                </p>
-                {book.progress !== null && (
-                  <div
-                    className="card-progress"
-                    role="progressbar"
-                    aria-label={`${book.title} reading progress`}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={Math.round(book.progress * 100)}
-                  >
-                    <span style={{ width: `${Math.round(book.progress * 100)}%` }} />
-                  </div>
-                )}
-                {book.author && <p className="author">{book.author}</p>}
-                {book.source_profiles.length > 1 && (
-                  <p className="review-context">
-                    {book.source_profiles.length} source profiles ·{" "}
-                    {book.assets.length} linked files
-                  </p>
-                )}
-                <p className="meta">
-                  {book.year ? `${book.year} · ` : ""}
-                  {book.category ? `${book.category} · ` : ""}
-                  {book.kind === "catalog"
-                    ? book.rating
-                      ? `★${book.rating}`
-                      : "unrated"
-                    : formatSize(book.size_bytes)}
-                </p>
-                {filter === "cleanup" && (
-                  <p className="review-context">{book.issues.join(" · ")}</p>
-                )}
-                <div className="card-actions">
-                  {openable && book.assets.length <= 1 && (
-                    <button className="read-book" onClick={() => onOpen(book)}>
-                      Read
-                    </button>
-                  )}
-                  {book.assets.length > 1 &&
-                    book.assets.map((asset, i) => (
-                      <span key={asset.id ?? asset.path}>
-                        {asset.available &&
-                        ["pdf", "epub", "article"].includes(asset.format) ? (
-                          <button
-                            className="read-book"
-                            title={asset.path}
-                            onClick={() => onOpen({ ...book, assets: [asset] })}
-                          >
-                            Read {asset.format.toUpperCase()}
-                            {asset.year
-                              ? ` (${asset.year})`
-                              : ` · Copy ${i + 1}`}
-                          </button>
-                        ) : (
-                          <small>
-                            {asset.format.toUpperCase()} ·{" "}
-                            {asset.available
-                              ? "External reader"
-                              : "Missing file"}
-                          </small>
-                        )}
-                      </span>
-                    ))}
-                  <button onClick={() => setReview(book)}>
-                    Review details
-                  </button>
-                </div>
-                {!openable && book.availability === "local" && (
-                  <small className="review-context">
-                    This format needs an external reader.
-                  </small>
-                )}
-              </article>
-            );
-          })}
-          {visible.length === 0 && (
-            <p className="empty">
-              Nothing here{query ? ` for “${query}”` : ""}.
-            </p>
-          )}
-        </section>
+      {failed && (
+        <p className="status search-error" role="alert">
+          {failed.query
+            ? `Searching for “${failed.query}” failed: ${failed.message}`
+            : `Your library could not be listed: ${failed.message}`}
+        </p>
       )}
+      {settled && books.length === 0 && !query.trim() && (
+        <div className="empty library-empty" role="note">
+          <p>
+            No books were found in <code>{libraryPath}</code> yet. Add EPUB, PDF or
+            Markdown files to this folder, then press Rescan.
+          </p>
+        </div>
+      )}
+      <section className="grid">
+        {shown.map((book) => {
+          const openable = openablePath(book) !== null;
+          return (
+            <article
+              key={book.stable_id}
+              className={`card ${openable ? "card-openable" : ""}`}
+            >
+              <div className="card-top">
+                <span
+                  className={`badge badge-${book.availability === "local" ? "available" : "wishlist"}`}
+                >
+                  {book.availability === "local"
+                    ? "On the shelf"
+                    : book.availability === "missing"
+                      ? "File missing"
+                      : "No local file"}
+                </span>
+                {book.cover && (
+                  <img
+                    className="card-cover"
+                    src={convertFileSrc(book.cover)}
+                    alt=""
+                    loading="lazy"
+                  />
+                )}
+              </div>
+              <h2>{book.title}</h2>
+              <p className="book-state">
+                {book.assets.length
+                  ? `${[...new Set(book.assets.map((a) => a.format.toUpperCase()))].join(" / ")} · `
+                  : book.format
+                    ? `${book.format.toUpperCase()} · `
+                    : ""}
+                {book.reading_status}
+                {book.up_next ? " · Up next" : ""}
+                {book.content_type !== "book"
+                  ? ` · ${book.content_type}`
+                  : ""}
+                {book.progress !== null
+                  ? ` · ${Math.round(book.progress * 100)}% read`
+                  : ""}
+              </p>
+              {book.progress !== null && (
+                <div
+                  className="card-progress"
+                  role="progressbar"
+                  aria-label={`${book.title} reading progress`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(book.progress * 100)}
+                >
+                  <span style={{ width: `${Math.round(book.progress * 100)}%` }} />
+                </div>
+              )}
+              {book.author && <p className="author">{book.author}</p>}
+              {book.source_profiles.length > 1 && (
+                <p className="review-context">
+                  {book.source_profiles.length} source profiles ·{" "}
+                  {book.assets.length} linked files
+                </p>
+              )}
+              <p className="meta">
+                {book.year ? `${book.year} · ` : ""}
+                {book.category ? `${book.category} · ` : ""}
+                {book.kind === "catalog"
+                  ? book.rating
+                    ? `★${book.rating}`
+                    : "unrated"
+                  : formatSize(book.size_bytes)}
+              </p>
+              {filter === "cleanup" && (
+                <p className="review-context">{book.issues.join(" · ")}</p>
+              )}
+              <div className="card-actions">
+                {openable && book.assets.length <= 1 && (
+                  <button className="read-book" onClick={() => onOpen(book)}>
+                    Read
+                  </button>
+                )}
+                {book.assets.length > 1 &&
+                  book.assets.map((asset, i) => (
+                    <span key={asset.id ?? asset.path}>
+                      {asset.available &&
+                      ["pdf", "epub", "article"].includes(asset.format) ? (
+                        <button
+                          className="read-book"
+                          title={asset.path}
+                          onClick={() => onOpen({ ...book, assets: [asset] })}
+                        >
+                          Read {asset.format.toUpperCase()}
+                          {asset.year
+                            ? ` (${asset.year})`
+                            : ` · Copy ${i + 1}`}
+                        </button>
+                      ) : (
+                        <small>
+                          {asset.format.toUpperCase()} ·{" "}
+                          {asset.available
+                            ? "External reader"
+                            : "Missing file"}
+                        </small>
+                      )}
+                    </span>
+                  ))}
+                <button onClick={() => setReview(book)}>
+                  Review details
+                </button>
+              </div>
+              {!openable && book.availability === "local" && (
+                <small className="review-context">
+                  This format needs an external reader.
+                </small>
+              )}
+            </article>
+          );
+        })}
+        {settled && books.length === 0 && query.trim() && (
+          <div className="empty search-empty" role="status">
+            <p>No books match “{query}”.</p>
+            <button onClick={() => setQuery("")}>Clear search</button>
+          </div>
+        )}
+        {settled && visible.length === 0 && books.length > 0 && (
+          <p className="empty">
+            Nothing here{query ? ` for “${query}”` : ""}.
+          </p>
+        )}
+      </section>
       {showAcquire && libraryPath && (
         <AcquirePanel
           libraryPath={libraryPath}

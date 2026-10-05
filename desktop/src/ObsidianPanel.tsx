@@ -1,31 +1,46 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useLibrary } from "./library";
 import { open } from "@tauri-apps/plugin-dialog";
 
 interface ExportReport {
   books: number;
   highlights: number;
   target: string;
+  written: number;
+  skipped: string[];
 }
 
 export default function ObsidianPanel({ onClose }: { onClose: () => void }) {
+  const { invoke } = useLibrary();
   const [vault, setVault] = useState<string>("");
+  // Per library: each library exports into its own <vault>/Properbooky/.
+  const [exportFolder, setExportFolder] = useState<string | null>(null);
   const [report, setReport] = useState<ExportReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    invoke<{ obsidian_vault_path: string | null }>("get_app_settings")
-      .then((s) => setVault(s.obsidian_vault_path ?? ""))
-      .catch(() => {});
-  }, []);
+    invoke<{ obsidian_vault_path: string | null; export_folder: string | null }>(
+      "get_app_settings",
+    )
+      .then((s) => {
+        // Never replace a path the user already started typing.
+        setVault((typed) => (typed.trim() ? typed : s.obsidian_vault_path ?? ""));
+        setExportFolder(s.export_folder);
+      })
+      .catch((e) => setStatus(String(e)));
+  }, [invoke]);
 
   const saveVault = useCallback(async (path: string) => {
     setVault(path);
-    await invoke("set_obsidian_vault", { path }).catch((e) =>
-      setStatus(String(e))
+    await invoke("set_obsidian_vault", { path }).then(
+      () => setStatus(null),
+      (e) => setStatus(String(e)),
     );
-  }, []);
+    await invoke<{ export_folder: string | null }>("get_app_settings")
+      .then((s) => setExportFolder(s.export_folder))
+      .catch(() => {});
+  }, [invoke]);
 
   const pickVault = useCallback(async () => {
     const selected = await open({ directory: true, multiple: false });
@@ -43,7 +58,7 @@ export default function ObsidianPanel({ onClose }: { onClose: () => void }) {
     } finally {
       setBusy(false);
     }
-  }, [vault]);
+  }, [invoke, vault]);
 
   return (
     <aside className="acquire-panel" aria-label="Obsidian sync">
@@ -56,9 +71,18 @@ export default function ObsidianPanel({ onClose }: { onClose: () => void }) {
       <div className="acquire-drop">
         <p className="acquire-hint">
           Highlights export as one note per book into{" "}
-          <code>&lt;vault&gt;/Properbooky/</code>. That folder is regenerated on
-          every sync — keep your own notes outside it and link to the{" "}
-          <code>^pb-…</code> block ids.
+          <code>&lt;vault&gt;/Properbooky/</code>. Each note's highlights block is
+          regenerated on every sync; anything you write outside that block is
+          kept. Link to highlights with their <code>^pb-…</code> block ids.
+        </p>
+        <p className="acquire-hint">
+          {exportFolder ? (
+            <>
+              This library exports to <code>{exportFolder}</code>.{" "}
+            </>
+          ) : null}
+          Each library has its own Obsidian folder, so libraries can never overwrite
+          each other's notes.
         </p>
         <div className="path-form" style={{ marginTop: "0.6rem" }}>
           <input
@@ -79,8 +103,15 @@ export default function ObsidianPanel({ onClose }: { onClose: () => void }) {
         {report && (
           <p className="acquire-report">
             Exported {report.highlights} highlights across {report.books}{" "}
-            {report.books === 1 ? "note" : "notes"}.
+            {report.books === 1 ? "note" : "notes"} ({report.written} updated).
           </p>
+        )}
+        {report && report.skipped.length > 0 && (
+          <ul className="status" aria-label="Not exported">
+            {report.skipped.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
         )}
         {status && <p className="status">{status}</p>}
       </div>

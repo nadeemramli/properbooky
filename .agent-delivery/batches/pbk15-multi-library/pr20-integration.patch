@@ -1,0 +1,22 @@
+--- a/desktop/e2e-desktop/highlights.e2e.mjs
++++ b/desktop/e2e-desktop/highlights.e2e.mjs
+@@ -405,7 +405,8 @@
+ 
+ function exportFiles() {
+   const dir = exportDir();
+-  return existsSync(dir) ? readdirSync(dir).sort() : [];
++  // Notes only: the folder also holds PBK-15's ownership marker.
++  return existsSync(dir) ? readdirSync(dir).filter((n) => n.endsWith(".md")).sort() : [];
+ }
+ 
+ function exportText(name) {
+@@ -905,7 +906,8 @@
+     check(epub.length === 2 && epub.filter((h) => h.deleted).length === 1, `EPUB records ${JSON.stringify(epub)}`);
+     check([...pdf, ...epub].every((h) => isUuid(h.id) && h.updated_at >= h.created_at), "ids/timestamps");
+     const appData = listTree(dataDir).map((f) => f.path);
+-    check(!appData.some((p) => p.endsWith(".json")), `JSON state in app-data: ${JSON.stringify(appData)}`);
++    // PBK-15's library list is the only JSON in app-data; no reading state.
++    check(!appData.some((p) => p.endsWith(".json") && !/(^|\/)settings(\.previous)?\.json$/.test(p)), `JSON state in app-data: ${JSON.stringify(appData)}`);
+     report.sidecars = { pdf, epub };
+     report.export_notes = Object.fromEntries(exportFiles().map((n) => [n, exportText(n)]));
+     return { pdf: pdf.length, epub: epub.length, export_notes: exportFiles() };

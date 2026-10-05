@@ -663,6 +663,16 @@ body {
   inset: 0;
 }
 
+/* EPUB highlights are painted by epub.js in an SVG pane over the book
+   iframe with pointer events off; it proxies clicks from listeners on the
+   sandboxed book document, which WebKit never runs. Let our painted shapes
+   take the click themselves (it opens the highlights panel). */
+.reader g.pb-highlight,
+.reader g.pb-highlight rect {
+  pointer-events: visiblePainted;
+  cursor: pointer;
+}
+
 .pdf-overlay {
   position: absolute;
   inset: 0;
@@ -866,6 +876,21 @@ body {
 
 .highlights-panel blockquote:hover {
   border-left-color: var(--accent);
+}
+
+/* the quote is the "go to" control: a real button, keyboard reachable */
+.highlight-jump {
+  all: unset;
+  display: block;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.highlight-jump:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .highlight-row-meta {
@@ -1238,4 +1263,206 @@ body {
   max-width: 100px;
   max-height: 150px;
   margin: 0 0 1rem 1rem;
+}
+
+/* ---- Libraries (PBK-15): switcher, launcher and dialog ---- */
+
+.library-switcher {
+  align-self: center;
+  margin: 0 8px 8px 0;
+  padding: 0.3rem 0.7rem;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--fg);
+  font-size: 0.8rem;
+}
+
+.library-switcher:focus-visible,
+.library-row button:focus-visible,
+.library-add button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.launcher {
+  max-width: 760px;
+  margin: 2rem auto 0;
+  text-align: left;
+}
+
+.launcher > p:first-child {
+  text-align: center;
+}
+
+.libraries-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 6vh 1rem;
+  z-index: 30;
+}
+
+.libraries-dialog {
+  width: min(720px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--card);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.libraries-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.libraries-head h2 {
+  margin: 0;
+  font-family: var(--serif);
+}
+
+.libraries-subtitle {
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin: 1rem 0 0.5rem;
+}
+
+.library-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.library-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  background: var(--card);
+  color: var(--fg);
+}
+
+.library-row-active {
+  border-color: var(--accent);
+}
+
+.library-row-main {
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.library-name {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.library-badge {
+  margin-left: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0 0.45rem;
+  vertical-align: middle;
+}
+
+.library-path {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.library-facts {
+  margin: 0.3rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.library-state-missing,
+.library-state-inaccessible,
+.library-state-not_folder {
+  color: var(--ribbon);
+  font-weight: 600;
+}
+
+.library-problem,
+.launcher-error {
+  color: var(--ribbon);
+  font-size: 0.85rem;
+  margin: 0.4rem 0 0;
+}
+
+.launcher-notice {
+  font-size: 0.85rem;
+  margin: 0.4rem 0 0;
+  padding: 0.4rem 0.6rem;
+  border-left: 3px solid var(--ribbon);
+  background: var(--rail);
+  color: var(--fg);
+  text-align: left;
+}
+
+.launcher-progress,
+.launcher-message {
+  color: var(--accent);
+  font-size: 0.85rem;
+  margin: 0.5rem 0 0;
+}
+
+.library-row-actions,
+.library-remove-confirm,
+.library-rename {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.library-remove-confirm,
+.library-rename {
+  flex: 1 1 100%;
+}
+
+.library-remove-confirm p {
+  margin: 0 0 0.3rem;
+  font-size: 0.85rem;
+  flex: 1 1 100%;
+}
+
+.library-rename label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8rem;
+  gap: 0.2rem;
+}
+
+.library-add {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.library-empty {
+  margin-top: 1.5rem;
 }

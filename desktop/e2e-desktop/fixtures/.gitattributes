@@ -3,3 +3,5 @@
 library/*.pdf binary
 library/*.epub binary
 catalog/*.md -text
+highlights/*.pdf binary
+highlights/catalog/*.md -text

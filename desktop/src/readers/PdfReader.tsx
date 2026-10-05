@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { useLibrary } from "../library";
 import * as pdfjs from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { TextLayer } from "pdfjs-dist";
@@ -27,6 +28,7 @@ export default function PdfReader({
   path: string;
   onProgress: (path: string, percent: number | null) => void;
 }) {
+  const { invoke } = useLibrary();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const textDivRef = useRef<HTMLDivElement>(null);
@@ -44,7 +46,7 @@ export default function PdfReader({
   const [pending, setPending] = useState<PendingSelection | null>(null);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [showPanel, setShowPanel] = useState(false);
-  const { load, save, notices } = useReadingState(path);
+  const { load, save, attempt, notices } = useReadingState(path);
 
   // Latest callback via ref so render/save effects depend only on paging
   // state — a changing identity would re-render and re-save in a loop.
@@ -62,7 +64,11 @@ export default function PdfReader({
     const stageBox = stage.getBoundingClientRect();
     for (const highlight of highlightsRef.current.values()) {
       if (highlight.anchor.page !== page || !highlight.anchor.quote) continue;
-      const range = rangeForQuote(textDiv, highlight.anchor.quote.exact);
+      // Exact occurrence: position + prefix/suffix pick between repeats.
+      const range = rangeForQuote(textDiv, highlight.anchor.quote.exact, {
+        quote: highlight.anchor.quote,
+        position: highlight.anchor.position,
+      });
       if (!range) continue;
       for (const rect of Array.from(range.getClientRects())) {
         if (rect.width < 1 || rect.height < 1) continue;
@@ -155,6 +161,10 @@ export default function PdfReader({
         stage.style.width = `${viewport.width}px`;
         stage.style.height = `${viewport.height}px`;
         stage.style.setProperty("--scale-factor", String(viewport.scale));
+        // pdf.js sizes text-layer glyphs from --total-scale-factor (its own
+        // viewer defines it on .page); without it the selectable text keeps
+        // one size at every zoom and drifts off the rendered glyphs.
+        stage.style.setProperty("--total-scale-factor", String(viewport.scale));
         const ctx = canvas.getContext("2d")!;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         renderTaskRef.current?.cancel();
@@ -212,8 +222,8 @@ export default function PdfReader({
 
   const saveHighlight = useCallback(async () => {
     if (!pending) return;
-    try {
-      const highlight = await invoke<Highlight>("add_highlight", {
+    const highlight = await attempt("save the highlight", () =>
+      invoke<Highlight>("add_highlight", {
         path,
         text: pending.exact,
         note: null,
@@ -228,44 +238,47 @@ export default function PdfReader({
           },
           position: { start: pending.start, end: pending.end },
         },
-      });
-      highlightsRef.current.set(highlight.id, highlight);
-      setHighlights((current) => [...current, highlight]);
-      window.getSelection()?.removeAllRanges();
-      paintRef.current();
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setPending(null);
-    }
-  }, [pending, path, page]);
+      }),
+    );
+    setPending(null);
+    if (!highlight) return;
+    highlightsRef.current.set(highlight.id, highlight);
+    setHighlights((current) => [...current, highlight]);
+    window.getSelection()?.removeAllRanges();
+    paintRef.current();
+  }, [pending, path, page, attempt]);
 
+  // Only an explicit Remove in the panel deletes; the UI follows the file.
   const removeHighlight = useCallback(
     async (highlight: Highlight) => {
-      await invoke("remove_highlight", { path, id: highlight.id }).catch(
-        () => {}
+      const done = await attempt("remove the highlight", () =>
+        invoke<boolean>("remove_highlight", { path, id: highlight.id }),
       );
+      if (done === undefined) return;
       highlightsRef.current.delete(highlight.id);
       setHighlights((current) => current.filter((h) => h.id !== highlight.id));
       paintRef.current();
     },
-    [path]
+    [path, attempt]
   );
 
   const noteHighlight = useCallback(
     async (highlight: Highlight, note: string) => {
-      await invoke("set_highlight_note", {
-        path,
-        id: highlight.id,
-        note: note || null,
-      }).catch(() => {});
+      const done = await attempt("save the note", () =>
+        invoke<boolean>("set_highlight_note", {
+          path,
+          id: highlight.id,
+          note: note || null,
+        }),
+      );
+      if (done === undefined) return;
       setHighlights((current) =>
         current.map((h) =>
           h.id === highlight.id ? { ...h, note: note || null } : h
         )
       );
     },
-    [path]
+    [path, attempt]
   );
 
 

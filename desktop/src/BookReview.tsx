@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useLibrary } from "./library";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Book, BookEdit, MetadataCandidate } from "./types";
 import MetadataLookup from "./MetadataLookup";
@@ -27,6 +27,7 @@ export default function BookReview({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const { invoke } = useLibrary();
   const dialog = useRef<HTMLDialogElement>(null);
   const [edit, setEdit] = useState<BookEdit>(() => bookEdit(book));
   const [preview, setPreview] = useState(false);

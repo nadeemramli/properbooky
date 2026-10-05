@@ -100,8 +100,13 @@ export type BookEdit = Pick<
 >;
 
 export interface LibraryState {
+  library_id: string | null;
+  library_name: string | null;
   library_path: string | null;
+  status: "available" | "missing" | "inaccessible" | "not_folder" | null;
   book_count: number;
+  /** Recovery notices for the open library, e.g. a rebuilt index. */
+  notices: string[];
 }
 
 export interface ScanResult {
@@ -120,6 +125,10 @@ export interface Highlight {
     page?: number;
     quote?: { exact: string; prefix: string; suffix: string };
     position?: { start: number; end: number };
+    /** EPUB: spine section, its TOC label and the book fraction at creation. */
+    href?: string;
+    chapter?: string;
+    percent?: number;
   };
   created_at: number;
   updated_at: number;

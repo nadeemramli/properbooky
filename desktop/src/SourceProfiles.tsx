@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useLibrary } from "./library";
 import type { SourceProfile } from "./types";
 
 export default function SourceProfiles({
@@ -7,6 +7,7 @@ export default function SourceProfiles({
 }: {
   sources: SourceProfile[];
 }) {
+  const { invoke } = useLibrary();
   const [text, setText] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

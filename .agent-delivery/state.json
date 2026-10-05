@@ -1,29 +1,38 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-04T08:20:00Z",
-  "worker": "cloud Claude Code session https://claude.ai/code/session_01EtZ3J6ATM4uFEkFR33mYe1 (sole product writer; prior session_015RzJS52EF3Dk2Rb5pEiDHJ retired)",
-  "model_observed": "claude-opus-5-5 (runtime get_session)",
+  "updated_at": "2026-10-04T16:45:00Z",
+  "worker": "cloud Claude Code session https://claude.ai/code/session_01VwUGjwXZJw5HhspdBBzDgB (sole product writer, new chat for the PBK-26 legacy export review repair; previous session_01RNsLigHcU5SWHvzXzLoNx3 stopped at cap 2 after PR #22)",
+  "model_observed": "claude-opus-5-5 (runtime get_session: configured_model, session_context.model, last_served_model)",
   "release_target": "Current approved release: desktop local-first reader plus PBK-30 web runtime verification on a local Supabase stack. Excludes PBK-7 sync/mobile, PBK-10 research, PBK-12 phases 2-3.",
   "issue_snapshot": {
     "date": "2026-10-04 MYT",
     "direct_cursor": 1029
   },
   "authorized_queue": {
-    "provenance": "Coordinator dispatch pbk-fresh-reader-20261004 (PBK-24, coordinator claim codex-product-coordinator; v6 at dispatch, v8 per later coordinator note). Lifetime objective count for this worker: 1 of 3. This worker writes code/evidence only; the coordinator owns Direct.",
+    "provenance": "Task 1: PBK-26 legacy export preservation review repair (Direct PBK-26 v11). Task 2: PBK-26 frontmatter preservation, coordinator-confirmed escalation (Direct PBK-26 v13). Chat lifetime cap 2/2 reached; no further scope.",
     "dispatched_batches": [
-      "pbk24-desktop-reading-journey (pbk-fresh-reader-20261004)"
-    ]
+      "pbk26-legacy-export-repair",
+      "pbk26-frontmatter-repair"
+    ],
+    "previous_chat": {
+      "session": "session_01RNsLigHcU5SWHvzXzLoNx3",
+      "batches": [
+        "pbk15-multi-library",
+        "pbk15-pbk26-integration"
+      ],
+      "status": "stopped at cap 2"
+    }
   },
-  "remote_main": "f2672f289a2972ce88e1ba0a01173271b8de97ae",
+  "remote_main": "44e96b67d05213b53185d97d740f7d392e0c0c3f",
   "current_batch": {
-    "batch_id": "pbk24-desktop-reading-journey",
-    "branch": "claude/jolly-wright-dxg02n",
-    "base": "f2672f289a2972ce88e1ba0a01173271b8de97ae",
-    "tested_head": "5012151354d132692ed5d2fcead634b5807b03d4",
-    "pr": "https://github.com/nadeemramli/properbooky/pull/19 (draft)",
-    "report": ".agent-delivery/batches/pbk24-desktop-reading-journey/report.json",
-    "plan": ".agent-delivery/batches/pbk24-desktop-reading-journey/plan.md",
-    "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37188081377 (head 5012151; see handoff for conclusion)"
+    "batch_id": "pbk26-frontmatter-repair",
+    "branch": "claude/sharp-archimedes-s3rdeu",
+    "base": "e20d8664fe9fc95a03834b3c1d04948a298ebe97 (task-1 handoff; stack PR #22 cfb40a5 -> task 1 -> task 2)",
+    "tested_head": "2f9a850843573c482d0dcd82dae7f2f155338d0d",
+    "pr": "https://github.com/nadeemramli/properbooky/pull/23 (draft, base claude/pbk15-pbk26-integration)",
+    "report": ".agent-delivery/batches/pbk26-frontmatter-repair/report.json",
+    "plan": ".agent-delivery/batches/pbk26-frontmatter-repair/plan.md",
+    "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37216424582: success on tested head 2f9a850 (all 6 jobs)"
   },
   "completed_cloud_batches": [
     {
@@ -48,24 +57,82 @@
       "batch_id": "pbk24-desktop-reading-journey",
       "kind": "implementation + packaged E2E",
       "pr_url": "https://github.com/nadeemramli/properbooky/pull/19",
-      "status": "awaiting coordinator review"
+      "status": "merged as PR #19 (main 44e96b6)"
+    },
+    {
+      "batch_id": "pbk26-highlights-export",
+      "kind": "implementation + packaged E2E",
+      "pr_url": "https://github.com/nadeemramli/properbooky/pull/20",
+      "status": "draft PR #20 at 260da9f (tested 363ddb7), pending coordinator review; merged into the integration candidate PR #22",
+      "report": ".agent-delivery/batches/pbk26-highlights-export/report.json"
+    },
+    {
+      "batch_id": "pbk15-multi-library",
+      "kind": "implementation + packaged E2E + upgrade/rollback rehearsal",
+      "pr_url": "https://github.com/nadeemramli/properbooky/pull/21",
+      "status": "draft PR #21 at 0b83611 (tested dbd6489, CI green), pending coordinator review; merged into PR #22"
+    },
+    {
+      "batch_id": "pbk15-pbk26-integration",
+      "kind": "integration + packaged E2E",
+      "pr_url": "https://github.com/nadeemramli/properbooky/pull/22",
+      "status": "awaiting coordinator review; repair for the confirmed legacy-export data loss is stacked on it as PR #23"
+    },
+    {
+      "batch_id": "pbk26-legacy-export-repair",
+      "kind": "review repair + packaged E2E (stacked on PR #22)",
+      "pr_url": "https://github.com/nadeemramli/properbooky/pull/23",
+      "status": "tested 9e7ad7f, CI 37214563269 success; awaiting coordinator review in PR #23"
+    },
+    {
+      "batch_id": "pbk26-frontmatter-repair",
+      "kind": "review repair + packaged E2E (same PR #23)",
+      "pr_url": "https://github.com/nadeemramli/properbooky/pull/23",
+      "status": "tested 2f9a850; awaiting coordinator review"
     }
   ],
   "criterion_gaps": [
-    "PBK-24: all mapped criteria Pass on Linux packaged debug build (local); Windows/WebView2 installed-app unverified (coordinator)."
+    "PBK-26 legacy export and frontmatter preservation: repaired and verified on the Linux packaged build (tested 2f9a850); Windows/WebView2 unverified (coordinator, deferred).",
+    "PBK-15/PBK-26 other criteria: as in the integration report (tested 5d8be40); affected journeys re-run on 2f9a850."
   ],
   "pending_local_checks": [
-    "Coordinator Windows installed-app PBK-24 walkthrough after deferred native access with known-folder app-data isolation (see report local_verification_required)"
+    "Coordinator independent review of PR #23 at its final head (and PR #22 beneath it), then the merge path",
+    "Coordinator Windows walkthroughs in both PBK-26 repair reports (legacy note and frontmatter)"
   ],
   "pending_human_checks": [
-    "PBK-24 owner acceptance (intent/usability: tab rail, ribbon, Continue reading rule)"
+    "PBK-15 owner acceptance",
+    "PBK-26 owner acceptance (PBK-27 interaction intent)"
   ],
   "unresolved_decisions": [
     "Long-term fix for the three storage.objects migrations (keep the image pin, squash a baseline, or approve a privilege-tolerant edit)",
     "PBK-31 delete vs revive (evidence on claude/funny-dirac-xv8791 .agent-delivery/pbk-31-options.md); dashboard still queries dropped/forbidden relations",
     "Unused books columns (knowledge_spectrum, manual_rating, wishlist_*) vs metadata storage — PBK-5 candidate",
-    "PBK-15 multi-library picker in or out of the current release",
-    "PBK-24 interpretation: Continue reading includes unread books with saved progress > 0 (opening a PDF counts as started) - owner may prefer another rule"
+    "PBK-24 interpretation: Continue reading includes unread books with saved progress > 0 (opening a PDF counts as started) - owner may prefer another rule",
+    "PBK-15: nested libraries are refused by design; owner may prefer allowing them",
+    "Narrow assetProtocol.scope ['**'] to open library folders (security-sensitive capability change; not made)",
+    "PBK-26 repair design choice: strict proof requires the generated blank line after each legacy entry; text typed directly under a highlight is refused (no write) rather than migrated. Coordinator may prefer accepting a missing blank line."
   ],
-  "next_action": "Coordinator: review PR #19 at its final head (5012151 + evidence commit), confirm CI, merge, Windows walkthrough. No further cloud batch dispatched; do not start PBK-26 or others without dispatch."
+  "next_action": "Coordinator: review PR #23 (tested 2f9a850 + evidence), confirm CI, decide merge path for #22/#23, Windows walkthrough. This chat reached cap 2/2 and stopped; no subscriptions or reminders remain.",
+  "pbk26_record_from_pr20": {
+    "current_batch": {
+      "batch_id": "pbk26-highlights-export",
+      "branch": "claude/pbk-26-highlights-export",
+      "base": "44e96b67d05213b53185d97d740f7d392e0c0c3f",
+      "tested_head": "363ddb7d6e2473460523071d0a644378b5e999c2",
+      "pr": "https://github.com/nadeemramli/properbooky/pull/20 (draft)",
+      "report": ".agent-delivery/batches/pbk26-highlights-export/report.json",
+      "plan": ".agent-delivery/batches/pbk26-highlights-export/plan.md",
+      "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37195394562 (see handoff for conclusion)"
+    },
+    "criterion_gaps": [
+      "PBK-26: all mapped criteria Pass on the Linux packaged debug build; Windows/WebView2 installed-app unverified (coordinator).",
+      "PBK-24: Windows installed-app still pending (coordinator)."
+    ],
+    "unresolved_decisions": [
+      "Long-term fix for the three storage.objects migrations (keep the image pin, squash a baseline, or approve a privilege-tolerant edit)",
+      "PBK-31 delete vs revive (evidence on claude/funny-dirac-xv8791 .agent-delivery/pbk-31-options.md); dashboard still queries dropped/forbidden relations",
+      "Unused books columns (knowledge_spectrum, manual_rating, wishlist_*) vs metadata storage — PBK-5 candidate",
+      "PBK-15 multi-library picker in or out of the current release"
+    ]
+  }
 }

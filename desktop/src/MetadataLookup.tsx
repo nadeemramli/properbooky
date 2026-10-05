@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useLibrary } from "./library";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { BookEdit, MetadataCandidate } from "./types";
 
@@ -16,6 +16,7 @@ export default function MetadataLookup({
     cover: boolean,
   ) => void;
 }) {
+  const { invoke } = useLibrary();
   const [title, setTitle] = useState(edit.title);
   const [author, setAuthor] = useState(edit.author ?? "");
   const [result, setResult] = useState<{

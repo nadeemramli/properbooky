@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import LibraryView, { openablePath } from "./LibraryView";
+import Libraries from "./Libraries";
+import type { LibraryActions } from "./Libraries";
 import ArticleReader from "./readers/ArticleReader";
 import EpubReader from "./readers/EpubReader";
 import PdfReader from "./readers/PdfReader";
 import ReaderBoundary from "./ReaderBoundary";
-import type { Book, OpenTab } from "./types";
+import { LibraryProvider, boundInvoke } from "./library";
+import type { KnownLibrary, LibrariesView, LibraryHandle } from "./library";
+import type { Book, OpenTab, ScanResult } from "./types";
 import "./App.css";
 
 const LIBRARY_TAB = "__library__";
@@ -14,12 +19,61 @@ function percentLabel(percent: number | null) {
   return percent === null ? "not started" : `${Math.round(percent * 100)}% read`;
 }
 
-export default function App() {
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function Switcher({
+  library,
+  expanded,
+  onClick,
+}: {
+  library: KnownLibrary | null;
+  expanded: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className="library-switcher"
+      aria-haspopup="dialog"
+      aria-expanded={expanded}
+      title={library ? `${library.name} — ${library.path}` : "Libraries"}
+      onClick={onClick}
+    >
+      <span className="sr-only">Library: </span>
+      {library?.name ?? "No library open"}
+      <span className="sr-only">. Switch or manage libraries</span>
+      <span aria-hidden="true"> ▾</span>
+    </button>
+  );
+}
+
+/** One open library: its Library tab, its reader tabs and every panel. Keyed
+ * by library id, so switching discards all of it and nothing rendered for one
+ * library can act on another. */
+function Workspace({
+  library,
+  handle,
+  initialStatus,
+  notices,
+  dialogOpen,
+  onManage,
+  onUnmount,
+}: {
+  library: KnownLibrary;
+  handle: LibraryHandle;
+  initialStatus: string | null;
+  /** Library-list recovery notices, shown even when a library opens directly. */
+  notices: string[];
+  dialogOpen: boolean;
+  onManage: () => void;
+  onUnmount: () => void;
+}) {
   const [tabs, setTabs] = useState<OpenTab[]>([]);
   const [active, setActive] = useState<string>(LIBRARY_TAB);
   // Keyboard focus to restore once the tab rail has re-rendered.
   const [focusTab, setFocusTab] = useState<string | null>(null);
   const tabRefs = useRef(new Map<string, HTMLButtonElement>());
+
+  useEffect(() => onUnmount, [onUnmount]);
 
   useEffect(() => {
     if (focusTab === null) return;
@@ -100,9 +154,10 @@ export default function App() {
   const activeIndex = activeTab ? tabs.indexOf(activeTab) : -1;
 
   return (
-    <main className="app">
+    <LibraryProvider value={handle}>
       <nav className="tab-rail" aria-label="Library and open books">
         <span className="brand">ProperBooky</span>
+        <Switcher library={library} expanded={dialogOpen} onClick={onManage} />
         <div
           className="tab-list"
           role="tablist"
@@ -167,7 +222,7 @@ export default function App() {
         aria-labelledby={tabId(activeIndex)}
       >
         {!activeTab ? (
-          <LibraryView onOpen={openBook} />
+          <LibraryView onOpen={openBook} initialStatus={initialStatus} listNotices={notices} />
         ) : (
           <ReaderBoundary key={activeTab.path}>
             {activeTab.format === "epub" ? (
@@ -180,6 +235,190 @@ export default function App() {
           </ReaderBoundary>
         )}
       </section>
+    </LibraryProvider>
+  );
+}
+
+export default function App() {
+  const [view, setView] = useState<LibrariesView | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [dialog, setDialog] = useState(false);
+  const [initialStatus, setInitialStatus] = useState<string | null>(null);
+  const inFlight = useRef(new Set<Promise<unknown>>());
+  const unmounted = useRef<(() => void) | null>(null);
+  const switcher = useRef<HTMLDivElement>(null);
+
+  const refresh = useCallback(async () => {
+    setView(await invoke<LibrariesView>("list_libraries"));
+  }, []);
+
+  useEffect(() => {
+    refresh().catch((e) => setError(String(e)));
+  }, [refresh]);
+
+  const active = view?.libraries.find((l) => l.active) ?? null;
+  const open = active?.status === "available" && busy === null ? active : null;
+  const activeId = open?.id ?? null;
+  const handle = useMemo<LibraryHandle | null>(
+    () =>
+      open ? { id: open.id, name: open.name, path: open.path, invoke: boundInvoke(open.id, inFlight.current) } : null,
+    // Bound to the id only; a rename keeps the workspace and its tabs.
+    [activeId],
+  );
+  const handleWithName = useMemo(
+    () => (handle && open ? { ...handle, name: open.name, path: open.path } : null),
+    [handle, open?.name, open?.path],
+  );
+
+  const onUnmount = useCallback(() => {
+    unmounted.current?.();
+    unmounted.current = null;
+  }, []);
+
+  /**
+   * Change which library is open with no workspace mounted: unmount the open
+   * one, let its last calls finish against the library that issued them,
+   * then change the backend. Late results go to unmounted components and
+   * late writes carry the old id, which the backend refuses.
+   */
+  const transition = useCallback(
+    async (label: string, change: () => Promise<LibrariesView>) => {
+      const gone = activeId
+        ? new Promise<void>((resolve) => (unmounted.current = resolve))
+        : Promise.resolve();
+      setBusy(label);
+      setError(null);
+      await Promise.race([gone, delay(1000)]);
+      await Promise.race([Promise.allSettled([...inFlight.current]), delay(1500)]);
+      try {
+        let next = await change();
+        const opened = next.libraries.find((l) => l.active);
+        let status: string | null = null;
+        if (opened && opened.status === "available" && opened.book_count === null) {
+          setBusy(`Indexing ${opened.name}…`);
+          const result = await invoke<ScanResult>("scan_library", { libraryId: opened.id });
+          status =
+            `Indexed ${result.indexed} books` +
+            (result.skipped ? ` (${result.skipped} skipped)` : "");
+          next = await invoke<LibrariesView>("list_libraries");
+        }
+        inFlight.current.clear();
+        setInitialStatus(status);
+        setView(next);
+        setDialog(false);
+      } catch (e) {
+        // The previous library stays open; the dialog (or page) shows why.
+        setError(String(e));
+        await refresh().catch(() => {});
+      } finally {
+        setBusy(null);
+      }
+    },
+    [activeId, refresh],
+  );
+
+  const actions: LibraryActions = useMemo(
+    () => ({
+      refresh,
+      add: async (path) => {
+        const added = await invoke<{ id: string; view: LibrariesView }>("add_library", { path });
+        if (added.id === activeId) {
+          setView(added.view);
+          setDialog(false);
+          return;
+        }
+        const name = added.view.libraries.find((l) => l.id === added.id)?.name ?? "library";
+        await transition(`Opening ${name}…`, () =>
+          invoke<LibrariesView>("switch_library", { id: added.id }),
+        );
+      },
+      open: (id) => {
+        const name = view?.libraries.find((l) => l.id === id)?.name ?? "library";
+        return transition(`Opening ${name}…`, () => invoke<LibrariesView>("switch_library", { id }));
+      },
+      rename: async (id, name) => {
+        setView(await invoke<LibrariesView>("rename_library", { id, name }));
+      },
+      remove: async (id) => {
+        if (id === activeId)
+          await transition("Closing library…", () => invoke<LibrariesView>("remove_library", { id }));
+        else setView(await invoke<LibrariesView>("remove_library", { id }));
+      },
+      relocate: async (id, path) => {
+        if (id === active?.id)
+          await transition("Opening library…", () =>
+            invoke<LibrariesView>("relocate_library", { id, path }),
+          );
+        else setView(await invoke<LibrariesView>("relocate_library", { id, path }));
+      },
+    }),
+    [active?.id, activeId, refresh, transition, view],
+  );
+
+  const closeDialog = useCallback(() => {
+    setDialog(false);
+    setError(null);
+    setTimeout(() => switcher.current?.querySelector<HTMLElement>(".library-switcher")?.focus(), 0);
+  }, []);
+
+  return (
+    <main className="app" ref={switcher}>
+      {open && handleWithName ? (
+        <Workspace
+          key={open.id}
+          library={open}
+          handle={handleWithName}
+          initialStatus={initialStatus}
+          notices={view?.notices ?? []}
+          dialogOpen={dialog}
+          onManage={() => {
+            setDialog(true);
+            // Folders may have moved or changed access since the last look.
+            refresh().catch((e) => setError(String(e)));
+          }}
+          onUnmount={onUnmount}
+        />
+      ) : (
+        <>
+          <nav className="tab-rail" aria-label="Library and open books">
+            <span className="brand">ProperBooky</span>
+            <div className="tab-list" role="tablist" aria-label="Open books">
+              <button
+                id="tab-library"
+                role="tab"
+                aria-selected="true"
+                aria-controls="tab-panel"
+                className="tab tab-library tab-active"
+              >
+                Libraries
+              </button>
+            </div>
+          </nav>
+          <section className="tab-panel" id="tab-panel" role="tabpanel" aria-labelledby="tab-library">
+            <div className="library">
+              {view === null && error === null ? (
+                // Not the first-run page: the saved list has not loaded yet.
+                <p className="launcher-progress" role="status">
+                  Loading your libraries…
+                </p>
+              ) : (
+                <Libraries view={view} actions={actions} busy={busy} error={error} dialog={false} />
+              )}
+            </div>
+          </section>
+        </>
+      )}
+      {open && dialog && (
+        <Libraries
+          view={view}
+          actions={actions}
+          busy={busy}
+          error={error}
+          dialog
+          onClose={closeDialog}
+        />
+      )}
     </main>
   );
 }

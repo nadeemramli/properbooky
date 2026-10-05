@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
@@ -153,3 +154,55 @@ for (const version of [8, 9, 10]) {
     }
   });
 }
+
+// PBK-15: without PROPERBOOKY_DB the server serves the library that is open in
+// the app, from that library's own index, never a stale single-library index.
+test("MCP serves the open library from the app's library list", async () => {
+  const appData = mkdtempSync(path.join(os.tmpdir(), "properbooky-mcp-appdata-"));
+  const library = (name) => {
+    const id = randomUUID();
+    const root = mkdtempSync(path.join(os.tmpdir(), `properbooky-mcp-${name}-`));
+    const file = path.join(root, `${name}.pdf`);
+    writeFileSync(file, "%PDF-test");
+    mkdirSync(path.join(appData, "libraries", id), { recursive: true });
+    const db = new Database(path.join(appData, "libraries", id, "library.db"));
+    db.exec(`CREATE TABLE settings(key TEXT, value TEXT);
+      CREATE TABLE books(id INTEGER PRIMARY KEY, title TEXT, author TEXT, category TEXT, kind TEXT, status TEXT, rating INTEGER, year INTEGER, path TEXT, file_link TEXT, format TEXT);
+      CREATE VIRTUAL TABLE books_fts USING fts5(title, author, filename, category);`);
+    db.prepare("INSERT INTO settings VALUES ('library_path',?)").run(root);
+    db.prepare("INSERT INTO books VALUES (1,?,NULL,NULL,'file',NULL,NULL,NULL,?,NULL,'pdf')").run(`Shared ${name}`, file);
+    db.prepare("INSERT INTO books_fts(rowid,title) VALUES (1,?)").run(`Shared ${name}`);
+    db.close();
+    return { id, name, path: root, canonical: root, added_at: 0 };
+  };
+  const alpha = library("alpha");
+  const beta = library("beta");
+  const legacy = new Database(path.join(appData, "library.db"));
+  legacy.exec("CREATE TABLE settings(key TEXT, value TEXT)");
+  legacy.close();
+  const titles = async (active) => {
+    writeFileSync(
+      path.join(appData, "settings.json"),
+      JSON.stringify({ version: 1, active, libraries: [alpha, beta] }),
+    );
+    const client = new Client({ name: "library-list-test", version: "1" });
+    const env = { ...process.env, PROPERBOOKY_APP_DATA: appData };
+    delete env.PROPERBOOKY_DB;
+    delete env.PROPERBOOKY_LIBRARY;
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [path.resolve("server.mjs")],
+      env,
+    });
+    try {
+      await client.connect(transport);
+      const result = await client.callTool({ name: "search_library", arguments: { query: "Shared" } });
+      assert.ok(!result.isError, JSON.stringify(result));
+      return JSON.parse(result.content[0].text).map((r) => r.title);
+    } finally {
+      await client.close();
+    }
+  };
+  assert.deepEqual(await titles(alpha.id), ["Shared alpha"]);
+  assert.deepEqual(await titles(beta.id), ["Shared beta"]);
+});

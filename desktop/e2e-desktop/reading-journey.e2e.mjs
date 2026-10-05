@@ -327,6 +327,19 @@ async function indexThroughForm() {
   return { status, ...(await waitTitles(ALL, 30000)) };
 }
 
+// The only JSON in app-data is the PBK-15 library list, and it holds no
+// reading state: positions and highlights stay in the library folder.
+const isLibraryList = (p) => /(^|\/)settings(\.previous)?\.json$/.test(p);
+function checkLibraryList(dir) {
+  for (const f of listTree(dir).filter((f) => isLibraryList(f.path))) {
+    const text = readFileSync(path.join(dir, f.path), "utf8");
+    const value = JSON.parse(text);
+    const keys = Object.keys(value).sort().join(",");
+    check(keys === "active,libraries,version" || keys === "libraries,version", `unexpected library list keys: ${keys}`);
+    check(!/position|highlight|percent/.test(text), `reading state in the library list: ${f.path}`);
+  }
+}
+
 const near = (a, b) => typeof a === "number" && typeof b === "number" && Math.abs(a - b) < 1e-9;
 
 // --- run --------------------------------------------------------------------
@@ -718,7 +731,8 @@ try {
   await step("rebuild index: delete app-data only", () => {
     const removed = listTree(dataDir);
     check(removed.some((f) => f.path.endsWith("library.db")), `no index in app-data: ${JSON.stringify(removed)}`);
-    check(!removed.some((f) => f.path.endsWith(".json")), "reading state found in app-data");
+    check(!removed.some((f) => f.path.endsWith(".json") && !isLibraryList(f.path)), "reading state found in app-data");
+    checkLibraryList(dataDir);
     digestBeforeRebuild = stateDigest();
     rmSync(dataDir, { recursive: true });
     mkdirSync(dataDir);
@@ -767,7 +781,8 @@ try {
 
   await step("reading state lives only in the library folder", () => {
     const appData = listTree(dataDir).map((f) => f.path);
-    check(!appData.some((p) => p.endsWith(".json")), `JSON state in app-data: ${JSON.stringify(appData)}`);
+    check(!appData.some((p) => p.endsWith(".json") && !isLibraryList(p)), `JSON state in app-data: ${JSON.stringify(appData)}`);
+    checkLibraryList(dataDir);
     const sidecars = readdirSync(path.join(libraryDir, ".properbooky/state"));
     const final = { pdf: readSidecar(PDF_REL), epub: readSidecar(EPUB_REL) };
     check(final.pdf.position === state.pdf.position && final.epub.position === state.epub.position, "final sidecars differ");
