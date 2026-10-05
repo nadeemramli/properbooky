@@ -1,41 +1,38 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-04T23:30:00Z",
-  "worker": "cloud Claude Code session https://claude.ai/code/session_01T72QU5hNRLp2eYFax7zNtw (sole product writer; new chat for the PBK-19 + PBK-15 integration; previous session_01JbygKhhQHafSKbabnod2K8 finished/stopped at cap 2/2 after PR #24 and PR #25)",
-  "model_observed": "claude-opus-5-5 (runtime get_session: configured_model, session_context.model, last_served_model; checked at start and before handoff)",
+  "updated_at": "2026-10-05T05:30:00Z",
+  "worker": "cloud Claude Code session https://claude.ai/code/session_01JAoTji6MsTwK8PAdt51puq (sole product worker; new chat for PBK-21 design; prior session_01T72QU5hNRLp2eYFax7zNtw stopped/retired at 2/2)",
+  "model_observed": "claude-opus-5-5 (runtime get_session: configured_model, session_context.model, last_served_model; checked at start)",
   "release_target": "Current approved release: desktop local-first reader plus PBK-30 web runtime verification on a local Supabase stack. Excludes PBK-7 sync/mobile, PBK-10 research, PBK-12 phases 2-3.",
   "issue_snapshot": {
     "date": "2026-10-05 MYT",
-    "direct_cursor": "heartbeat 2202 (coordinator handoff on PBK-19/PBK-15)"
+    "direct_cursor": "coordinator PBK-21 dispatch (Doing, claim actor codex-product-coordinator); Direct not reachable from cloud"
   },
   "authorized_queue": {
-    "provenance": "Coordinator assignment 5 Oct 2026 MYT recorded on Direct PBK-19/PBK-15 heartbeat 2202: two issue objectives (PBK-19 catalog integration, PBK-15 search repair integration) in one batch; lifetime count 2/cap 2 (fills the chat cap). Not a blanket backlog grant; no later implementation scope in this chat.",
+    "provenance": "Coordinator dispatch 5 Oct 2026: PBK-21 acquisition queue and Drop loop, bounded design and synthetic gap reproduction only; lifetime objective 1 of cap 3 (cap 2 if review feedback). No implementation authorized in this chat; task ends at handoff.",
     "dispatched_batches": [
-      "pbk19-pbk15-catalog-search-integration"
+      "pbk21-acquisition-design"
     ],
     "previous_chat": {
-      "session": "session_01JbygKhhQHafSKbabnod2K8",
+      "session": "session_01T72QU5hNRLp2eYFax7zNtw",
       "batches": [
-        "pbk19-catalog-import",
-        "pbk15-search-empty-state"
+        "pbk19-pbk15-catalog-search-integration"
       ],
-      "status": "finished/stopped at cap 2/2"
+      "status": "stopped/retired 2/2"
     }
   },
   "remote_main": "44e96b67d05213b53185d97d740f7d392e0c0c3f (unchanged)",
   "current_batch": {
-    "batch_id": "pbk19-pbk15-catalog-search-integration",
-    "kind": "integration (PR #24 + PR #25) + packaged E2E",
-    "branch": "claude/bold-ritchie-1xa5z8",
-    "base": "103510130c25161fa0df2e15d3c6828bc4826959 (exact PR #24 head; tested 58aebe4)",
-    "merged_source": "PR #25 head 5f4fc33ad654d6b860f8986df236082e9d423296 (tested c2e157f) via merge commit 1a93b70",
-    "tested_head": "0dfc440af852a064bc4dc840255d27c0b5ec658d",
-    "pr": "https://github.com/nadeemramli/properbooky/pull/26 (draft, base claude/gallant-darwin-bbt4jb)",
-    "report": ".agent-delivery/batches/pbk19-pbk15-catalog-search-integration/report.json",
-    "plan": ".agent-delivery/batches/pbk19-pbk15-catalog-search-integration/plan.md",
-    "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37241327975: success: all 6 jobs (desktop: tsc + cargo test; web; web-e2e; web-local-supabase; library-mcp; desktop-e2e incl. the new 'PBK-19 + PBK-15 catalog search integration' step, run non-root), completed 2026-10-04T23:14:50Z on tested head 0dfc440af852a064bc4dc840255d27c0b5ec658d",
-    "upstream_note": "Coordinator merged PR #25 into PR #22's branch at e8166de during this batch; tree(e8166de) == tree(5f4fc33) and merging it here is a no-op. Not rebased.",
-    "evidence_note": "This integration's evidence is only in its own report (tested head above). PR #24's report (tested 58aebe4) and PR #25's report (tested c2e157f) describe those branches alone and are not evidence for the integrated build."
+    "batch_id": "pbk21-acquisition-design",
+    "kind": "design + synthetic gap probe (no product/schema/permission/CI change)",
+    "branch": "claude/admiring-cannon-rzrojv",
+    "base": "82c573a26ce2c9a5e79a2f2ce3c176e3f9a06411 (integrated PR #24 head on claude/gallant-darwin-bbt4jb, after PR #26)",
+    "tested_head": "82c573a26ce2c9a5e79a2f2ce3c176e3f9a06411 (product code probed = base; batch adds only .agent-delivery files)",
+    "pr": "draft PR to claude/gallant-darwin-bbt4jb (URL in PR/response)",
+    "report": ".agent-delivery/batches/pbk21-acquisition-design/report.json",
+    "plan": ".agent-delivery/batches/pbk21-acquisition-design/plan.md",
+    "probe": ".agent-delivery/batches/pbk21-acquisition-design/probe/ (standalone Cargo package, not in CI/test suite); results probe-results.{txt,json}: 27 checks HOLDS=8 GAP=13 INFO=5 STATIC=1",
+    "ci": "no product change; PR CI on the handoff head reported in PR/response"
   },
   "completed_cloud_batches": [
     {
@@ -113,14 +110,23 @@
       "pr_url": "https://github.com/nadeemramli/properbooky/pull/26",
       "status": "tested 0dfc440, CI success: all 6 jobs (desktop: tsc + cargo test; web; web-e2e; web-local-supabase; library-mcp; desktop-e2e incl. the new 'PBK-19 + PBK-15 catalog search integration' step, run non-root), completed 2026-10-04T23:14:50Z; review-pending (not Agent Pass, not human acceptance)",
       "report": ".agent-delivery/batches/pbk19-pbk15-catalog-search-integration/report.json"
+    },
+    {
+      "batch_id": "pbk21-acquisition-design",
+      "kind": "design + probe",
+      "pr_url": null,
+      "status": "handoff for coordinator adjudication of D-A..D-G (plan.md section 8); not Agent Pass",
+      "report": ".agent-delivery/batches/pbk21-acquisition-design/report.json"
     }
   ],
   "criterion_gaps": [
+    "PBK-21 (probe at 82c573a, synthetic, library-crate level): C5/C4 hold (C4 only in the shipped command; tested QUEUE_SQL diverges); C1 partial (no daily set); C2 fail (PBK-29 v2 ships); C3 unverified (static); C6 fail; C7 holds except >255-byte/leading-dot names; C8 fail (00 Inbox); C9 holds on happy path + restart, fails on partial/empty/symlink/mid-batch/crash/missing-link paths; matcher auto-wrong 1/22 (Children of Dune -> Dune).",
     "PBK-19 + PBK-15 integration: all mapped criteria pass on the Linux packaged build at 0dfc440 with synthetic data (~1700-row sheet); owner's actual export and real-library migration untested (D1-D6 open); Windows/WebView2 unverified (coordinator, deferred).",
     "PBK-26 legacy export and frontmatter preservation: repaired and verified on the Linux packaged build (tested 2f9a850); Windows/WebView2 unverified (coordinator, deferred).",
     "PBK-15/PBK-26 other criteria: as in the integration report (tested 5d8be40); affected journeys re-run on 2f9a850."
   ],
   "pending_local_checks": [
+    "PBK-21: coordinator reconciles live Direct criterion text and vault notes with plan.md section 2, adjudicates D-A..D-G, then dispatches implementation (safety core S1 is decision-independent)",
     "Coordinator review of PR #26 at its final head (after PR #24 and the stack beneath it); merge order PR #20/#21 -> PR #22 (now incl. #23, #25 at e8166de) -> PR #24 -> PR #26",
     "PBK-19: dry run of the real export on a COPY of the Catalog folder (PR #24 D1-D4) before any real import",
     "Windows walkthrough on a disposable library: Import catalog -> search title/author -> no match + Clear search -> Status/Rating facets -> restart (coordinator-owned, deferred)",
@@ -133,6 +139,13 @@
     "PBK-19 owner acceptance"
   ],
   "unresolved_decisions": [
+    "PBK-21 D-A ranking: live 'recommendation weight x rating' vs PBK-29 v2 score (shipped); recommend amend criterion to PBK-29",
+    "PBK-21 D-B category folder vs 2026-07-13 '00 Inbox' design; recommend first topic -> existing matching Library shelf else Inbox, never create shelves",
+    "PBK-21 D-C queued-first two-pass match + file-side coverage guard + eligibility (want_to_read without local file, incl. missing link)",
+    "PBK-21 D-D daily snapshot (.properbooky/acquisition/today.json), only queued carry over, N=10",
+    "PBK-21 D-E collisions: no-clobber move; identical content -> link existing, keep Drop copy reported; different -> review",
+    "PBK-21 D-F search target (owner/legal): hard-coded z-library.sk vs user template vs neutral default",
+    "PBK-21 D-G no background Drop watcher in this release (explicit plan -> apply)",
     "Long-term fix for the three storage.objects migrations (keep the image pin, squash a baseline, or approve a privilege-tolerant edit)",
     "PBK-31 delete vs revive (evidence on claude/funny-dirac-xv8791 .agent-delivery/pbk-31-options.md); dashboard still queries dropped/forbidden relations",
     "Unused books columns (knowledge_spectrum, manual_rating, wishlist_*) vs metadata storage — PBK-5 candidate",
@@ -143,7 +156,7 @@
     "PBK-19 D1: strict import identity creates profiles for rows the earlier importer merged by punctuation-blind key (recommend dry run + review, option A)",
     "PBK-19 D2-D4: blank-author rows and non-integer ratings rejected and named; exact status spellings (verify on the real export)"
   ],
-  "next_action": "Coordinator: review PR #26 (tested head in current_batch, evidence-only head after it) together with PR #24; decide PBK-19 D1-D6; real-export dry run on a copy; Windows walkthrough. This chat stopped at cap 2/2 after the handoff; its PR subscription and monitors were cancelled; no reminders exist.",
+  "next_action": "Coordinator: review draft PR (claude/admiring-cannon-rzrojv -> claude/gallant-darwin-bbt4jb), adjudicate PBK-21 plan.md section 8 questions, then dispatch implementation. This chat ends after handoff (objective 1/3); no monitors, subscriptions or reminders were created.",
   "pbk26_record_from_pr20": {
     "current_batch": {
       "batch_id": "pbk26-highlights-export",
@@ -177,5 +190,22 @@
       "plan": ".agent-delivery/batches/pbk19-catalog-import/plan.md",
       "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37228706900: success on tested head 58aebe4 (all 6 jobs)"
     }
+  },
+  "pbk19_pbk15_record_from_pr26": {
+    "current_batch": {
+      "batch_id": "pbk19-pbk15-catalog-search-integration",
+      "kind": "integration (PR #24 + PR #25) + packaged E2E",
+      "branch": "claude/bold-ritchie-1xa5z8",
+      "base": "103510130c25161fa0df2e15d3c6828bc4826959 (exact PR #24 head; tested 58aebe4)",
+      "merged_source": "PR #25 head 5f4fc33ad654d6b860f8986df236082e9d423296 (tested c2e157f) via merge commit 1a93b70",
+      "tested_head": "0dfc440af852a064bc4dc840255d27c0b5ec658d",
+      "pr": "https://github.com/nadeemramli/properbooky/pull/26 (draft, base claude/gallant-darwin-bbt4jb)",
+      "report": ".agent-delivery/batches/pbk19-pbk15-catalog-search-integration/report.json",
+      "plan": ".agent-delivery/batches/pbk19-pbk15-catalog-search-integration/plan.md",
+      "ci": "https://github.com/nadeemramli/properbooky/actions/runs/37241327975: success: all 6 jobs (desktop: tsc + cargo test; web; web-e2e; web-local-supabase; library-mcp; desktop-e2e incl. the new 'PBK-19 + PBK-15 catalog search integration' step, run non-root), completed 2026-10-04T23:14:50Z on tested head 0dfc440af852a064bc4dc840255d27c0b5ec658d",
+      "upstream_note": "Coordinator merged PR #25 into PR #22's branch at e8166de during this batch; tree(e8166de) == tree(5f4fc33) and merging it here is a no-op. Not rebased.",
+      "evidence_note": "This integration's evidence is only in its own report (tested head above). PR #24's report (tested 58aebe4) and PR #25's report (tested c2e157f) describe those branches alone and are not evidence for the integrated build."
+    },
+    "next_action_at_handoff": "Coordinator: review PR #26 (tested head in current_batch, evidence-only head after it) together with PR #24; decide PBK-19 D1-D6; real-export dry run on a copy; Windows walkthrough. This chat stopped at cap 2/2 after the handoff; its PR subscription and monitors were cancelled; no reminders exist."
   }
 }
