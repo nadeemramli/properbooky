@@ -150,8 +150,6 @@ async function clickLabel(label) {
 async function processDrop() {
   if (!(await browser.execute((p) => Boolean(document.querySelector(p)), PANEL))) await clickLabel("Acquire");
   await waitFor("Acquire panel", () => browser.execute((p) => Boolean(document.querySelector(p)), PANEL), RESPONSIVE_MS);
-  // Clear a previous report so the next one is unambiguously this run's.
-  await browser.execute(() => document.querySelector(".acquire-report")?.remove());
   await clickLabel("Process Drop folder");
   const shown = await waitFor(
     "Drop report",
@@ -334,6 +332,25 @@ try {
     return { badge };
   });
 
+  await step("S2b a failed next run clears the previous report without DOM manipulation", async () => {
+    await processDrop();
+    chmodSync(path.join(LIB, "Drop"), 0o000);
+    try {
+      await clickLabel("Process Drop folder");
+      const shown = await waitFor("current run error", () => browser.execute((p) => {
+        const panel = document.querySelector(p);
+        const error = panel?.querySelector(".acquire-drop > p.status")?.textContent.trim();
+        if (!error) return null;
+        return { error, report: Boolean(panel.querySelector(".acquire-report")), oldOutcomes: panel.querySelectorAll('ul[aria-label="Not filed"] li').length };
+      }, PANEL), 30000);
+      check(!shown.report && shown.oldOutcomes === 0, `stale report beside error: ${JSON.stringify(shown)}`);
+      return shown;
+    } finally {
+      chmodSync(path.join(LIB, "Drop"), 0o755);
+      await closePanel();
+    }
+  });
+
   await step("S3 a failed catalog write (read-only Catalog/) leaves the filing pending with its intent record", async () => {
     copyFileSync(PDF, path.join(LIB, "Drop", BOOK.retried.drop));
     const before = readFileSync(md(BOOK.retried), "utf8");
@@ -341,6 +358,10 @@ try {
     let shown;
     try {
       shown = await processDrop();
+      const retry = await processDrop();
+      const failed = retry.notFiled.find((n) => n.result === "recovery-error");
+      check(failed && /interrupted filing failed/.test(failed.text) && !/left in Drop/.test(failed.text), `misleading recovery retry: ${JSON.stringify(retry)}`);
+      check(existsSync(path.join(LIB, INBOX, filedName(BOOK.retried, "pdf"))) && !existsSync(path.join(LIB, "Drop", BOOK.retried.drop)), "recovery failure location differs");
     } finally {
       chmodSync(path.join(LIB, "Catalog"), 0o755);
     }

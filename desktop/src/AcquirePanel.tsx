@@ -21,7 +21,8 @@ const NOT_FILED: Record<string, string> = {
   "left-incomplete": "incomplete; left in Drop",
   returned: "returned to Drop",
   pending: "filing not finished",
-  error: "failed; left in Drop",
+  error: "filing failed; no completion confirmed",
+  "recovery-error": "interrupted filing failed; inspect library and retry",
 };
 
 const FILED = new Set(["filed", "recovered"]);
@@ -91,6 +92,7 @@ export default function AcquirePanel({
   const runDrop = useCallback(async () => {
     setProcessing(true);
     setError(null);
+    setReport(null);
     try {
       const result = await invoke<DropReport>("process_drop");
       setReport(result);
