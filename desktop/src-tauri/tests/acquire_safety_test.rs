@@ -13,8 +13,11 @@ const PDF: &[u8] = b"%PDF-1.4\n1 0 obj <<>> endobj\ntrailer <<>>\n%%EOF\n";
 fn epub(body: &[u8]) -> Vec<u8> {
     let mut bytes = b"PK\x03\x04".to_vec();
     bytes.extend_from_slice(body);
+    let offset = bytes.len() as u32;
     bytes.extend_from_slice(b"PK\x05\x06");
-    bytes.extend_from_slice(&[0u8; 18]);
+    bytes.extend_from_slice(&[0u8; 12]);
+    bytes.extend_from_slice(&offset.to_le_bytes());
+    bytes.extend_from_slice(&[0u8; 2]);
     bytes
 }
 

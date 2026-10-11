@@ -334,7 +334,7 @@ fn an_intent_that_escapes_the_library_is_reported_and_never_acted_on() {
     let forged = report
         .outcomes
         .iter()
-        .find(|o| o.result == "error")
+        .find(|o| o.result == "recovery-error")
         .expect("reported");
     assert!(serde_json::to_value(forged).unwrap()["reason"]
         .as_str()

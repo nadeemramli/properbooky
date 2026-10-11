@@ -36,7 +36,14 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
             e.depth() == 0 || !e.file_name().to_string_lossy().starts_with('.')
         })
     {
-        let entry = entry?;
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(e) if e.path() == Some(root) => return Err(e.into()),
+            Err(_) => {
+                skipped += 1;
+                continue;
+            }
+        };
         if !entry.file_type().is_file() {
             continue;
         }
@@ -75,6 +82,10 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
                     .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
                     .map(|d| d.as_secs() as i64)
                     .unwrap_or(0);
+                let Ok(id) = identities.register(root, path, "article") else {
+                    skipped += 1;
+                    continue;
+                };
                 conn.execute(
                     "INSERT OR REPLACE INTO books
                      (path, filename, title, author, category, kind, status, rating, recommended, file_link, cover, year, format, size_bytes, modified_at, indexed_at)
@@ -89,7 +100,6 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
                         now,
                     ),
                 )?;
-                let id = identities.register(root, path, "article")?;
                 conn.execute("UPDATE books SET stable_id=?1, asset_id=?1, content_type='article' WHERE path=?2", (&id, path.to_string_lossy()))?;
                 indexed += 1;
                 continue;
@@ -154,6 +164,10 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
 
+        let Ok(stable_id) = identities.register(root, path, kind) else {
+            skipped += 1;
+            continue;
+        };
         conn.execute(
             "INSERT OR REPLACE INTO books
              (path, filename, title, author, category, kind, status, rating, recommended, file_link, cover, year, spectrum, format, size_bytes, modified_at, indexed_at)
@@ -178,7 +192,6 @@ pub fn scan_library(conn: &Connection, root: &Path) -> Result<ScanResult> {
                 now,
             ],
         )?;
-        let stable_id = identities.register(root, path, kind)?;
         let reading = catalog_entry
             .as_ref()
             .and_then(|e| e.reading_status.as_deref())

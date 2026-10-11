@@ -52,7 +52,10 @@ pub fn set_status(conn: &Connection, md_path: &Path, status: &str) -> Result<()>
     let (mut entry, body): (CatalogEntry, String) = catalog::parse(&content)
         .ok_or_else(|| anyhow::anyhow!("unparseable catalog entry: {md_path:?}"))?;
     entry.status = status.to_owned();
-    if status == "queued" { entry.up_next = Some(true); entry.want_to_read = Some(true); }
+    if status == "queued" {
+        entry.up_next = Some(true);
+        entry.want_to_read = Some(true);
+    }
     std::fs::write(md_path, catalog::render(&entry, &body))?;
     conn.execute(
         "UPDATE books SET status = ?1 WHERE path = ?2",
@@ -64,7 +67,7 @@ pub fn set_status(conn: &Connection, md_path: &Path, status: &str) -> Result<()>
 #[derive(Serialize)]
 pub struct DropOutcome {
     pub filename: String,
-    /// filed | recovered | returned | pending | error | left-unmatched |
+    /// filed | recovered | returned | pending | error | recovery-error | left-unmatched |
     /// left-ambiguous | left-conflict | left-unsafe | left-incomplete
     pub result: String,
     pub title: Option<String>,
@@ -325,9 +328,10 @@ fn file_one(
     let record = root
         .join(INTENT_DIR)
         .join(format!("{}.json", uuid::Uuid::new_v4()));
+    confined_dir(root, INTENT_DIR, true)?;
     identity::atomic_write(&record, &serde_json::to_vec_pretty(&intent)?)?;
     if let Err(e) = observe(Step::IntentWritten, filename) {
-        let _ = fs::remove_file(&record);
+        let _ = remove_library_file(root, &record);
         return Err(e);
     }
 
@@ -337,10 +341,12 @@ fn file_one(
             "{why}; the next Process Drop folder finishes filing it"
         ));
     };
-    match publish(file, &target, &hash, &|| observe(Step::Linked, filename)) {
+    match publish(root, file, &target, &hash, &|| {
+        observe(Step::Linked, filename)
+    }) {
         Ok(()) => {}
         Err(Publish::Exists) => {
-            let _ = fs::remove_file(&record);
+            let _ = remove_library_file(root, &record);
             done.result = "left-conflict".into();
             done.reason = Some(format!(
                 "{target_rel} already exists; nothing was overwritten"
@@ -348,7 +354,7 @@ fn file_one(
             return Ok(done);
         }
         Err(Publish::NotPublished(e)) => {
-            let _ = fs::remove_file(&record);
+            let _ = remove_library_file(root, &record);
             return Err(e);
         }
         Err(Publish::Partial(e)) => {
@@ -360,9 +366,9 @@ fn file_one(
     taken.insert(row.catalog_path.clone());
     // The bytes under the new name must be the bytes that were checked.
     if matcher::sha256_file(&target).ok().as_deref() != Some(hash.as_str()) {
-        return Ok(match publish(&target, file, &hash, &|| Ok(())) {
+        return Ok(match publish(root, &target, file, &hash, &|| Ok(())) {
             Ok(()) => {
-                let _ = fs::remove_file(&record);
+                let _ = remove_library_file(root, &record);
                 done.result = "left-incomplete".into();
                 done.reason =
                     Some("the file changed while it was filed; it is back in Drop".into());
@@ -385,7 +391,9 @@ fn file_one(
         return Ok(done);
     }
     done.result = "filed".into();
-    if observe(Step::CatalogWritten, filename).is_err() || fs::remove_file(&record).is_err() {
+    if observe(Step::CatalogWritten, filename).is_err()
+        || remove_library_file(root, &record).is_err()
+    {
         done.reason = Some("its intent record is cleared by the next run".into());
     }
     Ok(done)
@@ -401,6 +409,9 @@ fn link_entry(
     hash: &str,
     original: &str,
 ) -> Result<()> {
+    checked_file(root, &library_relative(root, md)?)?;
+    checked_file(root, &library_relative(root, target)?)?;
+    fs::metadata(target)?;
     let content = fs::read_to_string(md)?;
     let (mut parsed, body) =
         catalog::parse(&content).context("the book's catalog entry is no longer readable")?;
@@ -415,6 +426,8 @@ fn link_entry(
         parsed.want_to_read = Some(parsed.want_to_read.unwrap_or(true));
         parsed.status = "available".to_owned();
     }
+    checked_file(root, &library_relative(root, md)?)?;
+    checked_file(root, &library_relative(root, target)?)?;
     identity::atomic_write(md, catalog::render(&parsed, &body).as_bytes())?;
     conn.execute(
         "UPDATE books SET status = ?1, file_link = ?2 WHERE path = ?3",
@@ -442,15 +455,26 @@ enum Publish {
 /// atomically or not at all; where links are unavailable (another volume,
 /// FAT/exFAT) a verified copy is published with no-clobber instead.
 fn publish(
+    root: &Path,
     src: &Path,
     dst: &Path,
     hash: &str,
     linked: &dyn Fn() -> Result<()>,
 ) -> Result<(), Publish> {
+    checked_file(
+        root,
+        &library_relative(root, src).map_err(Publish::NotPublished)?,
+    )
+    .map_err(Publish::NotPublished)?;
+    checked_file(
+        root,
+        &library_relative(root, dst).map_err(Publish::NotPublished)?,
+    )
+    .map_err(Publish::NotPublished)?;
     match fs::hard_link(src, dst) {
         Ok(()) => {
             linked().map_err(Publish::Partial)?;
-            fs::remove_file(src).map_err(|e| Publish::Partial(e.into()))
+            remove_library_file(root, src).map_err(Publish::Partial)
         }
         Err(e) if e.kind() == ErrorKind::AlreadyExists => Err(Publish::Exists),
         Err(_) => {
@@ -467,6 +491,11 @@ fn publish(
                 Ok(tmp)
             };
             let tmp = copy().map_err(Publish::NotPublished)?;
+            checked_file(
+                root,
+                &library_relative(root, dst).map_err(Publish::NotPublished)?,
+            )
+            .map_err(Publish::NotPublished)?;
             match tmp.persist_noclobber(dst) {
                 Ok(_) => {}
                 Err(e) if e.error.kind() == ErrorKind::AlreadyExists => {
@@ -475,7 +504,7 @@ fn publish(
                 Err(e) => return Err(Publish::NotPublished(e.error.into())),
             }
             linked().map_err(Publish::Partial)?;
-            fs::remove_file(src).map_err(|e| Publish::Partial(e.into()))
+            remove_library_file(root, src).map_err(Publish::Partial)
         }
     }
 }
@@ -512,47 +541,86 @@ fn library_join(root: &Path, rel: &str) -> Result<PathBuf> {
     Ok(path)
 }
 
-/// `None` when the file looks complete; otherwise why it is not filed yet.
-/// Structural end markers catch a download still in progress: a PDF ends
-/// with `%%EOF` (within its last 1024 bytes), an EPUB is a zip whose
-/// end-of-central-directory record is written last.
+/// A bounded structural completion heuristic, not a full PDF/EPUB validator.
+/// The last non-whitespace PDF token must be its end marker. A ZIP EOCD must
+/// end at EOF and describe the outer archive's central directory, so an inner
+/// stored ZIP or an earlier incremental PDF revision cannot complete a download.
 fn incomplete(path: &Path, ext: &str) -> Result<Option<&'static str>> {
     let mut file = fs::File::open(path)?;
     let len = file.metadata()?.len();
     if len == 0 {
         return Ok(Some("the file is empty"));
     }
-    let mut head = [0u8; 5];
-    let n = file.read(&mut head)?;
-    let head = &head[..n];
-    let (magic, end, window, not, partial): (&[u8], &[u8], u64, _, _) = match ext {
-        "pdf" => (
-            b"%PDF-",
-            b"%%EOF",
-            1024,
-            "it is not a PDF (no %PDF- header)",
-            "the PDF has no end marker yet; it may still be downloading",
-        ),
-        "epub" => (
-            b"PK\x03\x04",
-            b"PK\x05\x06",
-            65_557,
-            "it is not an EPUB (no zip header)",
-            "the EPUB's zip directory is missing; it may still be downloading",
-        ),
+    let mut head = vec![0; len.min(1024) as usize];
+    file.read_exact(&mut head)?;
+    let (window, partial) = match ext {
+        "pdf" => {
+            if !head.windows(5).any(|w| w == b"%PDF-") {
+                return Ok(Some("it is not a PDF (no %PDF- header)"));
+            }
+            (
+                1024,
+                "the PDF has no final end marker yet; it may still be downloading",
+            )
+        }
+        "epub" => {
+            if !head.starts_with(b"PK\x03\x04") {
+                return Ok(Some("it is not an EPUB (no zip header)"));
+            }
+            (
+                65_557,
+                "the EPUB's complete outer zip directory is missing; it may still be downloading",
+            )
+        }
         _ => return Ok(None),
     };
-    if !head.starts_with(magic) {
-        return Ok(Some(not));
-    }
     let window = window.min(len);
-    file.seek(SeekFrom::Start(len - window))?;
+    let tail_start = len - window;
+    file.seek(SeekFrom::Start(tail_start))?;
     let mut tail = Vec::with_capacity(window as usize);
     file.take(window).read_to_end(&mut tail)?;
-    if !tail.windows(end.len()).any(|w| w == end) {
-        return Ok(Some(partial));
+    let complete = if ext == "pdf" {
+        let end = tail
+            .iter()
+            .rposition(|b| !b.is_ascii_whitespace())
+            .map_or(0, |i| i + 1);
+        tail[..end].ends_with(b"%%EOF")
+    } else {
+        (0..tail.len().saturating_sub(21)).rev().any(|i| {
+            if &tail[i..i + 4] != b"PK\x05\x06" {
+                return false;
+            }
+            let comment = u16::from_le_bytes([tail[i + 20], tail[i + 21]]) as usize;
+            if i + 22 + comment != tail.len() {
+                return false;
+            }
+            let size = u32::from_le_bytes(tail[i + 12..i + 16].try_into().unwrap()) as u64;
+            let offset = u32::from_le_bytes(tail[i + 16..i + 20].try_into().unwrap()) as u64;
+            offset + size == tail_start + i as u64
+        })
+    };
+    Ok((!complete).then_some(partial))
+}
+
+/// Validate every parent and the existing leaf without following links.
+/// Missing leaves are allowed for no-clobber publication and interrupted return.
+fn checked_file(root: &Path, relative: &str) -> Result<PathBuf> {
+    let path = library_join(root, relative)?;
+    let parent = path.parent().context("file has no library parent")?;
+    confined_dir(root, &library_relative(root, parent)?, false)?;
+    match fs::symlink_metadata(&path) {
+        Ok(meta) if meta.file_type().is_file() => {}
+        Ok(_) => bail!("{relative} is not a plain file; nothing was changed"),
+        Err(e) if e.kind() == ErrorKind::NotFound => {}
+        Err(e) => return Err(e.into()),
     }
-    Ok(None)
+    Ok(path)
+}
+
+fn remove_library_file(root: &Path, path: &Path) -> Result<()> {
+    checked_file(root, &library_relative(root, path)?)?;
+    fs::remove_file(path)?;
+    Ok(())
 }
 
 /// `root/relative` when every existing component is a real folder (not a
@@ -593,17 +661,17 @@ fn confined_dir(root: &Path, relative: &str, create: bool) -> Result<PathBuf> {
 /// whose filing still cannot be finished, so no other file is linked to them.
 fn recover(conn: &Connection, root: &Path, report: &mut DropReport) -> Result<HashSet<PathBuf>> {
     let mut unresolved = HashSet::new();
-    let inbox = root.join(INBOX);
+    let inbox = confined_dir(root, INBOX, false)?;
     if let Ok(dir) = fs::read_dir(&inbox) {
         for e in dir.filter_map(|e| e.ok()) {
             let leftover = e.file_name().to_string_lossy().starts_with(TEMP_PREFIX)
                 && e.file_type().is_ok_and(|t| t.is_file());
             if leftover {
-                let _ = fs::remove_file(e.path());
+                let _ = remove_library_file(root, &e.path());
             }
         }
     }
-    let dir = root.join(INTENT_DIR);
+    let dir = confined_dir(root, INTENT_DIR, false)?;
     let mut records: Vec<PathBuf> = match fs::read_dir(&dir) {
         Ok(d) => d
             .filter_map(|e| e.ok())
@@ -624,7 +692,7 @@ fn recover(conn: &Connection, root: &Path, report: &mut DropReport) -> Result<Ha
                 }
                 report.push(outcome(
                     &name,
-                    "error",
+                    "recovery-error",
                     format!(
                         "an interrupted filing cannot be finished: {e:#} (record {})",
                         record.file_name().unwrap_or_default().to_string_lossy()
@@ -648,38 +716,40 @@ fn recover_one(
         .unwrap_or_default()
         .to_string_lossy()
         .into_owned();
+    checked_file(
+        root,
+        &library_relative(root, record).map_err(|e| (label.clone(), None, e))?,
+    )
+    .map_err(|e| (label.clone(), None, e))?;
     let intent: Intent = fs::read(record)
         .map_err(anyhow::Error::from)
         .and_then(|b| serde_json::from_slice(&b).map_err(anyhow::Error::from))
         .map_err(|e| (label.clone(), None, e.context("unreadable record")))?;
     let name = intent.original_filename.clone();
     let fail = |catalog: Option<PathBuf>, e: anyhow::Error| (name.clone(), catalog, e);
-    // A record may only describe Drop -> inbox for one catalog entry.
-    let within = |rel: &str, folder: &str| -> Result<PathBuf> {
-        let path = library_join(root, rel)?;
-        if !rel.starts_with(&format!("{folder}/")) {
-            bail!("{rel} is outside {folder}");
+    // Source and target are exactly one leaf under the folders this writer uses.
+    // Catalogs may be nested, but each parent and the leaf must remain confined.
+    let within = |rel: &str, folder: &str, flat: bool| -> Result<PathBuf> {
+        let leaf = rel
+            .strip_prefix(&format!("{folder}/"))
+            .context("intent path is outside its permitted folder")?;
+        if flat && (leaf.is_empty() || leaf.contains('/')) {
+            bail!("{rel} is not one file in {folder}");
         }
-        Ok(path)
+        checked_file(root, rel)
     };
     let plain_name = Path::new(&name)
         .file_name()
         .is_some_and(|n| n.to_string_lossy() == name);
-    let (src, dst, md) = match (
-        within(&intent.source, DROP_DIR),
-        within(&intent.target, INBOX),
-        within(&intent.catalog, "Catalog"),
-    ) {
-        (Ok(s), Ok(d), Ok(m)) if plain_name => (s, d, m),
-        (s, d, m) => {
-            let e = s
-                .err()
-                .or(d.err())
-                .or(m.err())
-                .unwrap_or_else(|| anyhow::anyhow!("{name} is not a plain file name"));
-            return Err(fail(None, e));
-        }
-    };
+    let md = within(&intent.catalog, "Catalog", false).map_err(|e| fail(None, e))?;
+    if intent.version != 1 || !plain_name {
+        return Err(fail(
+            Some(md),
+            anyhow::anyhow!("unsupported or malformed intent"),
+        ));
+    }
+    let src = within(&intent.source, DROP_DIR, true).map_err(|e| fail(None, e))?;
+    let dst = within(&intent.target, INBOX, true).map_err(|e| fail(None, e))?;
     let holds = |p: &Path| {
         fs::symlink_metadata(p).is_ok_and(|m| m.file_type().is_file())
             && matcher::sha256_file(p).ok().as_deref() == Some(intent.hash.as_str())
@@ -696,14 +766,14 @@ fn recover_one(
 
     if linked_here {
         // The catalog was written; only the record was left.
-        fs::remove_file(record).map_err(|e| fail(Some(md.clone()), e.into()))?;
+        remove_library_file(root, record).map_err(|e| fail(Some(md.clone()), e))?;
         return Ok(None);
     }
     let (src_ok, dst_ok) = (holds(&src), holds(&dst));
     if !dst_ok {
         if src_ok && fs::symlink_metadata(&dst).is_err() {
             // Nothing was published; the file is processed again from Drop.
-            fs::remove_file(record).map_err(|e| fail(None, e.into()))?;
+            remove_library_file(root, record).map_err(|e| fail(None, e))?;
             return Ok(None);
         }
         return Err(fail(
@@ -714,11 +784,11 @@ fn recover_one(
     if entry.as_ref().is_some_and(|e| e.file.is_none()) {
         // Roll forward: the same bytes may still have their Drop name too.
         if src_ok {
-            fs::remove_file(&src).map_err(|e| fail(Some(md.clone()), e.into()))?;
+            remove_library_file(root, &src).map_err(|e| fail(Some(md.clone()), e))?;
         }
         link_entry(conn, root, &md, &dst, &intent.hash, &name)
             .map_err(|e| fail(Some(md.clone()), e))?;
-        fs::remove_file(record).map_err(|e| fail(Some(md.clone()), e.into()))?;
+        remove_library_file(root, record).map_err(|e| fail(Some(md.clone()), e))?;
         done.result = "recovered".into();
         done.destination = Some(intent.target.clone());
         done.reason = Some("an interrupted filing was finished".into());
@@ -727,9 +797,9 @@ fn recover_one(
     // The entry now links something else or is gone: return the file to Drop
     // under its original name, never replacing anything there.
     if src_ok {
-        fs::remove_file(&dst).map_err(|e| fail(Some(md.clone()), e.into()))?;
+        remove_library_file(root, &dst).map_err(|e| fail(Some(md.clone()), e))?;
     } else {
-        publish(&dst, &src, &intent.hash, &|| Ok(())).map_err(|e| {
+        publish(root, &dst, &src, &intent.hash, &|| Ok(())).map_err(|e| {
             let e = match e {
                 Publish::Exists => anyhow::anyhow!("{} is taken in Drop", intent.source),
                 Publish::NotPublished(e) | Publish::Partial(e) => e,
@@ -737,7 +807,7 @@ fn recover_one(
             fail(Some(md.clone()), e)
         })?;
     }
-    fs::remove_file(record).map_err(|e| fail(None, e.into()))?;
+    remove_library_file(root, record).map_err(|e| fail(None, e))?;
     done.result = "returned".into();
     done.reason = Some(
         "its book was linked to another file meanwhile; it is back in Drop under its original name"
