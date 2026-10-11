@@ -169,16 +169,33 @@ impl Registry {
                 for candidate in walkdir::WalkDir::new(root).into_iter().filter_entry(|e| {
                     e.depth() == 0 || !e.file_name().to_string_lossy().starts_with('.')
                 }) {
-                    let candidate = candidate?;
-                    if !candidate.file_type().is_file() || candidate.metadata()?.len() != meta.len()
-                    {
+                    let Ok(candidate) = candidate else {
+                        count = 2;
+                        break;
+                    };
+                    if !candidate.file_type().is_file() {
                         continue;
                     }
-                    let candidate_rel = relative(root, candidate.path())?;
-                    if self.at_path(&candidate_rel).is_none()
-                        && crate::matcher::sha256_file(candidate.path())? == hash
-                    {
-                        count += 1;
+                    let Ok(candidate_meta) = candidate.metadata() else {
+                        count = 2;
+                        break;
+                    };
+                    if candidate_meta.len() != meta.len() {
+                        continue;
+                    }
+                    let Ok(candidate_rel) = relative(root, candidate.path()) else {
+                        count = 2;
+                        break;
+                    };
+                    if self.at_path(&candidate_rel).is_none() {
+                        let Ok(candidate_hash) = crate::matcher::sha256_file(candidate.path())
+                        else {
+                            count = 2;
+                            break;
+                        };
+                        if candidate_hash == hash {
+                            count += 1;
+                        }
                     }
                 }
                 self.move_destinations.insert(hash.clone(), count);

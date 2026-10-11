@@ -1,0 +1,225 @@
+{
+  "run_id": "pbk-e2e-7e52b03a-80a1-45a4-8a80-e781ad4d7ee1",
+  "fault": null,
+  "started_at": "2026-10-05T08:29:43.881Z",
+  "platform": "linux 6.18.44-fc-v70",
+  "app": {
+    "path": "<scratch>/pkg/usr/bin/desktop",
+    "sha256": "2a701c6f9df73451ac99d2fec09dcb2802af2a878a3529da41b86b7e59faeb07",
+    "bytes": 359010328
+  },
+  "fixtures": [
+    {
+      "name": "Zephyr Lantern Field Notes.epub",
+      "sha256": "5367dbd4615e17ad73e20147199dba34470ee7215ee473a4ec0b465f98d34347"
+    },
+    {
+      "name": "basalt-ledger-handbook.pdf",
+      "sha256": "5f0fc1f7d63e678edf01d2624acb3a3b1b7998c3cf8b85a40e52f39fa621409c"
+    }
+  ],
+  "steps": [
+    {
+      "name": "app binary and fixtures",
+      "ok": true,
+      "ms": 1574,
+      "detail": {
+        "app_sha256": "2a701c6f9df73451ac99d2fec09dcb2802af2a878a3529da41b86b7e59faeb07"
+      }
+    },
+    {
+      "name": "synthetic library: fixtures, catalog profiles, Drop arrivals; permissions are enforced",
+      "ok": true,
+      "ms": 3,
+      "detail": {
+        "library": "/tmp/pbk-e2e-7e52b03a-80a1-45a4-8a80-e781ad4d7ee1-thzbc0/library",
+        "drop": [
+          "Synthetic Courier - Halfway Arrival Manual.pdf",
+          "Synthetic Courier - Hollow Empty Treatise.epub",
+          "Synthetic Courier - Lumen Harbour Chronicle (2021, Fixture Press) - libgen.li.epub",
+          "Synthetic Courier - Mirror Link Compendium.pdf",
+          "Synthetic Courier - Occupied Shelf Primer (Z-Library).pdf",
+          "random-notes-2015.pdf"
+        ]
+      }
+    },
+    {
+      "name": "tauri-driver ready",
+      "ok": true,
+      "ms": 42
+    },
+    {
+      "name": "launch packaged app: tab rail visible",
+      "ok": true,
+      "ms": 1156
+    },
+    {
+      "name": "embedded frontend (no dev server)",
+      "ok": true,
+      "ms": 244,
+      "detail": {
+        "origin": "tauri://localhost"
+      }
+    },
+    {
+      "name": "index the synthetic library through the first-run form",
+      "ok": true,
+      "ms": 581,
+      "detail": {
+        "badge": "No local file"
+      }
+    },
+    {
+      "name": "S1 Process Drop folder: the confident match is filed; link, empty, truncated, occupied and unmatched files stay in Drop with reasons",
+      "ok": true,
+      "ms": 296,
+      "detail": {
+        "summary": "Filed 1, 5 not filed✓ Lumen Harbour Chronicle",
+        "not_filed": [
+          {
+            "result": "left-incomplete",
+            "text": "Synthetic Courier - Halfway Arrival Manual.pdf: incomplete; left in Drop (the PDF has no end marker yet; it may still be downloading)"
+          },
+          {
+            "result": "left-incomplete",
+            "text": "Synthetic Courier - Hollow Empty Treatise.epub: incomplete; left in Drop (the file is empty)"
+          },
+          {
+            "result": "left-unsafe",
+            "text": "Synthetic Courier - Mirror Link Compendium.pdf: not a plain file; left in Drop (it is a link to another file; only real files are filed)"
+          },
+          {
+            "result": "left-conflict",
+            "text": "Synthetic Courier - Occupied Shelf Primer (Z-Library).pdf: not filed; left in Drop (Library/00 Inbox/Synthetic Courier - Occupied Shelf Primer.pdf already exists; nothing was overwritten)"
+          },
+          {
+            "result": "left-unmatched",
+            "text": "random-notes-2015.pdf: no matching book; left in Drop"
+          }
+        ],
+        "badge": "On the shelf"
+      }
+    },
+    {
+      "name": "close app (session 1)",
+      "ok": true,
+      "ms": 1048
+    },
+    {
+      "name": "S2 restart: the filed book is still on the shelf; disk unchanged",
+      "ok": true,
+      "ms": 1564,
+      "detail": {
+        "badge": "On the shelf"
+      }
+    },
+    {
+      "name": "S3 a failed catalog write (read-only Catalog/) leaves the filing pending with its intent record",
+      "ok": true,
+      "ms": 171,
+      "detail": {
+        "pending": "Copper Tide Ledger (Synthetic Courier) (Z-Library).pdf: filing not finished (the catalog could not be updated (Permission denied (os error 13) at path \"/tmp/pbk-e2e-7e52b03a-80a1-45a4-8a80-e781ad4d7ee1-thzbc0/library/Catalog/.tmpckplrF\"); the next Process Drop folder finishes filing it)",
+        "intent": {
+          "version": 1,
+          "source": "Drop/Copper Tide Ledger (Synthetic Courier) (Z-Library).pdf",
+          "target": "Library/00 Inbox/Synthetic Courier - Copper Tide Ledger.pdf",
+          "catalog": "Catalog/Synthetic Courier - Copper Tide Ledger.md",
+          "hash": "5f0fc1f7d63e678edf01d2624acb3a3b1b7998c3cf8b85a40e52f39fa621409c",
+          "original_filename": "Copper Tide Ledger (Synthetic Courier) (Z-Library).pdf"
+        }
+      }
+    },
+    {
+      "name": "close app (session 2)",
+      "ok": true,
+      "ms": 128
+    },
+    {
+      "name": "S4 restart and retry: the interrupted filing is finished; original name recorded; intent cleared",
+      "ok": true,
+      "ms": 1684,
+      "detail": {
+        "summary": "Filed 1, 5 not filed✓ Copper Tide Ledger",
+        "badge": "On the shelf"
+      }
+    },
+    {
+      "name": "S5 a further retry files nothing and changes nothing",
+      "ok": true,
+      "ms": 178,
+      "detail": {
+        "summary": "Filed 0, 5 not filed"
+      }
+    },
+    {
+      "name": "close app (session 3)",
+      "ok": true,
+      "ms": 634
+    }
+  ],
+  "cleanup": {
+    "run_marker": "pbk-e2e-7e52b03a-80a1-45a4-8a80-e781ad4d7ee1",
+    "marked_before": 2,
+    "session_closed": false,
+    "driver_started": true,
+    "driver_exited": true,
+    "signalled": [],
+    "leftover": [],
+    "checked_at": "2026-10-05T08:29:53.497Z"
+  },
+  "result": "pass",
+  "exit_code": 0,
+  "app_data_listing": [
+    {
+      "path": "com.nadeemramli.properbooky/CacheStorage/salt",
+      "bytes": 8
+    },
+    {
+      "path": "com.nadeemramli.properbooky/WebKitCache/Version 17/salt",
+      "bytes": 8
+    },
+    {
+      "path": "com.nadeemramli.properbooky/hsts-storage.sqlite",
+      "bytes": 12288
+    },
+    {
+      "path": "com.nadeemramli.properbooky/libraries/7407a926-34d0-4272-ab90-edce80133c6e/library.db",
+      "bytes": 77824
+    },
+    {
+      "path": "com.nadeemramli.properbooky/libraries/7407a926-34d0-4272-ab90-edce80133c6e/library.db-shm",
+      "bytes": 32768
+    },
+    {
+      "path": "com.nadeemramli.properbooky/libraries/7407a926-34d0-4272-ab90-edce80133c6e/library.db-wal",
+      "bytes": 0
+    },
+    {
+      "path": "com.nadeemramli.properbooky/mediakeys/v1/salt",
+      "bytes": 8
+    },
+    {
+      "path": "com.nadeemramli.properbooky/settings.json",
+      "bytes": 379
+    },
+    {
+      "path": "com.nadeemramli.properbooky/settings.previous.json",
+      "bytes": 345
+    },
+    {
+      "path": "com.nadeemramli.properbooky/storage/salt",
+      "bytes": 8
+    }
+  ],
+  "library_state_listing": [
+    {
+      "path": "identities.json",
+      "bytes": 6115
+    },
+    {
+      "path": "identities.previous.json",
+      "bytes": 6114
+    }
+  ],
+  "duration_ms": 9648
+}

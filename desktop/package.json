@@ -17,6 +17,7 @@
     "test:e2e:catalog-import": "node e2e-desktop/catalog-import.e2e.mjs",
     "test:e2e:search-states": "node e2e-desktop/search-states.e2e.mjs",
     "test:e2e:catalog-search": "node e2e-desktop/catalog-search.e2e.mjs",
+    "test:e2e:acquisition": "node e2e-desktop/acquisition.e2e.mjs",
     "test:e2e:packaged:failures": "node e2e-desktop/verify-failures.mjs",
     "fixtures:generate": "node e2e-desktop/fixtures/generate.mjs",
     "fixtures:check": "node e2e-desktop/fixtures/generate.mjs --check",

@@ -1,0 +1,275 @@
+{
+  "run_id": "pbk-e2e-39e71292-e053-47d9-876a-0d6b55dbac17",
+  "fault": null,
+  "started_at": "2026-10-05T08:30:08.657Z",
+  "platform": "linux 6.18.44-fc-v70",
+  "app": {
+    "path": "<scratch>/pkg/usr/bin/desktop",
+    "sha256": "2a701c6f9df73451ac99d2fec09dcb2802af2a878a3529da41b86b7e59faeb07",
+    "bytes": 359010328
+  },
+  "fixtures": [
+    {
+      "name": "Zephyr Lantern Field Notes.epub",
+      "sha256": "5367dbd4615e17ad73e20147199dba34470ee7215ee473a4ec0b465f98d34347"
+    },
+    {
+      "name": "basalt-ledger-handbook.pdf",
+      "sha256": "5f0fc1f7d63e678edf01d2624acb3a3b1b7998c3cf8b85a40e52f39fa621409c"
+    },
+    {
+      "name": "quillfeather-orbit-atlas.pdf",
+      "sha256": "97bcdad515c193a42d7b6b05de6eb308b1b59980fb14dc95f619ff17fc640a13"
+    }
+  ],
+  "steps": [
+    {
+      "name": "app binary and fixtures present",
+      "ok": true,
+      "ms": 1347,
+      "detail": {
+        "app_sha256": "2a701c6f9df73451ac99d2fec09dcb2802af2a878a3529da41b86b7e59faeb07",
+        "fixtures": 3
+      }
+    },
+    {
+      "name": "fresh isolated app-data and library copy",
+      "ok": true,
+      "ms": 1,
+      "detail": {
+        "root": "/tmp/pbk-e2e-39e71292-e053-47d9-876a-0d6b55dbac17-GnA1nl",
+        "fault": null
+      }
+    },
+    {
+      "name": "tauri-driver ready",
+      "ok": true,
+      "ms": 69
+    },
+    {
+      "name": "launch packaged app: tab rail visible",
+      "ok": true,
+      "ms": 2000
+    },
+    {
+      "name": "embedded frontend (no dev server)",
+      "ok": true,
+      "ms": 19,
+      "detail": {
+        "origin": "tauri://localhost"
+      }
+    },
+    {
+      "name": "fresh app-data has no configured library",
+      "ok": true,
+      "ms": 67,
+      "detail": {
+        "status": null,
+        "book_count": 0,
+        "notices": [],
+        "library_id": null,
+        "library_name": null,
+        "library_path": null
+      }
+    },
+    {
+      "name": "index fixture library through the first-run form",
+      "ok": true,
+      "ms": 565,
+      "detail": {
+        "titles": [
+          "Zephyr Lantern Field Notes",
+          "basalt ledger handbook",
+          "quillfeather orbit atlas"
+        ],
+        "ms": 474
+      }
+    },
+    {
+      "name": "search a known fixture",
+      "ok": true,
+      "ms": 224,
+      "detail": {
+        "titles": [
+          "quillfeather orbit atlas"
+        ],
+        "ms": 207
+      }
+    },
+    {
+      "name": "open PDF fixture",
+      "ok": true,
+      "ms": 348,
+      "detail": {
+        "page": "1"
+      }
+    },
+    {
+      "name": "turn a page",
+      "ok": true,
+      "ms": 154,
+      "detail": {
+        "page": "2"
+      }
+    },
+    {
+      "name": "position persisted across the Tauri boundary",
+      "ok": true,
+      "ms": 61,
+      "detail": {
+        "position": "2",
+        "state_files": 2
+      }
+    },
+    {
+      "name": "return to Library and search again (responsive)",
+      "ok": true,
+      "ms": 365,
+      "detail": {
+        "titles": [
+          "Zephyr Lantern Field Notes"
+        ],
+        "ms": 222
+      }
+    },
+    {
+      "name": "open EPUB fixture and turn a page",
+      "ok": true,
+      "ms": 542,
+      "detail": {
+        "opened": "epubcfi(/6/2!/4/2/1:0)",
+        "position": "epubcfi(/6/2!/4/14/1:0)"
+      }
+    },
+    {
+      "name": "Library search clears back to the full fixture library",
+      "ok": true,
+      "ms": 216,
+      "detail": {
+        "titles": [
+          "Zephyr Lantern Field Notes",
+          "basalt ledger handbook",
+          "quillfeather orbit atlas"
+        ],
+        "ms": 108
+      }
+    },
+    {
+      "name": "close app (session 1)",
+      "ok": true,
+      "ms": 261
+    },
+    {
+      "name": "relaunch same packaged binary",
+      "ok": true,
+      "ms": 1313
+    },
+    {
+      "name": "library persisted without re-selecting a folder",
+      "ok": true,
+      "ms": 407,
+      "detail": {
+        "titles": [
+          "Zephyr Lantern Field Notes",
+          "basalt ledger handbook",
+          "quillfeather orbit atlas"
+        ],
+        "ms": 206
+      }
+    },
+    {
+      "name": "PDF reopens at the recorded page",
+      "ok": true,
+      "ms": 620,
+      "detail": {
+        "page": "2"
+      }
+    },
+    {
+      "name": "EPUB position survives restart",
+      "ok": true,
+      "ms": 787,
+      "detail": {
+        "position": "epubcfi(/6/2!/4/14/1:0)",
+        "reopened": "epubcfi(/6/2!/4/14/1:0)"
+      }
+    },
+    {
+      "name": "close app (session 2)",
+      "ok": true,
+      "ms": 137
+    }
+  ],
+  "cleanup": {
+    "run_marker": "pbk-e2e-39e71292-e053-47d9-876a-0d6b55dbac17",
+    "marked_before": 2,
+    "session_closed": false,
+    "driver_started": true,
+    "driver_exited": true,
+    "signalled": [],
+    "leftover": [],
+    "checked_at": "2026-10-05T08:30:18.588Z"
+  },
+  "result": "pass",
+  "exit_code": 0,
+  "app_data_dir": "/tmp/pbk-e2e-39e71292-e053-47d9-876a-0d6b55dbac17-GnA1nl/data",
+  "library_dir": "/tmp/pbk-e2e-39e71292-e053-47d9-876a-0d6b55dbac17-GnA1nl/library",
+  "webview_origin": "tauri://localhost",
+  "app_data_listing": [
+    {
+      "path": "com.nadeemramli.properbooky/CacheStorage/salt",
+      "bytes": 8
+    },
+    {
+      "path": "com.nadeemramli.properbooky/WebKitCache/Version 17/salt",
+      "bytes": 8
+    },
+    {
+      "path": "com.nadeemramli.properbooky/hsts-storage.sqlite",
+      "bytes": 12288
+    },
+    {
+      "path": "com.nadeemramli.properbooky/libraries/20c2cb23-52f4-4b55-abd5-311de5a1a5d1/library.db",
+      "bytes": 69632
+    },
+    {
+      "path": "com.nadeemramli.properbooky/libraries/20c2cb23-52f4-4b55-abd5-311de5a1a5d1/library.db-shm",
+      "bytes": 32768
+    },
+    {
+      "path": "com.nadeemramli.properbooky/libraries/20c2cb23-52f4-4b55-abd5-311de5a1a5d1/library.db-wal",
+      "bytes": 0
+    },
+    {
+      "path": "com.nadeemramli.properbooky/mediakeys/v1/salt",
+      "bytes": 8
+    },
+    {
+      "path": "com.nadeemramli.properbooky/settings.json",
+      "bytes": 379
+    },
+    {
+      "path": "com.nadeemramli.properbooky/settings.previous.json",
+      "bytes": 345
+    },
+    {
+      "path": "com.nadeemramli.properbooky/storage/salt",
+      "bytes": 8
+    }
+  ],
+  "library_state_listing": [
+    {
+      "path": "identities.json",
+      "bytes": 1133
+    },
+    {
+      "path": "state/asset-087087f9-bb51-4e0f-ab8c-acc2b7f10b88.json",
+      "bytes": 91
+    },
+    {
+      "path": "state/asset-62eee27d-032a-4e46-a345-609028c6e12e.json",
+      "bytes": 102
+    }
+  ],
+  "duration_ms": 10007
+}
