@@ -1,0 +1,312 @@
+{
+  "batch_id": "pbk21-drop-safety",
+  "kind": "bounded safety repair (review repair after PR #27 design)",
+  "issue_keys": [
+    "PBK-21"
+  ],
+  "dispatch": "Coordinator approval recorded in Direct PBK-21 v12 under active claim codex-product-coordinator; chat lifetime objective 2/2 (final).",
+  "base_sha": "561881958b7552b62d7bf409789b1da892ca501c",
+  "tested_sha": "2e5fb8932c81c38f1e097e64e892947c3908f6e6",
+  "handoff_sha": "the evidence-only commit after tested_sha (named in the PR/response; a report cannot contain its own hash)",
+  "branch": "claude/pbk-21-drop-safety",
+  "pr_url": "https://github.com/nadeemramli/properbooky/pull/28",
+  "model_observed": "claude-opus-5-5 (get_session before edits: configured_model, session_context.model, last_served_model)",
+  "environment": "Linux 6.18 cloud container; Rust lib tests + packaged debug .deb under xvfb/tauri-driver/WebKitWebDriver (root with DAC capabilities dropped for E2E); synthetic libraries only; no owner data, no downloads, no network use by tests",
+  "plan": ".agent-delivery/batches/pbk21-drop-safety/plan.md (committed f7f7544 before code)",
+  "commits": {
+    "f7f7544": "plan",
+    "f638b52": "tests (red)",
+    "ea78f1a": "acquire.rs repair",
+    "81cf1c3": "Acquire panel reasons",
+    "2e5fb89": "packaged journey + CI step"
+  },
+  "criteria": [
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Reject symlinks and non-regular Drop candidates",
+      "action": "Symlink to a file outside the library, dangling symlink, folder named *.pdf in Drop; Process Drop (service and packaged UI)",
+      "expected": "left-unsafe with reason; link/folder untouched in Drop; profile unlinked; outside bytes unchanged",
+      "observed": "RED at f638b52/base binary: symlink filed and linked to outside bytes; dangling link and folder abort the batch (Err). GREEN at 2e5fb89: left-unsafe, untouched, unlinked; UI lists 'not a plain file; left in Drop (it is a link…)'",
+      "verdict": "Pass",
+      "platform": "Linux 6.18 cloud container; Rust lib tests + packaged debug .deb under xvfb/tauri-driver/WebKitWebDriver (root with DAC capabilities dropped for E2E)",
+      "evidence": [
+        "evidence/test-runs.txt (symlink_to_a_file_outside…, a_dangling_symlink…, a_folder_named_like_a_book…)",
+        "evidence/e2e-acquisition.json S1",
+        "evidence/e2e-acquisition-base.json S1 (red)"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Reject empty and incomplete candidates",
+      "action": "0-byte EPUB, PDF without %%EOF (300-byte prefix of a fixture), zip without end-of-central-directory",
+      "expected": "left-incomplete with reason; bytes unchanged in Drop",
+      "observed": "RED: all filed. GREEN: left-incomplete ('the file is empty', 'the PDF has no end marker yet…', 'the EPUB's zip directory is missing…'); hash re-checked after publication; size/mtime must not change while hashing",
+      "verdict": "Pass",
+      "platform": "Linux 6.18 cloud container; Rust lib tests + packaged debug .deb under xvfb/tauri-driver/WebKitWebDriver (root with DAC capabilities dropped for E2E)",
+      "evidence": [
+        "evidence/test-runs.txt (an_empty_file…, a_pdf_without_its_end_marker…, an_epub_without_its_zip_directory…)",
+        "evidence/e2e-acquisition.json S1"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Confine paths to the bound library",
+      "action": "Drop, Catalog, or Library/00 Inbox replaced by a link to another folder; forged intent record with ../ paths",
+      "expected": "run refused before anything moves; forged record reported, never acted on, kept",
+      "observed": "RED: linked Drop/Catalog/Inbox followed (Ok, writes outside). GREEN: Err before any move, outside untouched; forged record -> error 'outside the library', outside file unchanged. Traversal-shaped titles stay in the inbox (PR #27 D8, names via import_filename)",
+      "verdict": "Pass",
+      "platform": "Linux 6.18 cloud container; Rust lib tests + packaged debug .deb under xvfb/tauri-driver/WebKitWebDriver (root with DAC capabilities dropped for E2E)",
+      "evidence": [
+        "evidence/test-runs.txt (a_linked_drop_folder…, a_linked_catalog…, a_linked_inbox…, an_intent_that_escapes_the_library…)"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Safe destination names (no hidden, over-long or reserved names)",
+      "action": "Leading-dot title; 'Author - Title' > 255 bytes; ordinary title",
+      "expected": "visible, indexed, <=255-byte names; ordinary names unchanged",
+      "observed": "RED: '.hidden…pdf' (not indexed); ENAMETOOLONG aborted the batch. GREEN: 'hidden Leading Dot Fixture.pdf' indexed; long name bounded and filed with its neighbour; ordinary 'Author - Title.ext' unchanged (control)",
+      "verdict": "Pass",
+      "platform": "Linux 6.18 cloud container; Rust lib tests + packaged debug .deb under xvfb/tauri-driver/WebKitWebDriver (root with DAC capabilities dropped for E2E)",
+      "evidence": [
+        "evidence/test-runs.txt (a_leading_dot_title…, a_name_longer_than…, ordinary_names_are_unchanged)"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "No-clobber publication",
+      "action": "Occupied destination; publication primitive",
+      "expected": "occupant and dropped file byte-identical; left-conflict with reason; publication cannot replace an existing file",
+      "observed": "Occupied case passes before and after (control) and in the packaged UI. The replacing fs::rename is gone: hard_link (atomic, fails if the name exists) or a verified temp copy + persist_noclobber. A concurrent-creation race is guaranteed by these primitives, not reproduced by a test",
+      "verdict": "Pass",
+      "platform": "Linux 6.18 cloud container; Rust lib tests + packaged debug .deb under xvfb/tauri-driver/WebKitWebDriver (root with DAC capabilities dropped for E2E)",
+      "evidence": [
+        "evidence/test-runs.txt (an_occupied_destination…)",
+        "evidence/e2e-acquisition.json S1",
+        "desktop/src-tauri/src/acquire.rs publish()"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Preserve originals",
+      "action": "Filed, failed, returned and unsafe files",
+      "expected": "original bytes and name recoverable in every path",
+      "observed": "original_filename recorded on filing and on recovery; unsafe/incomplete/conflicting/unmatched files byte-identical in Drop; the intent record keeps the original name through a failed catalog write; a profile linked elsewhere meanwhile gets the file returned to Drop under its original name",
+      "verdict": "Pass",
+      "platform": "Linux 6.18 cloud container; Rust lib tests + packaged debug .deb under xvfb/tauri-driver/WebKitWebDriver (root with DAC capabilities dropped for E2E)",
+      "evidence": [
+        "evidence/e2e-acquisition.json S1,S3,S4",
+        "evidence/test-runs.txt (a_profile_linked_elsewhere…)"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Per-file errors (one file never fails the run)",
+      "action": "Dangling link, over-long name, unreadable file (non-root), failed catalog write, each beside a healthy file",
+      "expected": "that file's outcome carries the error; the neighbour is filed; the report is returned",
+      "observed": "RED: Err for the whole run, report lost. GREEN: per-file outcome, neighbour filed. The unreadable-file test returns early as root, so it passed only on CI's non-root 'desktop' job (cargo test), not locally",
+      "verdict": "Pass",
+      "platform": "Linux 6.18 cloud container; Rust lib tests + packaged debug .deb under xvfb/tauri-driver/WebKitWebDriver (root with DAC capabilities dropped for E2E)",
+      "evidence": [
+        "evidence/test-runs.txt",
+        "CI desktop job"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "No double link (one book, two formats, one run)",
+      "action": "PDF and EPUB of one profile in one Process run",
+      "expected": "linked once; second format left-conflict in Drop; nothing orphaned",
+      "observed": "RED: both filed; the second link overwrote the first and orphaned a file. GREEN: one link, other format left in Drop",
+      "verdict": "Pass",
+      "platform": "Linux 6.18 cloud container; Rust lib tests + packaged debug .deb under xvfb/tauri-driver/WebKitWebDriver (root with DAC capabilities dropped for E2E)",
+      "evidence": [
+        "evidence/test-runs.txt (two_formats_of_one_book…)"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Crash/retry recovery between move and catalog persistence",
+      "action": "Panic (crash) at IntentWritten/Linked/Published/CatalogWritten, then a fresh-connection run; failed catalog write (observer error; read-only Catalog/ in the packaged app) then restart + retry",
+      "expected": "next run converges: linked, hashed, available, original name recorded, Drop empty, one file, no intent; further retry changes nothing",
+      "observed": "RED: recovery tests do not compile (no seam); PR #27 probe D7c showed the orphan. GREEN: all four crash points converge and retry is byte-idempotent; packaged: pending with intent -> restart -> 'Filed 1' recovered -> retry 'Filed 0' and disk unchanged",
+      "verdict": "Pass",
+      "platform": "Linux 6.18 cloud container; Rust lib tests + packaged debug .deb under xvfb/tauri-driver/WebKitWebDriver (root with DAC capabilities dropped for E2E)",
+      "evidence": [
+        "evidence/test-runs.txt (a_crash_at_any_step…, a_failed_catalog_write…)",
+        "evidence/e2e-acquisition.json S3-S5"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "UI/client -> service -> filesystem/index journey with restart",
+      "action": "Packaged app: first-run index, Acquire -> Process Drop folder, close/relaunch",
+      "expected": "filed book shows On the shelf; catalog frontmatter and disk agree; state survives restart; every non-filed file named with its reason",
+      "observed": "PASS twice at 2e5fb89 (14/14 steps); FAIL at base 5618819 (S1). Smoke journey PASS",
+      "verdict": "Pass",
+      "platform": "Linux 6.18 cloud container; Rust lib tests + packaged debug .deb under xvfb/tauri-driver/WebKitWebDriver (root with DAC capabilities dropped for E2E)",
+      "evidence": [
+        "evidence/e2e-acquisition.json",
+        "evidence/e2e-acquisition-rerun.json",
+        "evidence/e2e-acquisition-base.json",
+        "evidence/e2e-smoke.json"
+      ]
+    },
+    {
+      "issue_key": "PBK-21",
+      "criterion": "Policy unchanged: ranking, destination, matching, search target, day rollover, watcher",
+      "action": "Diff review + existing suites",
+      "expected": "no change",
+      "observed": "acquire.rs QUEUE_SQL/set_status unchanged; matcher.rs, scanner.rs, lib.rs untouched; destination stays Library/00 Inbox; candidate set unchanged; search URL untouched; no watcher; acquire_test and matcher_test pass unchanged except the Drop PDF fixture gaining %%EOF",
+      "verdict": "Pass",
+      "platform": "Linux 6.18 cloud container; Rust lib tests + packaged debug .deb under xvfb/tauri-driver/WebKitWebDriver (root with DAC capabilities dropped for E2E)",
+      "evidence": [
+        "git diff 561881958b75..2e5fb893"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "command": "cargo test --no-fail-fast --test acquire_safety_test --test acquire_recovery_test --test acquire_test (at f638b52)",
+      "exit_code": 101,
+      "result": "RED: acquire_recovery_test does not compile (unresolved import acquire::Step)",
+      "evidence": "evidence/test-runs.txt"
+    },
+    {
+      "command": "cargo test --no-fail-fast --test acquire_safety_test --test acquire_test (at f638b52)",
+      "exit_code": 101,
+      "result": "RED: 12 failed, 5 passed (controls) / acquire_test 3 passed",
+      "evidence": "evidence/test-runs.txt"
+    },
+    {
+      "command": "cd desktop/src-tauri && cargo test --no-fail-fast (at 2e5fb89)",
+      "exit_code": 0,
+      "result": "21 binaries: 119 passed, 0 failed, 1 ignored (pre-existing)",
+      "evidence": "evidence/test-runs.txt"
+    },
+    {
+      "command": "cd desktop && npx tsc --noEmit -p . (at 2e5fb89)",
+      "exit_code": 0,
+      "result": "clean",
+      "evidence": "session log"
+    },
+    {
+      "command": "cd desktop && npm run fixtures:check (at 2e5fb89)",
+      "exit_code": 0,
+      "result": "fixtures current",
+      "evidence": "session log"
+    },
+    {
+      "command": "cd desktop && npx tauri build --debug --bundles deb (at 2e5fb89)",
+      "exit_code": 0,
+      "result": "deb sha256 0bab975734e129b1a68e682fde105605cdcafe63011b48af49c33792e9db8ea5; binary sha256 2a701c6f9df73451ac99d2fec09dcb2802af2a878a3529da41b86b7e59faeb07",
+      "evidence": "session log"
+    },
+    {
+      "command": "capsh --drop=cap_dac_override,cap_dac_read_search -- -c 'xvfb-run -a node e2e-desktop/acquisition.e2e.mjs' (E2E_APP = extracted 2e5fb89 binary), twice",
+      "exit_code": 0,
+      "result": "PASS 14/14 steps, both runs",
+      "evidence": "evidence/e2e-acquisition.json, evidence/e2e-acquisition-rerun.json"
+    },
+    {
+      "command": "same journey, E2E_APP = base 5618819 binary (built in a scratch worktree)",
+      "exit_code": 1,
+      "result": "RED: FAIL at S1 'Filed 4, left 2 in Drop'",
+      "evidence": "evidence/e2e-acquisition-base.json"
+    },
+    {
+      "command": "capsh … xvfb-run -a node e2e-desktop/run-packaged.mjs (2e5fb89 binary)",
+      "exit_code": 0,
+      "result": "smoke PASS",
+      "evidence": "evidence/e2e-smoke.json"
+    }
+  ],
+  "ci": {
+    "run_url": "https://github.com/nadeemramli/properbooky/actions/runs/37284079000",
+    "head_sha": "2e5fb8932c81c38f1e097e64e892947c3908f6e6",
+    "conclusion": "success: all 7 checks (desktop [tsc + cargo test, non-root], desktop-e2e [incl. the new 'PBK-21 Drop safety journey' step, completed 09:00:08Z], web, web-e2e, web-local-supabase, library-mcp, Vercel preview comments); evidence artifact desktop-e2e-evidence id 11334847292",
+    "final_head_ci": "the evidence-only head after this commit re-runs CI; its conclusion is reported in the PR/response"
+  },
+  "artifacts": [
+    {
+      "path": ".agent-delivery/batches/pbk21-drop-safety/plan.md",
+      "sha256": "9cc217e7bc0cc30e9980c2393ac4de9bcee089af15c2e5b1c49f07893b8d4f32",
+      "source_sha": "2e5fb8932c81c38f1e097e64e892947c3908f6e6"
+    },
+    {
+      "path": ".agent-delivery/batches/pbk21-drop-safety/evidence/test-runs.txt",
+      "sha256": "04396536d21b5163d55c4a408f7864a6550ca5b45f913bf77ffe2f71b2c9d2e0",
+      "source_sha": "2e5fb8932c81c38f1e097e64e892947c3908f6e6"
+    },
+    {
+      "path": ".agent-delivery/batches/pbk21-drop-safety/evidence/e2e-acquisition.json",
+      "sha256": "913f8e1cf8e14c5796fbc7f33e98506c1d1c0f07e4da3c19051de255f4f119ae",
+      "source_sha": "2e5fb8932c81c38f1e097e64e892947c3908f6e6"
+    },
+    {
+      "path": ".agent-delivery/batches/pbk21-drop-safety/evidence/e2e-acquisition-rerun.json",
+      "sha256": "c524594de5539b03831f902b4c0fb59fb852a47d4bcfea677decf43f045f1a11",
+      "source_sha": "2e5fb8932c81c38f1e097e64e892947c3908f6e6"
+    },
+    {
+      "path": ".agent-delivery/batches/pbk21-drop-safety/evidence/e2e-acquisition-base.json",
+      "sha256": "d394ec2497403a1923b4138aaba8c975d153b2eea16df9a735b17d0987f196eb",
+      "source_sha": "2e5fb8932c81c38f1e097e64e892947c3908f6e6"
+    },
+    {
+      "path": ".agent-delivery/batches/pbk21-drop-safety/evidence/e2e-smoke.json",
+      "sha256": "fa1854078416cdfeea90a3873193138a99d05d755dbcf261390f2754aa9bb4a2",
+      "source_sha": "2e5fb8932c81c38f1e097e64e892947c3908f6e6"
+    }
+  ],
+  "local_verification_required": [
+    "Windows: hard_link publication on NTFS; copy + persist_noclobber fallback on FAT/exFAT or a Drop on another volume",
+    "Windows: a download the browser still holds open (rename/remove sharing violation -> pending; next run finishes it)",
+    "Windows: junctions/reparse points as Drop/Catalog/Inbox (symlink_metadata coverage), reserved names via import_filename, read-only Catalog failure + restart + retry in the installed app",
+    "Coordinator walkthrough on a disposable library: drop a complete and a partial download, Process, restart, Process again"
+  ],
+  "review_walkthrough": [
+    "Disposable library with a Catalog profile 'Author - Title' (status queued) and its EPUB saved into Drop under a download-style name, plus a 0-byte file and a half-copied PDF -> Acquire -> Process Drop folder: one filed and On the shelf; the others listed under 'Not filed' with reasons and untouched in Drop (C1, C2, C6)",
+    "Make Catalog read-only, drop another book, Process: 'filing not finished'; restore, restart app, Process: filed, original name in the profile (C9)"
+  ],
+  "known_risks": [
+    "Completeness is structural (PDF %%EOF within the last 1024 bytes; EPUB zip end record). A damaged PDF lacking %%EOF stays in Drop with a reason; there is no 'file anyway'",
+    "A pending filing sits unlinked in Library/00 Inbox until the next Process Drop folder (recovery runs there, not at library open)",
+    "Pre-existing, unchanged: the library scan fails entirely on a ':' in any file name (identity::relative/safe_join) or on an unreadable file, so the Process Drop command's pre-scan fails before Drop filing runs",
+    "Unsupported formats in Drop are still not reported (PR #27 D13; out of scope)"
+  ],
+  "coordinator_findings": [
+    {
+      "id": "F1",
+      "criterion": "Per-file errors / preserve originals at the command level",
+      "reproduction": "Save 'Title: Subtitle.pdf' into <library>/Drop on Linux/macOS -> Process Drop folder -> the command's pre-scan fails: 'expected a library-relative path: Drop/Title: Subtitle.pdf'; nothing is filed; Rescan fails the same way",
+      "options": [
+        "A: identity::safe_join accepts ':' except as a Windows drive prefix",
+        "B: scanner skips and reports files it cannot register instead of failing the scan"
+      ],
+      "recommendation": "B (keeps identities conservative, makes one odd file non-fatal); separate issue, outside this repair"
+    },
+    {
+      "id": "F2",
+      "criterion": "Per-file errors at the command level",
+      "reproduction": "An unreadable (mode 000) file anywhere in the library, including Drop -> Rescan/Process Drop fail with EACCES from identity registration",
+      "options": [
+        "same as F1 B"
+      ],
+      "recommendation": "fold into the F1 issue"
+    },
+    {
+      "id": "F3",
+      "criterion": "Reject incomplete candidates",
+      "reproduction": "A wanted PDF whose trailer lacks %%EOF stays in Drop as left-incomplete indefinitely",
+      "options": [
+        "A: keep strict (current)",
+        "B: add an explicit per-file 'file anyway' action (needs UI decision)"
+      ],
+      "recommendation": "A until a real case appears"
+    }
+  ],
+  "next_eligible_batch": [
+    "none in this chat (lifetime 2/2). PR #27 decisions D-A..D-G remain for coordinator adjudication."
+  ]
+}
