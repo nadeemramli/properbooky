@@ -341,7 +341,7 @@ try {
         const panel = document.querySelector(p);
         const error = panel?.querySelector(".acquire-drop > p.status")?.textContent.trim();
         if (!error) return null;
-        return { error, report: Boolean(panel.querySelector(".acquire-report")), oldOutcomes: panel.querySelectorAll('ul[aria-label="Not filed"] li').length };
+        return { message: error, report: Boolean(panel.querySelector(".acquire-report")), oldOutcomes: panel.querySelectorAll('ul[aria-label="Not filed"] li').length };
       }, PANEL), 30000);
       check(!shown.report && shown.oldOutcomes === 0, `stale report beside error: ${JSON.stringify(shown)}`);
       return shown;
